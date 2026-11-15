@@ -137,7 +137,7 @@ const alinear = (n: number) => (4 - (n % 4)) % 4
  * hijas llevan otro nombre, de modo que encenderlas por nombre deja de ser
  * posible y la capa no aparece nunca.
  */
-export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8Array {
+export function escribirGlb(objetos: ObjetoParaGlb[], generador: string, extrasDeLaEscena?: Record<string, unknown>): Uint8Array {
   const trozos: Uint8Array[] = []
   let desplazamiento = 0
 
@@ -288,7 +288,9 @@ export function escribirGlb(objetos: ObjetoParaGlb[], generador: string): Uint8A
     asset: { version: '2.0', generator: generador },
     ...(usadas.size > 0 ? { extensionsUsed: [...usadas].sort() } : {}),
     scene: 0,
-    scenes: [{ name: 'escena', nodes: nodes.map((_, i) => i) }],
+    // Los extras de la escena llegan a quien abre el archivo con three como `userData` de la escena. Sin ellos
+    // no se escribe la clave, y el archivo sale byte a byte como siempre.
+    scenes: [{ name: 'escena', nodes: nodes.map((_, i) => i), ...(extrasDeLaEscena && Object.keys(extrasDeLaEscena).length > 0 ? { extras: extrasDeLaEscena } : {}) }],
     nodes,
     meshes,
     materials,

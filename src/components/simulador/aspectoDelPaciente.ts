@@ -137,7 +137,8 @@ export const DERMIS_MM = 2
  *
  * Y la pared de una herida (D-333), que es la piel por dentro: el borde de la epidermis, la dermis blanca rosada con el
  * punteado de los capilares que sangran, y desde `DERMIS_MM` la grasa, amarilla, en lóbulos de un par de milímetros
- * separados por tabiques blanquecinos, y brillante, porque está mojada y es aceitosa. `vPared` es 1 más los milímetros
+ * separados por tabiques blanquecinos, y húmeda, con más brillo que la piel de fuera pero sin llegar a espejo: con la
+ * rugosidad en 0,22 el filo de la herida destellaba como vidrio (P-015). `vPared` es 1 más los milímetros
  * bajo la superficie (ver `ATRIBUTO_DE_LA_PARED`), así que la frontera entre las dos cae donde cae en cada sitio: donde
  * la piel se adelgazó porque la grasa no cabía, la pared es casi toda dermis, como en la cabeza.
  */
@@ -168,7 +169,7 @@ if ( vPared > 0.5 ) {
   float enLaGrasa = smoothstep( ${DERMIS_MM.toFixed(1)} - 0.25, ${DERMIS_MM.toFixed(1)} + 0.25, hondo );
   diffuseColor.rgb = mix( diffuseColor.rgb, mix( dermis, grasa, enLaGrasa ), smoothstep( 0.04, 0.2, hondo ) );
   alturaDelAspecto = mix( 0.01 * capilar, 0.05 * ( lobulo - 0.5 ) - 0.03 * tabique, enLaGrasa ) * uUnidadesPorMm;
-  rugosidadDelAspecto = mix( - 0.12, - 0.3, enLaGrasa );
+  rugosidadDelAspecto = mix( - 0.1, - 0.16, enLaGrasa );
 }
 `
 
@@ -331,7 +332,10 @@ const PARAMETROS: Record<Aspecto, THREE.MeshPhysicalMaterialParameters> = {
   // El músculo expuesto está mojado: una capa de barniz encima de un rojo mate.
   musculo: { roughness: 0.62, clearcoat: 0.55, clearcoatRoughness: 0.18, specularIntensity: 0.5 },
   humedo: { roughness: 0.5, clearcoat: 0.45, clearcoatRoughness: 0.2, specularIntensity: 0.5 },
-  fascia: { roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.15, specularIntensity: 0.6, sheen: 0.2, sheenRoughness: 0.5, sheenColor: new THREE.Color(0.9, 0.9, 0.95) },
+  // La fascia es una lámina de colágeno mojada: nacarada, con el brillo ancho y apagado de una tela húmeda. Tuvo un
+  // barniz de 0,5 con rugosidad 0,15, que es el de un cristal: sobre el músculo pasaba, pero con la herida abierta sus
+  // caras brillaban como facetas talladas (P-015). El nácar lo pone ahora el terciopelo (`sheen`), que no hace espejo.
+  fascia: { roughness: 0.58, clearcoat: 0.16, clearcoatRoughness: 0.5, specularIntensity: 0.45, sheen: 0.4, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.95, 0.93, 0.9) },
   // La esclera, el iris y la córnea están cubiertos por la película lagrimal: un brillo casi de espejo y ancho de un punto.
   ojo: { roughness: 0.22, specularIntensity: 0.8, clearcoat: 1, clearcoatRoughness: 0.03 },
 }
@@ -348,15 +352,20 @@ export function materialConAspecto(
   { mmPorUnidad, unidadesPorMm, ejeFibra = [0, 1, 0], tapas }: { mmPorUnidad: number; unidadesPorMm: number; ejeFibra?: Vec3; tapas?: CampoDeLasTapas },
 ): THREE.MeshPhysicalMaterial {
   const base = original as THREE.MeshStandardMaterial
+  // La fascia va maciza (P-015). El archivo la trae al 45 o al 60 % (`opacidadDelModelo`, P-006), que en el taller
+  // sirve para estudiar lo que tapa; en una herida abierta, esa lámina translúcida tendida de un labio al otro era lo
+  // que el dueño veía «como cristal». En un paciente la fascia tapa: para ver el músculo se la corta o se apaga su capa.
+  const maciza = aspecto === 'fascia'
   const material = new THREE.MeshPhysicalMaterial({
     ...PARAMETROS[aspecto],
     name: original.name,
     color: base.color ? base.color.clone() : new THREE.Color(0xdddddd),
     metalness: 0,
-    transparent: original.transparent,
-    opacity: original.opacity,
+    transparent: maciza ? false : original.transparent,
+    opacity: maciza ? 1 : original.opacity,
     side: original.side,
-    depthWrite: original.depthWrite,
+    // Lo translúcido del archivo viene sin escribir profundidad; maciza, tiene que tapar lo que queda detrás.
+    depthWrite: maciza ? true : original.depthWrite,
     // El color por vértice del archivo (`COLOR_0`, D-227: codos, labios, iris). Se copia porque este material es nuevo:
     // el cargador solo lo enciende en el que él mismo creó, y sin esto la pigmentación se perdería al vestir la malla.
     vertexColors: base.vertexColors === true,

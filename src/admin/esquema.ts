@@ -20,6 +20,7 @@
 // este par no forma un ciclo en tiempo de ejecución.
 import { BLOQUES } from './bloques'
 import { CATEGORIAS_DE_INSTRUMENTAL } from '@/lib/instrumental'
+import { COLORES_DEL_PANO } from '@/lib/campoQuirurgico'
 import { TECHO_DE_FOTO_BYTES, TIPOS_DE_FOTO } from '@/lib/espaciosDeLaPagina'
 
 export interface Opcion {
@@ -761,6 +762,49 @@ export const Cirugias: EsquemaDeColeccion = {
             { valor: 'y', etiqueta: 'Y (vertical, lo habitual)' },
             { valor: 'x', etiqueta: 'X' },
             { valor: 'z', etiqueta: 'Z' },
+          ],
+        },
+        {
+          // El campo quirúrgico (P-014). Lo que el caso guarda del paño: si lo lleva, de qué color y qué deja
+          // descubierto. El colchón y la tela no se guardan: se arman al abrir el caso.
+          tipo: 'grupo',
+          nombre: 'pano',
+          etiqueta: 'Paño quirúrgico',
+          ayuda:
+            'El paciente va acostado en el colchón y tapado con un paño; por su ventana asoma lo que se opera. Solo en los modelos exportados del atlas. La ventana se ajusta en el simulador, arrastrando los bordes del marco sobre el modelo.',
+          campos: [
+            {
+              tipo: 'casilla',
+              nombre: 'apagado',
+              etiqueta: 'Sin colchón ni paño',
+              ayuda: 'El caso se ve como antes de haber paño: el modelo solo.',
+            },
+            {
+              tipo: 'seleccion',
+              nombre: 'color',
+              etiqueta: 'Color del paño',
+              medio: true,
+              // Sin `requerido`, y a propósito, aunque así el desplegable ofrezca «— sin definir —», que en un
+              // color no significa nada. Se probó obligatorio: un caso al que el color le llegaba vacío abría
+              // con «1 obligatorio sin llenar» en la pestaña, mientras el desplegable enseñaba «Azul» —el
+              // respaldo de `seleccionVisible`—. Un campo de adorno no puede ser un motivo nuevo por el que un
+              // caso de antes deje de publicarse. Vacío es azul: lo decide `panoDelCaso`.
+              porOmision: 'azul',
+              opciones: COLORES_DEL_PANO.map((c) => ({ valor: c.valor, etiqueta: c.etiqueta })),
+            },
+            {
+              // Cuatro milímetros que nadie sabría escribir: los pone el marco del editor del simulador. Oculto
+              // y no ausente, porque lo que el esquema no describe, `depurar` lo tira al guardar.
+              tipo: 'grupo',
+              nombre: 'zona',
+              etiqueta: 'Zona descubierta',
+              oculto: true,
+              campos: (['xMin', 'xMax', 'yMin', 'yMax'] as const).map((nombre) => ({
+                tipo: 'numero' as const,
+                nombre,
+                etiqueta: nombre,
+              })),
+            },
           ],
         },
         {

@@ -177,6 +177,10 @@ volver a medirlos, y `tests/unit/pigmentacion.test.ts` falla si alguno queda a m
 python scripts/atlas/pigmentacion/medir.py
 ```
 
+**El colchón y el paño del simulador, también (D-354).** `scripts/pabellon/` los fabrica en Blender sobre la piel del atlas, y
+lo que viaja queda en `public/pabellon/`. Si la piel se regenera, el paño se simula otra vez (unos once minutos por decúbito)
+y `tests/unit/campoEnLaEscena.test.ts` dice si el simulador lo sigue leyendo. Las órdenes, en `scripts/pabellon/LEEME.md`.
+
 **Capturas del modelo para la página y Figma (D-229).** `scripts/atlas/capturas/capas_y_cortes.py` dibuja en Blender (Cycles, fondo
 transparente) las capas del cuerpo —piel, sin piel, músculos, esqueleto, vasos, órganos— y los cortes sagital, coronal y axiales
 del `.blend` del atlas completo, y `portada-a-png.mjs` dibuja la portada de Figma. Los PNG van en `capturas-del-modelo/`, con su

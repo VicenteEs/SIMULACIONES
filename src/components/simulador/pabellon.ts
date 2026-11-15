@@ -23,9 +23,18 @@ import { esDeInterfazDelModelo } from './nodosDelModelo'
  */
 const INTENSIDAD_DE_LA_SALA = 0.3
 
+/** Cómo está acostado el paciente: hacia dónde queda «arriba» para él y hacia dónde su cabeza. Unitarios. */
+export interface PacienteAcostado {
+  arriba: THREE.Vector3
+  cabeza: THREE.Vector3
+}
+
 export interface Pabellon {
-  /** Pone la lámpara sobre el modelo, a su escala: el caso puede venir en metros o en milímetros. */
-  colocar(caja: THREE.Box3): void
+  /**
+   * Pone la lámpara sobre el modelo, a su escala: el caso puede venir en metros o en milímetros. Con el paciente
+   * acostado en el colchón (P-014) cuelga sobre la camilla, que es donde está en un pabellón.
+   */
+  colocar(caja: THREE.Box3, acostado?: PacienteAcostado): void
   /** La luz frontal va con quien mira. */
   seguirLaCamara(camara: THREE.Camera): void
   liberar(): void
@@ -60,14 +69,29 @@ export function montarElPabellon(escena: THREE.Scene, { sombras }: { sombras: bo
   const frontal = new THREE.DirectionalLight(0xfff8f0, 0.45)
   escena.add(cielo, lampara, lampara.target, satelite, satelite.target, frontal, frontal.target)
   const mira = new THREE.Vector3()
+  // Sin colchón, la lámpara cuelga «hacia +Y» y algo por delante: el modelo se mira de pie y esa es su parte de arriba.
+  const haciaLaLampara = new THREE.Vector3()
+  const haciaLaSatelite = new THREE.Vector3()
+  const lado = new THREE.Vector3()
   return {
-    colocar(caja) {
+    colocar(caja, acostado) {
       if (caja.isEmpty()) return
       const centro = caja.getCenter(new THREE.Vector3())
       const radio = Math.max(caja.getSize(new THREE.Vector3()).length() / 2, 1e-6)
-      lampara.position.copy(centro).addScaledVector(new THREE.Vector3(0.35, 1, 0.55).normalize(), radio * 2.6)
+      if (acostado) {
+        // Sobre la camilla, corrida hacia la cabeza y un poco a un lado: cae casi a plomo sobre el campo, como la de
+        // un pabellón, y lo que le queda de sesgo es lo que saca el relieve de los pliegues del paño. La satélite,
+        // del otro lado. Las dos van con el colchón: cuando al paciente se le da la vuelta, él rueda y ellas no.
+        lado.crossVectors(acostado.cabeza, acostado.arriba)
+        haciaLaLampara.copy(acostado.arriba).addScaledVector(acostado.cabeza, 0.6).addScaledVector(lado, 0.35).normalize()
+        haciaLaSatelite.copy(acostado.arriba).multiplyScalar(0.9).addScaledVector(acostado.cabeza, 0.3).addScaledVector(lado, -0.8).normalize()
+      } else {
+        haciaLaLampara.set(0.35, 1, 0.55).normalize()
+        haciaLaSatelite.set(-0.8, 0.9, 0.3).normalize()
+      }
+      lampara.position.copy(centro).addScaledVector(haciaLaLampara, radio * 2.6)
       lampara.target.position.copy(centro)
-      satelite.position.copy(centro).addScaledVector(new THREE.Vector3(-0.8, 0.9, 0.3).normalize(), radio * 2.8)
+      satelite.position.copy(centro).addScaledVector(haciaLaSatelite, radio * 2.8)
       satelite.target.position.copy(centro)
       const sombra = lampara.shadow.camera as THREE.PerspectiveCamera
       sombra.near = radio * 1.2

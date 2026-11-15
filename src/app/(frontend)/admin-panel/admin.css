@@ -1621,6 +1621,134 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
    ========================================================================== */
 .atlas-con-pestanas .atlas-marco { height: calc(100vh - 262px); }
 
+/* ==========================================================================
+   Las paletas del taller (P-014 E7).
+
+   El dueño pidió que la paleta «más clínica» del simulador se eligiera aquí y
+   que cambiara también el taller. El taller no tiene colores propios: usa los
+   tokens del sitio (`--papel`, `--tinta`, `--marca`…), así que una paleta es
+   volver a darlos dentro de su caja, y todo lo que cuelga de ella —los tres
+   paneles, las pestañas, los botones, el lienzo— cambia sin tocar una regla.
+   Las reglas del taller ya escribían el texto de lo que va lleno con
+   `--superficie` sobre `--marca` o sobre `--tinta`: en oscuro la marca pasa a
+   ser el color claro y el texto el oscuro, y el contraste se conserva solo.
+   Lo poco que no salía de los tokens va aparte, al final de este bloque.
+
+   Lo que no se hereda es lo que `:root` calculó con los tokens de entonces
+   (`--anillo-foco`, las sombras): se vuelve a declarar aquí.
+
+   «Original» no lleva bloque: es el panel como estaba. El resto del panel —la
+   barra lateral, las demás secciones— no cambia con ninguna.
+
+   Los contrastes los comprueba `tests/unit/temas.test.ts` leyendo esta hoja.
+   ========================================================================== */
+.atlas-con-pestanas[data-tema='clara'],
+.atlas-con-pestanas[data-tema='oscura-fria'],
+.atlas-con-pestanas[data-tema='verde-quirofano'] {
+  padding: var(--e-4);
+  border-radius: var(--r-lg);
+  background: var(--papel);
+  color: var(--tinta);
+  --anillo-foco: 0 0 0 3px var(--marca-tenue);
+}
+/* La caja de la paleta se come dos márgenes de dieciséis píxeles. */
+.atlas-con-pestanas[data-tema='clara'] .atlas-marco,
+.atlas-con-pestanas[data-tema='oscura-fria'] .atlas-marco,
+.atlas-con-pestanas[data-tema='verde-quirofano'] .atlas-marco { height: calc(100vh - 294px); }
+
+.atlas-con-pestanas[data-tema='clara'] {
+  --papel: #e9eef4;
+  --superficie: #ffffff;
+  --superficie-2: #f3f6fa;
+  --linea: #d3dce6;
+  --linea-suave: #e6ebf1;
+  --linea-fuerte: #76869a;
+  --tinta: #0f1c2e;
+  --pizarra: #3d4e63;
+  --mudo: #56677c;
+  --marca: #0a65a3;
+  --marca-honda: #084f80;
+  --marca-tenue: #e1eff8;
+  --cian: #1e9fe0;
+  --cian-tenue: #e2f3fc;
+  --lienzo-3d: #eef3f8;
+}
+
+.atlas-con-pestanas[data-tema='oscura-fria'],
+.atlas-con-pestanas[data-tema='verde-quirofano'] {
+  /* Para lo que pinta el navegador y no esta hoja: las barras de desplazamiento, la lista de un desplegable. */
+  color-scheme: dark;
+  --ambar: #f2c46d;
+  --ambar-tenue: #33291a;
+  --ambar-texto: #f2c46d;
+  --alerta: #ff9a8f;
+  --alerta-honda: #ffb4ab;
+  --alerta-tenue: #3a2220;
+  --verde: #5fd39b;
+  --verde-tenue: #173328;
+  --sombra-1: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.28);
+  --sombra-2: 0 2px 4px rgba(0, 0, 0, 0.32), 0 10px 28px rgba(0, 0, 0, 0.36);
+  --sombra-3: 0 12px 48px rgba(0, 0, 0, 0.5);
+}
+
+.atlas-con-pestanas[data-tema='oscura-fria'] {
+  --papel: #101418;
+  --superficie: #171c22;
+  --superficie-2: #1f262e;
+  --linea: #2c3540;
+  --linea-suave: #232b34;
+  --linea-fuerte: #73849a;
+  --tinta: #e8edf2;
+  --pizarra: #b4c0cc;
+  --mudo: #92a3b5;
+  --marca: #7cc7f2;
+  --marca-honda: #a6daf8;
+  --marca-tenue: #1c3445;
+  --cian: #7cc7f2;
+  --cian-tenue: #1c3445;
+  --lienzo-3d: #1c232b;
+}
+
+.atlas-con-pestanas[data-tema='verde-quirofano'] {
+  --papel: #0c1614;
+  --superficie: #12201d;
+  --superficie-2: #192b27;
+  --linea: #27403a;
+  --linea-suave: #1c302b;
+  --linea-fuerte: #6b9389;
+  --tinta: #e6f0ed;
+  --pizarra: #afc8c1;
+  --mudo: #8db0a7;
+  --marca: #6fd6bd;
+  --marca-honda: #98e6d3;
+  --marca-tenue: #173a33;
+  --cian: #6fd6bd;
+  --cian-tenue: #173a33;
+  --lienzo-3d: #152824;
+}
+
+/* Lo que no sale de los tokens. No se encontró leyendo la hoja sino midiendo en el navegador, paleta por
+   paleta, el contraste de cada texto contra el fondo que de verdad tiene debajo.
+   - El botón lleno del panel (`ui.css`) escribe en blanco fijo y no con `--superficie`: sobre la marca clara de
+     las dos paletas oscuras, «Guardar preparación» quedaba en 1,9:1.
+   - El marcador de un campo vacío lo pinta el navegador en un gris pensado para papel blanco: 3,7:1 en oscuro.
+     Va con `:where()` para no pesar más que la regla de `editor.css` que usa el marcador para enseñar el
+     valor elegido de un selector.
+   - Los rótulos de medida llevan su magenta propio, que pide letra blanca en cualquier paleta. */
+.atlas-con-pestanas:is([data-tema='clara'], [data-tema='oscura-fria'], [data-tema='verde-quirofano']) :is(.admin-btn-primary, .admin-btn-danger) { color: var(--superficie); }
+.atlas-con-pestanas:is([data-tema='oscura-fria'], [data-tema='verde-quirofano']) .admin-btn-danger:hover:not(:disabled) { background: var(--alerta-honda); }
+.atlas-con-pestanas:where([data-tema='clara'], [data-tema='oscura-fria'], [data-tema='verde-quirofano']) :where(input, textarea)::placeholder { color: var(--mudo); opacity: 1; }
+.atlas-con-pestanas:is([data-tema='oscura-fria'], [data-tema='verde-quirofano']) :is(.atlas-marca-distancia, .atlas-marca-angulo) { color: #fff; }
+
+/* El selector de paleta, a la derecha de las pestañas del taller. */
+.atlas-cabecera-del-taller { display: flex; align-items: flex-end; gap: var(--e-4); }
+.atlas-cabecera-del-taller > :first-child { flex: 1; min-width: 0; }
+.atlas-paleta { display: flex; align-items: center; gap: var(--e-2); padding-bottom: 6px; font-size: var(--t-sm); color: var(--pizarra); white-space: nowrap; }
+.atlas-paleta select { min-height: 32px; padding: 0 var(--e-2); font: inherit; color: var(--tinta); background: var(--superficie); border: 1px solid var(--linea-fuerte); border-radius: var(--r-sm); }
+.atlas-paleta select:focus-visible { outline: none; border-color: var(--marca); box-shadow: var(--anillo-foco); }
+.atlas-paleta-aviso { color: var(--alerta); }
+@media (max-width: 720px) { .atlas-cabecera-del-taller { flex-direction: column; align-items: stretch; } }
+
 .instr-cabecera { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-bottom: 1px solid var(--linea); }
 .instr-avance { height: 6px; border-radius: 3px; background: var(--linea-suave); overflow: hidden; }
 .instr-avance > span { display: block; height: 100%; background: var(--marca); transition: width 0.3s; }
@@ -1659,4 +1787,4 @@ textarea.campo-control { resize: vertical; line-height: 1.55; }
 .instr-muestra { width: 10px; height: 10px; border: 1px solid var(--linea); border-radius: 2px; flex: none; }
 .instr-datos { margin: 0 0 8px; padding-left: 18px; font-size: var(--t-sm); }
 .instr-articulaciones { display: flex; flex-direction: column; gap: 4px; }
-@media (max-width: 1100px) { .atlas-con-pestanas .atlas-marco { height: auto; } }
+@media (max-width: 1100px) { .atlas-con-pestanas .atlas-marco, .atlas-con-pestanas[data-tema] .atlas-marco { height: auto; } }

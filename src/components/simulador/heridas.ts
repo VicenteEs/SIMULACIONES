@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { afilado, componerCortes, cortarMalla, type MallaCortada, type Vec3 } from '@/lib/corteDeMalla'
+import { afilado, componerCortes, cortarMalla, husoDeLaGrieta, retraccionDelVertice, type MallaCortada, type Vec3 } from '@/lib/corteDeMalla'
+import { puntaDelHuso, topeDeLaRetraccionMm } from '@/lib/retraccionDelCorte'
 
 /**
  * La herida de una capa de partes blandas dentro de la escena (D-167).
@@ -32,9 +33,33 @@ export interface HeridaEnCapa {
    * un separador o una pinza (`sostenida`).
    */
   cinta: THREE.Mesh
-  /** Cuánto está abierto cada labio, en unidades del mundo (el máximo, si hay perfil). */
+  /**
+   * Cuánto aparta cada labio lo que lo sostiene —un separador, una pinza, la rueda—, en unidades del mundo (el máximo,
+   * si hay perfil). No cuenta lo que la herida se abre sola: eso es `reposo`.
+   */
   mas: number
   menos: number
+  /**
+   * Lo que cada labio se retrae solo en lo más ancho de la herida, en unidades del mundo (P-015): la tensión del
+   * tejido, que lo aparta en cuanto se corta. Lo fija el corte y no cambia; lo que cambia es cuánto de él hay ahora
+   * (`tension`, `asentada`). Cero en un corte que no la pide, que queda con los labios pegados como antes de P-015.
+   */
+  reposo: number
+  /**
+   * Cuánta de esa retracción queda, de 0 a 1. La sutura la lleva a cero al cerrar: el hilo es lo que vence a la
+   * tensión del tejido. Sin puntadas, 1.
+   */
+  tension: number
+  /**
+   * Cuánto se ha abierto ya la herida recién hecha, de 0 a 1: el labio no aparece apartado, se va apartando detrás de
+   * la hoja. Lo sube el lienzo en un tercio de segundo; fuera de ese rato, 1.
+   */
+  asentada: number
+  /**
+   * La fracción del largo de la grieta que tarda el huso de la retracción en abrirse del todo desde cada punta
+   * (`husoDeLaGrieta`): la mitad en una incisión corta, que es un solo arco, y menos en una larga.
+   */
+  punta: number
   /**
    * Cuánto abre cada labio en cada punto de la herida, en unidades del mundo, si
    * la apertura no es pareja (separadores colocados en un punto). Sin perfil, la
@@ -51,6 +76,12 @@ export interface HeridaEnCapa {
   unidadesPorMm: number
   /** El largo de la incisión, en unidades del mundo. */
   largo: number
+  /**
+   * Lo que tardó el corte de esta malla, en milisegundos: afinar la franja, partirla y rehacer su geometría. No lo usa
+   * nada del simulador; lo lee la sonda del lienzo, para que el coste de un corte se pueda medir sobre el modelo de
+   * verdad y no haya que estimarlo (P-015).
+   */
+  tardoMs: number
   /**
    * A qué incisión pertenece. Una incisión puede cortar varias mallas de su capa (cada una da una herida), y en una
    * misma capa puede haber varias incisiones (P-003 E4): los separadores y las pinzas pertenecen a una de ellas.
@@ -91,6 +122,22 @@ export interface ParametrosDeCorte {
    * mundo: con él, el corte levanta la pared de cada labio (D-333). Lo pide la piel (`GROSOR_MAXIMO_DE_LA_PIEL_MM`).
    */
   pared?: number
+  /**
+   * Lo que cada labio se retrae solo al cortar, en lo más ancho, en unidades del mundo (P-015). Lo calcula quien corta,
+   * con el plano y el largo de la incisión (`retraccionDelLabioMm`). Sin él, la herida queda cerrada hasta que algo la abra.
+   */
+  retraccion?: number
+  /**
+   * Lo que mide como mucho una arista pegada a la incisión después de cortar, en unidades del mundo (P-015): con él,
+   * la franja que rodea al corte se afina para que el tejido se doble en curva (`afinarLaFranja`).
+   */
+  afinar?: number
+  /**
+   * La normal de la piel que queda encima de cada punto del trazo, en el mundo, para un plano hondo (P-015): el tejido
+   * se aparta paralelo a ella y no por su propia tangente (`IncisionSobreLaMalla.normalesDeEncima`). `null` donde no
+   * hay piel cortada encima; sin la lista, cada malla se aparta por la suya, como la piel.
+   */
+  normalesDeEncima?: (THREE.Vector3 | null)[]
 }
 
 /**
@@ -116,6 +163,19 @@ export const PASO_DEL_LABIO_MM = 2
 export const ANCHO_VISIBLE_DE_LA_INCISION_MM = 2.4
 /** Con la herida más abierta que esto la cinta se aparta: se ve el plano de debajo. */
 export const APERTURA_QUE_APARTA_LA_CINTA_MM = 5
+/**
+ * Una herida que se retrae sola se enseña ella misma, y la cinta deja de hacer falta en cuanto el hueco se distingue
+ * (P-015). Más ancha que el hueco, lo tapaba: sobre una incisión de dos centímetros, abierta tres milímetros, era una
+ * tira roja plana donde tenía que verse el corte. Por debajo de esto —una punción, o el primer instante de la
+ * retracción— sigue marcando el sitio.
+ */
+export const ABERTURA_QUE_YA_SE_VE_MM = 1.2
+/**
+ * Cuánto se afina la malla junto a una incisión, en milímetros (P-015): lo que mide como mucho una arista pegada al
+ * labio. Algo más que el paso del labio (`PASO_DEL_LABIO_MM`): con lo mismo, cada vértice del labio tendría su propio
+ * triángulo y la franja doblaría sus vértices sin ganar curva.
+ */
+export const ARISTA_JUNTO_AL_CORTE_MM = 3
 /** El borde de una incisión recién hecha: rojo, para que se vea sobre la piel. */
 export const COLOR_DEL_BORDE_RECIEN_HECHO = 0x8c1c1c
 /**
@@ -141,22 +201,52 @@ function valorCrudo(a: THREE.BufferAttribute | THREE.InterleavedBufferAttribute,
   return (intercalado.data.array as unknown as ArrayLike<number>)[i * intercalado.data.stride + intercalado.offset + k]
 }
 
-/** Los atributos que no son posición ni normal se copian vértice a vértice por el mapa de origen. */
-function copiarAtributo(origen: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, mapa: Uint32Array) {
-  const tam = origen.itemSize
+/**
+ * Los atributos que no son posición ni normal se llevan a la malla cortada: los vértices que había conservan el suyo y
+ * cada vértice nuevo toma lo que valía la malla **en su sitio**, entre los dos vértices de que sale (`mezcla`).
+ *
+ * Es lo mismo que la tarjeta pintaba ahí antes de cortar —interpola a lo largo del triángulo—, así que el color y la
+ * textura no cambian por mucho que la franja se afine. Hasta P-015 se copiaba el de un extremo de la arista: con los
+ * pocos vértices de la grieta no se notaba; con los miles de la franja afinada, cada triángulo nuevo repetía el
+ * valor de un vértice que estaba a un centímetro y la textura quedaba a rayas.
+ *
+ * Lo que no admite promedio —un entero sin normalizar: un índice, una marca— se sigue copiando, del más cercano.
+ */
+function llevarAtributo(original: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, corte: MallaCortada) {
+  const tam = original.itemSize
   // Del mismo tipo que el original (colores en bytes, uv en flotantes…): copiar a
   // un Float32Array aceptaría el dato pero cambiaría cómo la tarjeta lo lee.
-  const fuente = (origen as THREE.BufferAttribute).isBufferAttribute
-    ? (origen as THREE.BufferAttribute).array
-    : (origen as THREE.InterleavedBufferAttribute).data.array
+  const fuente = (original as THREE.BufferAttribute).isBufferAttribute
+    ? (original as THREE.BufferAttribute).array
+    : (original as THREE.InterleavedBufferAttribute).data.array
   const Tipo = fuente.constructor as new (n: number) => Float32Array
-  const nuevo = new Tipo(mapa.length * tam)
-  for (let i = 0; i < mapa.length; i++) {
+  const total = corte.origen.length
+  const nuevo = new Tipo(total * tam)
+  const { desde, de, peso } = corte.mezcla
+  const flotante = fuente instanceof Float32Array || fuente instanceof Float64Array
+  const seMezcla = flotante || original.normalized
+  const yaEstaban = Math.min(desde, total)
+  for (let i = 0; i < yaEstaban; i++) {
+    for (let k = 0; k < tam; k++) nuevo[i * tam + k] = valorCrudo(original, i, k)
+  }
+  // Los dos de que sale cada uno van siempre antes que él: aquí ya tienen su valor.
+  for (let i = yaEstaban; i < total; i++) {
+    const j = i - desde
+    const a = de[2 * j]
+    const b = de[2 * j + 1]
+    const w = peso[j]
+    if (!seMezcla || a === b) {
+      const cual = w > 0.5 ? b : a
+      for (let k = 0; k < tam; k++) nuevo[i * tam + k] = nuevo[cual * tam + k]
+      continue
+    }
     for (let k = 0; k < tam; k++) {
-      nuevo[i * tam + k] = valorCrudo(origen, mapa[i], k)
+      const v = nuevo[a * tam + k] + (nuevo[b * tam + k] - nuevo[a * tam + k]) * w
+      // En bytes, guardar sin redondear truncaba: medio tono menos en cada vértice nuevo.
+      nuevo[i * tam + k] = flotante ? v : Math.round(v)
     }
   }
-  return new THREE.BufferAttribute(nuevo, tam, origen.normalized)
+  return new THREE.BufferAttribute(nuevo, tam, original.normalized)
 }
 
 /**
@@ -174,6 +264,7 @@ export function cortarCapa(
   if (original.groups.length > 1) return null
   const posicion = original.getAttribute('position')
   if (!posicion) return null
+  const alEmpezar = performance.now()
   // Una malla que ya tiene una herida se corta **cerrada**: se vuelve a su base (la del último corte) antes de leerla,
   // o el segundo corte partiría la geometría con la apertura del primero metida dentro (P-003 E4).
   const previas = CADENAS.get(malla) ?? []
@@ -214,7 +305,11 @@ export function cortarCapa(
   const alcanceLocal = parametros.alcance / escala
   const corte = cortarMalla(
     { posiciones, indices },
-    { puntos: puntos.map(aLocalVec), normales: normales.map(aLocalDir) },
+    {
+      puntos: puntos.map(aLocalVec),
+      normales: normales.map(aLocalDir),
+      normalesDeEncima: parametros.normalesDeEncima?.map((n) => (n ? aLocalDir(n) : null)),
+    },
     {
       profundidad: parametros.profundidad / escala,
       alcance: alcanceLocal,
@@ -223,6 +318,7 @@ export function cortarCapa(
       holgura: alcanceLocal,
       pasoDelLabio: (PASO_DEL_LABIO_MM * (parametros.unidadesPorMm ?? 0.001)) / escala,
       pared: parametros.pared ? parametros.pared / escala : undefined,
+      afinar: parametros.afinar ? parametros.afinar / escala : undefined,
     },
   )
   if (!corte) return null
@@ -231,7 +327,7 @@ export function cortarCapa(
   nueva.setAttribute('position', new THREE.BufferAttribute(corte.posiciones.slice(), 3))
   for (const nombre of Object.keys(original.attributes)) {
     if (nombre === 'position' || nombre === 'normal') continue
-    nueva.setAttribute(nombre, copiarAtributo(original.attributes[nombre], corte.origen))
+    nueva.setAttribute(nombre, llevarAtributo(original.attributes[nombre], corte))
   }
   // La pared de esta herida: lo que cada vértice suyo queda bajo la superficie, en milímetros (ver
   // `ATRIBUTO_DE_LA_PARED`). La de otra herida anterior ya vino copiada con lo demás.
@@ -294,6 +390,11 @@ export function cortarCapa(
 
   let largo = 0
   for (let i = 1; i < puntos.length; i++) largo += puntos[i].distanceTo(puntos[i - 1])
+  // Lo que mide la grieta, no el trazo: acaba donde el trazo cruza la última arista, un poco antes, y en una malla que
+  // el trazo solo atraviesa —un vaso, un tendón— es mucho más corta que él.
+  const unidadesPorMm = parametros.unidadesPorMm ?? 0.001
+  const grietaMm = ((corte.grieta.hasta - corte.grieta.desde) * corte.curva.largoTotal * escala) / unidadesPorMm
+  const conPunta = corte.grieta.cerradaAlInicio || corte.grieta.cerradaAlFinal
 
   const herida: HeridaEnCapa = {
     malla,
@@ -304,16 +405,54 @@ export function cortarCapa(
     cinta,
     mas: 0,
     menos: 0,
+    // Lo que pide la incisión, hasta lo que aguanta esta grieta sin plegarse en sus puntas (`topeDeLaRetraccionMm`). Una
+    // grieta sin largo —todos sus cruces en el mismo punto del trazo— no tiene huso en que abrirse: el panel no puede
+    // decir que está abierta.
+    reposo: grietaMm > 0 ? Math.min(Math.max(0, parametros.retraccion ?? 0), topeDeLaRetraccionMm(grietaMm, conPunta) * unidadesPorMm) : 0,
+    tension: 1,
+    asentada: 1,
+    punta: puntaDelHuso(grietaMm),
     largo,
-    unidadesPorMm: parametros.unidadesPorMm ?? 0.001,
+    unidadesPorMm,
     incision: parametros.incision ?? 0,
     trazo: { puntos: puntos.map((p) => p.clone()), normales: normales.map((n) => n.clone()), parametros },
+    tardoMs: 0,
   }
+  herida.tardoMs = performance.now() - alEmpezar
   CADENAS.set(malla, [...previas, herida])
-  actualizarBordes(herida)
-  // Las heridas de antes conservan lo que tenían abierto: se componen sobre la malla nueva.
-  if (previas.length > 0) recomponer(malla)
+  // Con retracción, la herida nace abierta: la malla se compone ya. Sin ella basta con tender el borde, y las heridas
+  // de antes conservan lo que tenían abierto componiéndose sobre la malla nueva.
+  if (previas.length > 0 || herida.reposo > 0) recomponer(malla)
+  else actualizarBordes(herida)
   return herida
+}
+
+/** Lo que la herida se abre sola **ahora**, por labio y en lo más ancho, en unidades del mundo: lo que queda de su retracción. */
+export const reposoVigente = (h: Pick<HeridaEnCapa, 'reposo' | 'tension' | 'asentada'>): number => h.reposo * h.tension * h.asentada
+
+/**
+ * Lo que mide el hueco de la herida en lo más ancho, en unidades del mundo: lo que se abre sola más lo que la apartan.
+ * Es lo que dice el panel («abierta 7 mm») y lo que mira la cinta para saber si la herida ya se ve.
+ */
+export const aberturaDe = (h: Pick<HeridaEnCapa, 'mas' | 'menos' | 'reposo' | 'tension' | 'asentada'>): number =>
+  h.mas + h.menos + 2 * reposoVigente(h)
+
+/**
+ * Dónde descansa un vértice de la herida, en el espacio de la malla: cerrado, más lo que su labio se retrae solo. Es
+ * el «antes» contra el que se mide lo que una hoja aparta el borde (P-008 E2): con la retracción, el labio ya no parte
+ * de la línea del corte, y medir desde ella le sumaría a la hoja unos milímetros que no son suyos.
+ */
+export function verticeEnReposo(h: HeridaEnCapa, v: number, destino = new THREE.Vector3()): THREE.Vector3 {
+  const c = h.corte
+  destino.set(c.posiciones[3 * v], c.posiciones[3 * v + 1], c.posiciones[3 * v + 2])
+  const lado = c.lado[v]
+  const reposo = reposoVigente(h) / h.escala
+  if (lado === 0 || reposo === 0) return destino
+  const k = lado * retraccionDelVertice(c, v, reposo, h.punta)
+  destino.x += c.direccion[3 * v] * k
+  destino.y += c.direccion[3 * v + 1] * k
+  destino.z += c.direccion[3 * v + 2] * k
+  return destino
 }
 
 /** Vuelve a dibujar el borde y la cinta de una herida con lo que tiene ahora (apertura, quemado, profundizada). */
@@ -355,13 +494,27 @@ function actualizarBordes(h: HeridaEnCapa) {
  * ellos pasa por dentro de la pierna y la cinta se veía a trozos, como una línea de
  * puntos, por mucho que se la subiera sobre la piel. Era la «incisión que se
  * borraba» a medias.
+ *
+ * Y cubre solo lo que **esta malla** se partió: su grieta (P-015). Los nodos de fuera se recogen en la punta de la
+ * grieta, donde la cinta queda sin largo. Cada malla tiende la suya, y tendida por el trazo entero, la de un músculo
+ * que el bisturí hondo solo rozó cruzaba toda la herida como una barra roja, por encima de la pared de la piel.
  */
 function actualizarCinta(h: HeridaEnCapa) {
   const curva = h.corte.curva
   const nodos = curva.tramos.length + 1
-  if (nodos < 2) {
+  const { desde, hasta } = h.corte.grieta
+  if (nodos < 2 || !(hasta > desde) || curva.largoTotal <= 0) {
     h.cinta.visible = false
     return
+  }
+  // El punto del trazo a la fracción `t` de su largo.
+  const enElTrazo = (t: number): Vec3 => {
+    const s = t * curva.largoTotal
+    let k = 0
+    while (k < curva.tramos.length - 1 && curva.tramos[k + 1].desde <= s) k++
+    const tr = curva.tramos[k]
+    const u = Math.min(tr.largo, Math.max(0, s - tr.desde))
+    return [tr.a[0] + tr.d[0] * u, tr.a[1] + tr.d[1] * u, tr.a[2] + tr.d[2] * u]
   }
   const destino = h.cinta.geometry.getAttribute('position') as THREE.BufferAttribute
   // Medio ancho mínimo, en unidades locales de la malla (que pueden estar escaladas).
@@ -369,25 +522,32 @@ function actualizarCinta(h: HeridaEnCapa) {
   // Un milímetro por encima de la piel, a lo largo de la normal: la cinta es una recta entre nodos y, aunque
   // estén cerca, en una piel curva no debe quedar enterrada.
   const levantar = 1 * (h.unidadesPorMm / h.escala)
+  // Lo que la herida se abre sola, que va en huso y se suma a lo demás, como en la malla.
+  const reposo = reposoVigente(h) / h.escala
   let abertura = 0
   for (let k = 0; k < nodos; k++) {
     const ultimo = k === nodos - 1
     const tramo = curva.tramos[ultimo ? k - 1 : k]
-    const a = ultimo
-      ? [tramo.a[0] + tramo.d[0] * tramo.largo, tramo.a[1] + tramo.d[1] * tramo.largo, tramo.a[2] + tramo.d[2] * tramo.largo]
-      : tramo.a
-    const t = ultimo || curva.largoTotal <= 0 ? 1 : tramo.desde / curva.largoTotal
+    const delNodo = ultimo ? 1 : tramo.desde / curva.largoTotal
+    const t = Math.min(hasta, Math.max(desde, delNodo))
+    const a =
+      t !== delNodo
+        ? enElTrazo(t)
+        : ultimo
+          ? [tramo.a[0] + tramo.d[0] * tramo.largo, tramo.a[1] + tramo.d[1] * tramo.largo, tramo.a[2] + tramo.d[2] * tramo.largo]
+          : tramo.a
     const abre = h.perfil ? h.perfil(t) : { mas: h.mas, menos: h.menos }
     // Cuánto se separa cada labio en este punto, como la malla: con perfil, el perfil ya se cierra en las puntas.
     const peso = h.perfil ? 1 : afilado(t)
-    const mas = (abre.mas / h.escala) * peso
-    const menos = (abre.menos / h.escala) * peso
+    const sola = reposo > 0 ? reposo * husoDeLaGrieta(h.corte.grieta, t, h.punta) : 0
+    const mas = (abre.mas / h.escala) * peso + sola
+    const menos = (abre.menos / h.escala) * peso + sola
     // El lateral es el mismo que mueve a los labios: el «más» va hacia `+lateral` y el «menos» hacia `-lateral`.
     const centro = (mas - menos) / 2
     const mitad = Math.max(medioAncho, (mas + menos) / 2)
     abertura = Math.max(abertura, mas + menos)
     const nm = curva.normales[k]
-    const lt = curva.laterales[k]
+    const lt = curva.lateralesSuaves[k]
     const bx = a[0] + nm[0] * levantar + lt[0] * centro
     const by = a[1] + nm[1] * levantar + lt[1] * centro
     const bz = a[2] + nm[2] * levantar + lt[2] * centro
@@ -396,11 +556,15 @@ function actualizarCinta(h: HeridaEnCapa) {
   }
   destino.needsUpdate = true
   h.cinta.geometry.computeBoundingSphere()
-  const abierta = (abertura * h.escala) / h.unidadesPorMm > APERTURA_QUE_APARTA_LA_CINTA_MM
+  const aberturaMm = (abertura * h.escala) / h.unidadesPorMm
+  const abierta = aberturaMm > APERTURA_QUE_APARTA_LA_CINTA_MM
   // Con un instrumento dentro, la incisión ya la señala él (P-008 E1). El borde se va también: en una herida abierta
   // seguía dibujado de por vida, oscuro, y en el músculo unía vértices separados por centímetros, a través de la abertura.
   const apartada = abierta || !!h.sostenida
-  h.cinta.visible = !apartada
+  // Una herida que se retrae se ve sola en cuanto el hueco se distingue: la cinta, que es plana y más ancha que él, lo
+  // taparía (P-015). El borde se queda hasta que la herida se abre de verdad: es el filo que sangra.
+  const seVeSola = h.reposo > 0 && aberturaMm >= ABERTURA_QUE_YA_SE_VE_MM
+  h.cinta.visible = !apartada && !seVeSola
   h.bordes.visible = !apartada
   // El borde rojo es la incisión recién hecha: al abrirla o profundizarla se vuelve del tono de la piel (P-003 E4).
   ;(h.bordes.material as THREE.LineBasicMaterial).color.set(
@@ -412,18 +576,40 @@ function actualizarCinta(h: HeridaEnCapa) {
 export const largoEnMm = (h: Pick<HeridaEnCapa, 'corte' | 'escala' | 'unidadesPorMm'>): number =>
   (h.corte.curva.largoTotal * h.escala) / h.unidadesPorMm
 
-/** Separa los labios: `mas` y `menos` en unidades del mundo. */
+/** Separa los labios: `mas` y `menos` en unidades del mundo. Lo que la herida se abre sola (`reposo`) va aparte y se suma. */
 export function abrirCapa(
   h: HeridaEnCapa,
   mas: number,
   menos: number,
   /** Apertura según la posición a lo largo de la herida, en unidades del mundo. `mas` y `menos` son sus máximos. */
   perfil?: (t: number) => { mas: number; menos: number },
+  /**
+   * Cuánta de su retracción le queda a la herida, de 0 a 1 (`tension`). Lo pasa la sutura, que cierra a la vez lo que
+   * abrían los separadores y lo que el tejido se había apartado solo; sin él, la herida conserva la que tenía.
+   */
+  tension?: number,
 ) {
   h.mas = mas
   h.menos = menos
   h.perfil = perfil
+  if (tension !== undefined) h.tension = Math.min(1, Math.max(0, tension))
   recomponer(h.malla)
+}
+
+/**
+ * Deja cada herida con esa parte de su retracción ya hecha (`asentada`, de 0 a 1) y recompone sus mallas, una vez cada
+ * una aunque tengan varias heridas. Es el paso de la animación con que la herida se abre al cortarla (P-015); una
+ * herida que ya se cerró —se deshizo el corte a media animación— se salta.
+ */
+export function asentarHeridas(heridas: readonly HeridaEnCapa[], asentada: number) {
+  const k = Math.min(1, Math.max(0, asentada))
+  const mallas = new Set<THREE.Mesh>()
+  for (const h of heridas) {
+    if (!CADENAS.get(h.malla)?.includes(h)) continue
+    h.asentada = k
+    mallas.add(h.malla)
+  }
+  for (const malla of mallas) recomponer(malla)
 }
 
 /**
@@ -445,6 +631,8 @@ function recomponer(malla: THREE.Mesh) {
               return { mas: o.mas / h.escala, menos: o.menos / h.escala }
             }
           : undefined,
+        reposo: reposoVigente(h) / h.escala,
+        punta: h.punta,
       },
     })),
   )
@@ -489,8 +677,9 @@ export function cerrarCapa(h: HeridaEnCapa): HeridaEnCapa[] {
       }
       // `nueva` quedó al final de la cadena; en su lugar entra `w`, con lo que ya tenía abierto y su incisión.
       const actual = CADENAS.get(w.malla)!
-      const { mas, menos, perfil, incision } = w
-      Object.assign(w, nueva, { mas, menos, perfil, incision })
+      // Y con la retracción que le quedaba: una herida cosida no se vuelve a abrir porque se cierre otra.
+      const { mas, menos, perfil, incision, tension, asentada } = w
+      Object.assign(w, nueva, { mas, menos, perfil, incision, tension, asentada })
       actual[actual.length - 1] = w
       recomponer(w.malla)
     }
@@ -542,7 +731,7 @@ export function sitioEnLaHerida(
   const aMundo = h.malla.matrixWorld
   const punto = new THREE.Vector3(a[0], a[1], a[2]).applyMatrix4(aMundo)
   const normal = new THREE.Vector3(...curva.normales[mejor]).transformDirection(aMundo)
-  const direccion = new THREE.Vector3(...curva.laterales[mejor]).transformDirection(aMundo)
+  const direccion = new THREE.Vector3(...curva.lateralesSuaves[mejor]).transformDirection(aMundo)
   if (lado < 0) direccion.negate()
   return { punto, normal, direccion, t: curva.largoTotal > 0 ? (ultimo ? 1 : tramo.desde / curva.largoTotal) : 0 }
 }

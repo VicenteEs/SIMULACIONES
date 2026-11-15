@@ -19,17 +19,29 @@
 
 export type PosicionDelPaciente = 'de-pie' | 'supino' | 'prono'
 
-export const POSICIONES_DEL_PACIENTE: readonly { valor: PosicionDelPaciente; etiqueta: string; ayuda: string }[] = [
-  { valor: 'de-pie', etiqueta: 'De pie', ayuda: 'Posición anatómica: el miembro vertical, visto de frente.' },
+/**
+ * `ayudaEnLaCamilla` es lo que dice el botón cuando el caso lleva colchón y paño (P-014). Ahí «De pie» ya no es
+ * verdad al pie de la letra —el paciente sigue acostado y solo cambia desde dónde se le mira— y «Prono» hace algo
+ * que antes no hacía: darle la vuelta. Sin colchón el modelo es una pieza suelta y vale la ayuda de siempre.
+ */
+export const POSICIONES_DEL_PACIENTE: readonly { valor: PosicionDelPaciente; etiqueta: string; ayuda: string; ayudaEnLaCamilla: string }[] = [
+  {
+    valor: 'de-pie',
+    etiqueta: 'De pie',
+    ayuda: 'Posición anatómica: el miembro vertical, visto de frente.',
+    ayudaEnLaCamilla: 'El paciente sigue acostado boca arriba en la camilla: solo cambia la vista, que lo enseña con el miembro vertical y de frente, como en la posición anatómica.',
+  },
   {
     valor: 'supino',
     etiqueta: 'Supino',
     ayuda: 'Decúbito supino: el paciente boca arriba. Se le mira desde arriba, por delante, con el miembro horizontal.',
+    ayudaEnLaCamilla: 'Decúbito supino: el paciente boca arriba en la camilla. Se le mira desde arriba, por delante, con el miembro horizontal.',
   },
   {
     valor: 'prono',
     etiqueta: 'Prono',
     ayuda: 'Decúbito prono: el paciente boca abajo. Se le mira desde arriba, por detrás, con el miembro horizontal.',
+    ayudaEnLaCamilla: 'Decúbito prono: se le da la vuelta al paciente en la camilla y queda boca abajo. Se le mira desde arriba, por detrás, con el miembro horizontal.',
   },
 ]
 

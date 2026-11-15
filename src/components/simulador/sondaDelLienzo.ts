@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import type { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { CapaDeLaHerida } from '@/lib/exposicion'
 import { labioDelSeparador, labioEnLaPosicion, type SeparadorEnEscena } from './exposicionEnLaEscena'
-import { sitioEnLaHerida, type HeridaEnCapa } from './heridas'
+import { aberturaDe, cadenaDeLaMalla, reposoVigente, sitioEnLaHerida, type HeridaEnCapa } from './heridas'
 import { ejeDeLaPlaca, posicionDelAgujero, type ImplantesEnEscena, type PlacaColocada } from './implantesEnLaEscena'
 import { poseActual } from './vistaDelPaciente'
 import {
@@ -134,9 +134,132 @@ export interface HeridaMedida {
   capa: CapaDeLaHerida
   incision: number
   malla: string
-  /** Lo que abre cada labio en su punto más abierto, en milímetros. */
+  /** Lo que aparta cada labio lo que lo sostiene, en su punto más abierto, en milímetros. */
   masMm: number
   menosMm: number
+  /** Lo que cada labio se retrae solo ahora mismo, en lo más ancho, en milímetros (P-015): 0 en una herida cosida del todo. */
+  reposoMm: number
+  /** Lo que mide el hueco en lo más ancho, en milímetros: lo que la apartan más lo que se abre sola. */
+  aberturaMm: number
+  /** Cuántos vértices tiene ahora la malla: lo que el corte le añadió al afinar la franja se ve aquí. */
+  vertices: number
+  /**
+   * La arista más larga de los triángulos que tocan el labio, en milímetros: la mediana y la mayor. Es lo que dice si
+   * el tejido tiene con qué doblarse al apartarlo (P-015): con aristas de centímetros, cada abanico era una faceta.
+   */
+  aristaDelLabioMm: { mediana: number; mayor: number }
+  /**
+   * Cuántos triángulos de los que la herida arrastra miran ahora al revés de como miraban con ella cerrada: el tejido
+   * plegado sobre sí mismo. Tiene que ser cero; si no, la apertura pide más de lo que el arrastre tolera.
+   */
+  triangulosVueltos: number
+  /**
+   * Los que están vueltos sin que la herida los mueva: los dobló otra cosa —la piel que se abulta sobre un trozo de
+   * hueso (P-013), que en el caso 4 sube hasta su tope de 30 mm a más de veinte centímetros del corte—. Van aparte para
+   * que no se le carguen al corte.
+   */
+  vueltosFueraDeLaHerida: number
+  /** Lo que tardó el corte de esta malla, en milisegundos: afinar la franja, partirla y rehacer su geometría. */
+  tardoMs: number
+  /**
+   * La grieta de esta malla: lo que mide a lo largo del trazo, en milímetros, y si se cierra en cada punta o llega al
+   * borde de la malla. Con ella se ve por qué una malla se abre menos que lo que pide la incisión (`topeDeLaRetraccionMm`).
+   */
+  grieta: { largoMm: number; cerradaAlInicio: boolean; cerradaAlFinal: boolean }
+}
+
+/** La arista más larga de cada triángulo que toca un labio de la herida, con la malla cerrada: mediana y mayor, en milímetros. */
+function aristaDelLabio(h: HeridaEnCapa, mm: number): { mediana: number; mayor: number } {
+  const delLabio = new Set<number>([...h.corte.labios.mas, ...h.corte.labios.menos])
+  const p = h.corte.posiciones
+  const largo = (a: number, b: number) => Math.hypot(p[3 * a] - p[3 * b], p[3 * a + 1] - p[3 * b + 1], p[3 * a + 2] - p[3 * b + 2])
+  const mayores: number[] = []
+  const indices = h.corte.indices
+  for (let t = 0; t + 2 < indices.length; t += 3) {
+    const [a, b, c] = [indices[t], indices[t + 1], indices[t + 2]]
+    if (!delLabio.has(a) && !delLabio.has(b) && !delLabio.has(c)) continue
+    mayores.push(Math.max(largo(a, b), largo(b, c), largo(c, a)) * h.escala * mm)
+  }
+  if (mayores.length === 0) return { mediana: 0, mayor: 0 }
+  mayores.sort((x, y) => x - y)
+  const redondo = (x: number) => Math.round(x * 10) / 10
+  return { mediana: redondo(mayores[Math.floor(mayores.length / 2)]), mayor: redondo(mayores[mayores.length - 1]) }
+}
+
+/** Un triángulo que mira ahora al revés de como miraba con la herida cerrada. */
+export interface TrianguloVuelto {
+  /** Su área con la herida cerrada y la de ahora, en milímetros cuadrados. */
+  areaMm2: number
+  areaAhoraMm2: number
+  /** Es de la pared de la herida (D-333) y no de la superficie. */
+  deLaPared: boolean
+  /** Dónde cae a lo largo del trazo, de 0 a 1. */
+  t: number
+  /** Cuánto lo arrastra la herida, de 0 (nada: lo movió otra cosa) a 1 (está en el labio). */
+  arrastre: number
+  /**
+   * Lo que se ha movido el más movido de sus tres vértices desde que la herida se hizo, y lo lejos que queda su
+   * centro del labio más cercano, los dos en milímetros. Un triángulo vuelto lejos del corte y movido es obra de
+   * otra cosa; uno vuelto sin haberse movido es que la referencia con que se compara no es la que se cree.
+   */
+  movidoMm: number
+  alLabioMm: number
+}
+
+/**
+ * Los triángulos de la malla que miran ahora al revés de como miraban con todas sus heridas cerradas: el tejido
+ * plegado sobre sí mismo. No cuenta los que ya eran una astilla sin área —menos de una centésima de milímetro
+ * cuadrado—: su normal no apunta a ningún sitio, y que «cambie» no dice nada.
+ */
+function losVueltos(malla: THREE.Mesh, mm: number): TrianguloVuelto[] {
+  const cadena = cadenaDeLaMalla(malla)
+  const ultima = cadena[cadena.length - 1]
+  const ahora = malla.geometry.getAttribute('position') as THREE.BufferAttribute | undefined
+  if (!ultima || !ahora) return []
+  const corte = ultima.corte
+  const antes = corte.posiciones
+  const despues = ahora.array as ArrayLike<number>
+  const indices = corte.indices
+  const aMm = ultima.escala * mm
+  const normal = (q: ArrayLike<number>, a: number, b: number, c: number): [number, number, number] => {
+    const ux = q[3 * b] - q[3 * a]
+    const uy = q[3 * b + 1] - q[3 * a + 1]
+    const uz = q[3 * b + 2] - q[3 * a + 2]
+    const vx = q[3 * c] - q[3 * a]
+    const vy = q[3 * c + 1] - q[3 * a + 1]
+    const vz = q[3 * c + 2] - q[3 * a + 2]
+    return [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx]
+  }
+  const movido = (i: number) =>
+    Math.hypot(despues[3 * i] - antes[3 * i], despues[3 * i + 1] - antes[3 * i + 1], despues[3 * i + 2] - antes[3 * i + 2]) * aMm
+  const delLabio = [...corte.labios.mas, ...corte.labios.menos]
+  const alLabioDe = (a: number, b: number, c: number) => {
+    const x = (antes[3 * a] + antes[3 * b] + antes[3 * c]) / 3
+    const y = (antes[3 * a + 1] + antes[3 * b + 1] + antes[3 * c + 1]) / 3
+    const z = (antes[3 * a + 2] + antes[3 * b + 2] + antes[3 * c + 2]) / 3
+    let cerca = Infinity
+    for (const i of delLabio) cerca = Math.min(cerca, Math.hypot(antes[3 * i] - x, antes[3 * i + 1] - y, antes[3 * i + 2] - z))
+    return cerca * aMm
+  }
+  const salida: TrianguloVuelto[] = []
+  for (let t = 0; t + 2 < indices.length; t += 3) {
+    const [a, b, c] = [indices[t], indices[t + 1], indices[t + 2]]
+    const n0 = normal(antes, a, b, c)
+    const n1 = normal(despues, a, b, c)
+    if (n0[0] * n1[0] + n0[1] * n1[1] + n0[2] * n1[2] >= 0) continue
+    const areaMm2 = 0.5 * Math.hypot(n0[0], n0[1], n0[2]) * aMm * aMm
+    if (areaMm2 < 0.01) continue
+    salida.push({
+      areaMm2: Math.round(areaMm2 * 100) / 100,
+      areaAhoraMm2: Math.round(0.5 * Math.hypot(n1[0], n1[1], n1[2]) * aMm * aMm * 100) / 100,
+      deLaPared: corte.pared[a] >= 0 && corte.pared[b] >= 0 && corte.pared[c] >= 0,
+      t: Math.round(((corte.largoT[a] + corte.largoT[b] + corte.largoT[c]) / 3) * 100) / 100,
+      arrastre: Math.round(Math.max(corte.pesoLateral[a], corte.pesoLateral[b], corte.pesoLateral[c]) * 100) / 100,
+      movidoMm: Math.round(Math.max(movido(a), movido(b), movido(c)) * 100) / 100,
+      alLabioMm: Math.round(alLabioDe(a, b, c) * 10) / 10,
+    })
+  }
+  return salida
 }
 
 function aPantalla(v: LoQueVeLaSonda, mundo: THREE.Vector3): PuntoEnPantalla | null {
@@ -311,9 +434,62 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
       return rayo.intersectObject(v.raiz, true).map((g) => ({ nodo: g.object.name, visible: g.object.visible, distanciaMm: Math.round(g.distance * mm * 10) / 10 }))
     },
     /**
-     * Lleva la cámara a mirar ese punto desde `distanciaMm`, por el mismo lado desde el que mira ahora. Es el
-     * encuadre de quien se acerca a la herida antes de operar; un vídeo con la pierna entera no enseña nada.
+     * De qué está hecho un píxel: lo **visible** que cruza el rayo de la cámara por ese punto, de lo más cercano a lo más
+     * lejano, y con qué se dibuja cada cosa. `golpesEn` dice qué piezas hay; esto, por qué se ven como se ven: si lo que
+     * asoma por una herida abierta es translúcido, por qué cara se le mira y cuánto brilla. Nació de un «parece cristal»
+     * (P-015) que en una captura se veía y no se podía atribuir a ninguna malla.
      */
+    queSeVeEn(x: number, y: number): {
+      nodo: string
+      distanciaMm: number
+      /** Se le mira por la cara de fuera (la de su normal) o por la de dentro. */
+      deFrente: boolean
+      transparente: boolean
+      opacidad: number
+      dosCaras: boolean
+      escribeProfundidad: boolean
+      rugosidad: number | null
+      barniz: number | null
+      color: string | null
+      /** En la piel, lo que el punto queda bajo la superficie si es de la pared de una herida, en mm; `null` si no lo es. */
+      paredMm: number | null
+    }[] {
+      const v = leer()
+      if (!v.render || !v.camara || !v.raiz) return []
+      const caja = v.render.domElement.getBoundingClientRect()
+      const rayo = new THREE.Raycaster()
+      rayo.setFromCamera(new THREE.Vector2(((x - caja.left) / caja.width) * 2 - 1, -((y - caja.top) / caja.height) * 2 + 1), v.camara)
+      const mm = v.milimetrosPorUnidad || 1000
+      const seVe = (o: THREE.Object3D | null): boolean => {
+        for (let p = o; p; p = p.parent) if (!p.visible) return false
+        return true
+      }
+      const normal = new THREE.Vector3()
+      return rayo
+        .intersectObject(v.raiz, true)
+        .filter((g) => (g.object as THREE.Mesh).isMesh && seVe(g.object))
+        .map((g) => {
+          const malla = g.object as THREE.Mesh
+          const material = (Array.isArray(malla.material) ? malla.material[0] : malla.material) as THREE.MeshPhysicalMaterial
+          const deFrente = g.face ? normal.copy(g.face.normal).transformDirection(malla.matrixWorld).dot(rayo.ray.direction) < 0 : true
+          const pared = malla.geometry.getAttribute('aPared') as THREE.BufferAttribute | undefined
+          // La marca de la pared va por vértice: la del triángulo es la mayor de las tres, que es la que pinta el sombreador.
+          const marca = pared && g.face ? Math.max(pared.getX(g.face.a), pared.getX(g.face.b), pared.getX(g.face.c)) : 0
+          return {
+            nodo: malla.name || malla.parent?.name || '(sin nombre)',
+            distanciaMm: Math.round(g.distance * mm * 10) / 10,
+            deFrente,
+            transparente: material.transparent === true,
+            opacidad: Math.round((material.opacity ?? 1) * 100) / 100,
+            dosCaras: material.side === THREE.DoubleSide,
+            escribeProfundidad: material.depthWrite !== false,
+            rugosidad: typeof material.roughness === 'number' ? Math.round(material.roughness * 100) / 100 : null,
+            barniz: typeof material.clearcoat === 'number' ? Math.round(material.clearcoat * 100) / 100 : null,
+            color: material.color ? `#${material.color.getHexString()}` : null,
+            paredMm: marca > 0.5 ? Math.round((marca - 1) * 10) / 10 : null,
+          }
+        })
+    },
     /**
      * Lleva la cámara encima de la última herida de esa capa, mirándola de frente por su normal: es como la ve quien
      * opera, y el único encuadre en que se puede juzgar al milímetro dónde quedó cada hoja respecto del borde. Con
@@ -692,6 +868,16 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
         punta: aPantalla(v, t.grupo.getWorldPosition(new THREE.Vector3())),
       }))
     },
+    /**
+     * Los triángulos plegados de las heridas de esa capa, uno por uno: para saber de dónde sale un pliegue —la pared,
+     * una punta, el medio del arrastre— cuando `heridas()` dice que los hay.
+     */
+    vueltosEn(capa: CapaDeLaHerida): { malla: string; vueltos: TrianguloVuelto[] }[] {
+      const v = leer()
+      const mm = v.milimetrosPorUnidad || 1000
+      const mallas = new Set<THREE.Mesh>((v.heridas?.get(capa) ?? []).map((h) => h.malla))
+      return [...mallas].map((malla) => ({ malla: malla.name, vueltos: losVueltos(malla, mm) }))
+    },
     /** Cada herida abierta, por capa: qué malla, de qué incisión y cuánto abre. */
     heridas(): HeridaMedida[] {
       const v = leer()
@@ -705,6 +891,18 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
             malla: h.malla.name,
             masMm: Math.round(h.mas * mm * 10) / 10,
             menosMm: Math.round(h.menos * mm * 10) / 10,
+            reposoMm: Math.round(reposoVigente(h) * mm * 10) / 10,
+            aberturaMm: Math.round(aberturaDe(h) * mm * 10) / 10,
+            vertices: h.malla.geometry.getAttribute('position')?.count ?? 0,
+            aristaDelLabioMm: aristaDelLabio(h, mm),
+            triangulosVueltos: losVueltos(h.malla, mm).filter((x) => x.arrastre > 0).length,
+            vueltosFueraDeLaHerida: losVueltos(h.malla, mm).filter((x) => x.arrastre === 0).length,
+            tardoMs: Math.round(h.tardoMs * 10) / 10,
+            grieta: {
+              largoMm: Math.round((h.corte.grieta.hasta - h.corte.grieta.desde) * h.corte.curva.largoTotal * h.escala * mm * 10) / 10,
+              cerradaAlInicio: h.corte.grieta.cerradaAlInicio,
+              cerradaAlFinal: h.corte.grieta.cerradaAlFinal,
+            },
           })
         }
       }

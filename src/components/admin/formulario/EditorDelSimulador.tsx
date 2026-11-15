@@ -13,6 +13,7 @@ import { useConfirmar } from '@/components/ui/Confirmar'
 import type { Campo } from '@/admin/esquema'
 import { casoDesdeElFormulario, type InstrumentoParaElEditor } from '@/lib/casoQuirurgico'
 import { encuadreDelGrupo, grupoDelEncuadre } from '@/lib/encuadreDelPaso'
+import { medidaDeLaZona, panoDelCaso, zonaParaElCaso } from '@/lib/campoQuirurgico'
 import {
   agregarPieza,
   cambiarRolDePieza,
@@ -115,7 +116,7 @@ export function EditorDelSimulador({
   // vez cambia de página): ver `ensayoDelEditor.ts`. La clave es el modelo y no la ficha, que es lo que cambia.
   const claveDelPaso = claveDelPasoDelEditor(idDelModelo(valores.modelo))
   const [indice, setIndice] = useState(() => leerPasoDelEditor(claveDelPaso) ?? 0)
-  const [pestana, setPestana] = useState<'paso' | 'piezas' | 'caso'>('paso')
+  const [pestana, setPestana] = useState<'paso' | 'piezas' | 'pano' | 'caso'>('paso')
   const [instrumentos, setInstrumentos] = useState<InstrumentoParaElEditor[]>([])
   const [errorDeInstrumentos, setErrorDeInstrumentos] = useState<string | null>(null)
   const [clasicoAbierto, setClasicoAbierto] = useState(false)
@@ -166,7 +167,12 @@ export function EditorDelSimulador({
 
   const campoDePasos = campos.find((c) => c.nombre === 'pasos' && c.tipo === 'lista')
   const camposDelPaso = campoDePasos && campoDePasos.tipo === 'lista' ? campoDePasos.campos : []
+  // El paño tiene pestaña propia (P-014 E6): su ventana se ajusta sobre el lienzo, y eso no cabe entre los campos
+  // de «El caso». Con la consola sin montar —falta el modelo o no hay pasos— no hay pestañas, y entonces sí va con ellos.
+  const campoDelPano = campos.find((c) => c.nombre === 'pano' && c.tipo === 'grupo')
   const camposDelCaso = campos.filter((c) => c.nombre !== 'pasos' && c.nombre !== 'piezas')
+  const camposDelCasoSinElPano = camposDelCaso.filter((c) => c !== campoDelPano)
+  const pano = (valores.pano ?? {}) as Fila
 
   const pasos = useMemo(
     () => (Array.isArray(valores.pasos) ? (valores.pasos as Fila[]) : []),
@@ -428,6 +434,7 @@ export function EditorDelSimulador({
           [
             ['paso', `Paso ${indiceVigente + 1}`],
             ['piezas', 'Piezas'],
+            ...(campoDelPano ? ([['pano', 'Paño']] as const) : []),
             ['caso', 'El caso'],
           ] as const
         ).map(([valor, etiqueta]) => (
@@ -488,10 +495,22 @@ export function EditorDelSimulador({
         </div>
       ) : null}
 
+      {pestana === 'pano' && campoDelPano?.tipo === 'grupo' ? (
+        <div className="editor-simulador-cuerpo" role="tabpanel">
+          <PanelDelPano
+            campos={campoDelPano.campos}
+            pano={pano}
+            vivo={vivo}
+            relaciones={relaciones}
+            alCambiar={(nombre, valor) => alCambiar('pano', { ...pano, [nombre]: valor })}
+          />
+        </div>
+      ) : null}
+
       {pestana === 'caso' ? (
         <div className="editor-simulador-cuerpo" role="tabpanel">
           <FilaDeCampos
-            campos={camposDelCaso}
+            campos={camposDelCasoSinElPano}
             valores={valores}
             alCambiar={alCambiar}
             relaciones={relaciones}
@@ -578,6 +597,11 @@ export function EditorDelSimulador({
           },
           alCambiarLaBandeja: (modo) => alCambiar('bandeja', modo),
           alUsarEnElPaso: (id) => escribirVariosDelPaso({ instrumento: id, instrumentoPropuesto: '' }),
+          // El marco de la ventana solo con su pestaña abierta: en las demás taparía lo que se está editando.
+          marcoDelPano:
+            pestana === 'pano' && pano.apagado !== true
+              ? { alCambiar: (zona) => alCambiar('pano', { ...pano, zona: zonaParaElCaso(zona) }) }
+              : null,
           instrumentoDelPaso:
             pasoActual?.instrumento === undefined || pasoActual.instrumento === null
               ? null
@@ -721,6 +745,72 @@ function CapturasDelPaso({
         ) : null}
       </div>
     </div>
+  )
+}
+
+/** La zona del caso sin ninguno de sus cuatro números: es como se guarda «la automática». */
+const ZONA_AUTOMATICA = { xMin: null, xMax: null, yMin: null, yMax: null }
+
+/**
+ * La pestaña «Paño» (P-014 E6): si el caso lleva colchón y paño, de qué color, y qué deja descubierto.
+ *
+ * Los dos primeros son campos del esquema y se pintan como cualquiera. La ventana no: son cuatro milímetros
+ * sobre el plano del cuerpo que nadie sabría escribir, así que no hay casillas. Se ajusta en el lienzo, que con
+ * esta pestaña abierta enseña el marco con sus asas (`MarcoDelPano`); aquí queda lo que el marco no puede decir
+ * —cuánto mide, si es la automática— y la manera de volver a ella.
+ */
+function PanelDelPano({
+  campos,
+  pano,
+  vivo,
+  relaciones,
+  alCambiar,
+}: {
+  /** Los subcampos del grupo `pano`, tal cual los declara el esquema. La zona viene oculta y no se pinta. */
+  campos: Campo[]
+  pano: Fila
+  vivo: VistaDelEnsayo
+  relaciones: Relaciones
+  alCambiar: (nombre: string, valor: unknown) => void
+}) {
+  const apagado = pano.apagado === true
+  const delCaso = panoDelCaso(pano)
+  const ventana = vivo.campo?.zona ?? vivo.campo?.zonaAutomatica ?? null
+  return (
+    <>
+      <FilaDeCampos campos={campos} valores={pano} alCambiar={alCambiar} relaciones={relaciones} />
+      <div className="editor-simulador-capturas">
+        {!vivo.modeloCargado || !vivo.campo ? (
+          <p className="campo-ayuda">Cargando el modelo…</p>
+        ) : apagado ? (
+          <p className="campo-ayuda">Este caso va sin colchón ni paño: se ve el modelo solo, como antes.</p>
+        ) : !vivo.campo.hay ? (
+          // Sin esto la pestaña ofrecería ajustar una ventana que en el lienzo no existe, y sin decir por qué.
+          <p className="campo-ayuda">
+            Este modelo no lleva colchón ni paño: solo los llevan los que se exportan desde el taller anatómico, que
+            son los que saben en qué parte del cuerpo estaban. El color y la casilla de arriba no cambian nada aquí.
+          </p>
+        ) : (
+          <>
+            <p className="campo-ayuda">
+              <strong>
+                Ventana de {ventana ? medidaDeLaZona(ventana) : '—'} · {delCaso.zona ? 'ajustada a mano' : 'automática'}.
+              </strong>{' '}
+              {delCaso.zona
+                ? 'Queda descubierto lo que usted enmarcó.'
+                : 'Queda descubierto lo que se recortó en el taller anatómico.'}{' '}
+              Para cambiarla, arrastre sobre el modelo los puntos blancos del marco: uno en cada borde y el del centro,
+              que la mueve entera. También se mueven con las flechas del teclado.
+            </p>
+            <div className="editor-simulador-capturas-botones">
+              <button type="button" className="consola-boton" disabled={!delCaso.zona} onClick={() => alCambiar('zona', ZONA_AUTOMATICA)}>
+                Volver a la automática
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </>
   )
 }
 

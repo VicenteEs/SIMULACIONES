@@ -94,3 +94,7 @@ __pycache__/
 # `python scripts/atlas/huesos/generar.py`, y que `node scripts/atlas/poner-huesos.mjs --aplicar`
 # escribe en el atlas. Lo que viaja es el resultado, public/atlas/cuerpo-12 y cuerpo-13.
 /scripts/atlas/huesos/salida/
+
+# Y para el campo quirúrgico (P-014): la tela ya caída de cada decúbito —que es lo caro, varios minutos de
+# simulación— y las vistas de comprobación de `scripts/pabellon/vistas.py`. Lo que viaja es public/pabellon/.
+/scripts/pabellon/salida/

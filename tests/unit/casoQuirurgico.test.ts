@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
+  casoDesdeElFormulario,
   casoParaLaConsola,
   companerosQueFaltan,
   conCompanerosDeLaPlaca,
   slugsDePlacasDelCaso,
 } from '@/lib/casoQuirurgico'
+import { fraseDelCentro } from '@/lib/campoQuirurgico'
 import { evaluarGesto, fuerzaInicial, objetivoDelPaso, RESULTADOS } from '@/lib/simulador'
 import { largoDelTrazo } from '@/lib/reduccion'
 
@@ -261,5 +263,54 @@ describe('los compañeros de la placa en la bandeja (P-003 E6)', () => {
   it('sin compañeros que añadir, el documento sale tal cual', () => {
     const base = doc(['placa-lcp-recta-3-5'])
     expect(conCompanerosDeLaPlaca(base, [])).toBe(base)
+  })
+})
+
+/**
+ * El campo quirúrgico (P-014). El colchón y el paño no se guardan: salen de dónde estaba el modelo en el cuerpo
+ * del atlas, y eso solo lo dice el modelo. Si `casoParaLaConsola` deja de mandarlo, el caso abre sin campo y nada
+ * falla: por eso se fija aquí lo que cruza al navegador.
+ */
+describe('el campo quirúrgico del caso (P-014)', () => {
+  const nota = (centro: [number, number, number]) => `Exportado del atlas anatómico.${fraseDelCentro(centro)}`
+
+  it('un caso de antes de P-014 llega con su paño puesto, azul y con la zona automática', () => {
+    // Las tres columnas nacen con su valor por omisión; aquí llega incluso el documento que no las trae.
+    expect(casoCon({}).campo).toEqual({ centroEnElCuerpo: null, pano: { apagado: false, color: 'azul', zona: null } })
+  })
+
+  it('el sitio en el cuerpo sale de la nota que el exportador deja en el modelo', () => {
+    const caso = casoCon({ modelo: { id: 3, url: '/medios/pierna.glb', notas: nota([-0.098, 0.487, 0.012]) } })
+    expect(caso.campo?.centroEnElCuerpo).toEqual([-0.098, 0.487, 0.012])
+  })
+
+  it('un modelo que no salió del taller no tiene sitio: el caso abre con la pieza sola', () => {
+    expect(casoCon({ modelo: { id: 3, url: '/medios/hueso.glb', notas: 'Escaneado en el laboratorio.' } }).campo?.centroEnElCuerpo).toBeNull()
+    // Sin poblar —la relación llega como identificador— tampoco hay nota que leer.
+    expect(casoCon({ modelo: 3 }).campo?.centroEnElCuerpo).toBeNull()
+  })
+
+  it('lo que el médico decidió del paño cruza entero, con la zona ya en metros', () => {
+    const caso = casoCon({ pano: { apagado: true, color: 'celeste', zona: { xMin: -150, xMax: -40, yMin: 300, yMax: 520 } } })
+    expect(caso.campo?.pano).toEqual({ apagado: true, color: 'celeste', zona: { xMin: -0.15, xMax: -0.04, yMin: 0.3, yMax: 0.52 } })
+  })
+
+  it('el editor trae el centro ya leído, sin la nota, y llega igual', () => {
+    // `opcionesDeRelacion` no manda la nota entera de cada modelo —un párrafo por quinientos modelos—: manda el
+    // centro. Si aquí se perdiera, el editor enseñaría el caso sin colchón y el residente lo vería con él.
+    const caso = casoDesdeElFormulario(
+      { nombre: 'Caso', modelo: '7', pano: { color: 'verde' } },
+      { opciones: { 'modelos-3d': [{ id: '7', etiqueta: 'Pierna', url: '/medios/pierna.glb', centroEnElCuerpo: [-0.098, 0.487, 0.012] }] }, instrumentos: [] },
+    )
+    expect(caso.modeloUrl).toBe('/medios/pierna.glb')
+    expect(caso.campo).toEqual({ centroEnElCuerpo: [-0.098, 0.487, 0.012], pano: { apagado: false, color: 'verde', zona: null } })
+  })
+
+  it('en el editor, un modelo sin centro sigue sin campo', () => {
+    const caso = casoDesdeElFormulario(
+      { nombre: 'Caso', modelo: '7' },
+      { opciones: { 'modelos-3d': [{ id: '7', etiqueta: 'Hueso suelto', url: '/medios/hueso.glb' }] }, instrumentos: [] },
+    )
+    expect(caso.campo?.centroEnElCuerpo).toBeNull()
   })
 })

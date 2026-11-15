@@ -39,6 +39,14 @@ export const LIMITE_DEL_LABIO_MM = 8
 /** Hasta dónde se acepta un clic como «junto a la herida» para apoyar el separador (lo de siempre). */
 export const LIMITE_PARA_COLOCAR_MM = 30
 
+/**
+ * Hasta qué hondura baja un separador que cambia de plano, buscando la superficie del plano nuevo por la normal; y, por
+ * lo mismo, hasta qué hondura bajo una herida un separador de un plano más hondo sigue abriéndola (P-015). Las dos
+ * cosas tienen que medir lo mismo: un separador que se pudo bajar y luego no abre la piel por la que pasó la hoja se
+ * vería atravesándola.
+ */
+export const HONDURA_PARA_CAMBIAR_DE_PLANO_MM = 80
+
 export interface EntradaDelClic {
   /** El papel de la pieza que se ve primero bajo el cursor (`piel`, `musculo`, `hueso`…), o `null` si no hay ninguna. */
   rolDelGolpe: string | null

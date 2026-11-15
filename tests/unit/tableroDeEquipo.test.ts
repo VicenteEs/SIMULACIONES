@@ -157,8 +157,12 @@ describe('leerEquipo', () => {
   })
 
   it('lee las cuentas de editor y de administrador y toda la cola', async () => {
+    // `leerEquipo` cuenta con el reloj de verdad, no con el `hoy` fijo de las demás: la ficha tiene que ser de ayer de
+    // verdad. Con `haceDias(1)`, del 2 de noviembre de 2026, la prueba pasaba hasta el día 9 y desde entonces la ficha
+    // ya llevaba una semana en la cola.
+    const ayer = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     const find = vi.fn(async ({ collection }: { collection: string }) => ({
-      docs: collection === 'usuarios' ? [editora(1)] : [{ estado: 'pendiente', asignadaA: 1, createdAt: haceDias(1) }],
+      docs: collection === 'usuarios' ? [editora(1)] : [{ estado: 'pendiente', asignadaA: 1, createdAt: ayer }],
     }))
     const payload = { count: vi.fn(async () => ({ totalDocs: 1 })), find } as unknown as Payload
     const r = await leerEquipo(payload)

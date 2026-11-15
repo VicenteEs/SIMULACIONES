@@ -133,6 +133,31 @@ describe('el material con aspecto', () => {
     expect(s.uniforms.uMmPorUnidad.value).toBe(1000)
   })
 
+  it('la fascia es una lámina maciza: en el simulador no se dibuja translúcida aunque el archivo lo diga (P-015)', () => {
+    // El atlas la trae al 45 o al 60 % para que se vea lo de debajo (P-006). En la herida era el «cristal» del pedido
+    // del dueño: un vidrio brillante, sin profundidad, con los músculos transparentándose a través de sus facetas.
+    const delAtlas = new THREE.MeshStandardMaterial({ color: 0xd9cdbb, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide })
+    const medidas = { mmPorUnidad: 1000, unidadesPorMm: 0.001 }
+    const fascia = materialConAspecto(delAtlas, 'fascia', medidas)
+    expect(fascia.transparent).toBe(false)
+    expect(fascia.opacity).toBe(1)
+    expect(fascia.depthWrite).toBe(true)
+    // Lo demás del archivo se conserva: el color y las dos caras.
+    expect(fascia.color.getHex()).toBe(0xd9cdbb)
+    expect(fascia.side).toBe(THREE.DoubleSide)
+    // Mate y con poco barniz: el brillo de una aponeurosis es ancho y nacarado, no el de un cristal.
+    expect(fascia.roughness).toBeGreaterThan(0.5)
+    expect(fascia.clearcoat).toBeLessThan(0.25)
+    expect(fascia.clearcoatRoughness).toBeGreaterThan(0.4)
+    // Los demás aspectos respetan lo que diga el archivo: un músculo que el atlas trae translúcido lo sigue siendo.
+    for (const otro of ['piel', 'musculo', 'humedo', 'hueso', 'ojo'] as const) {
+      const m = materialConAspecto(delAtlas, otro, medidas)
+      expect(m.transparent).toBe(true)
+      expect(m.opacity).toBe(0.45)
+      expect(m.depthWrite).toBe(false)
+    }
+  })
+
   it('copia el color por vértice del archivo, y sin él no lo enciende', () => {
     // El material con aspecto es nuevo: el cargador solo enciende `vertexColors` en el que él mismo creó, y sin
     // copiarlo la pigmentación (D-227) se perdería justo al vestir la malla, sin ningún error que lo diga.

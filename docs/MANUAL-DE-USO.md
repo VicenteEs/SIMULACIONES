@@ -337,6 +337,12 @@ fascias que calcula la plataforma, que están en «Las fascias»; el pelo,
 las cejas y el vello se quitaron del atlas y no existen) y ponerla en una ficha con
 el bloque «Preparación anatómica».
 
+**La paleta (D-360).** Junto a las pestañas del taller está el selector **«Paleta»**: «Clara»,
+«Oscura fría» (la de fábrica), «Verde quirófano» y «Original», la de antes. Cambia los colores del
+taller y de la consola del simulador **para toda la plataforma**: es lo que verán los residentes.
+La pueden cambiar los editores y los administradores. Se guarda al elegirla; si no se puede
+guardar, vuelve la anterior y lo dice. Quien tenga la consola abierta ve la nueva al recargar.
+
 1. **Seleccione** lo que le interesa. Un clic sobre una pieza la selecciona y
    la pinta de naranja; **Mayús + clic** suma otra. Para muchas de una vez,
    pulse «Marco» (o la tecla **B**) y arrastre un recuadro sobre la zona: entran
@@ -739,7 +745,7 @@ enviar a revisión son los botones de siempre, arriba.
 están **+ Paso**, las flechas para moverlo y el bote de basura (pregunta antes de
 quitar).
 
-**El panel, con tres pestañas.**
+**El panel, con cuatro pestañas.**
 - **Paso N:** el título, la fase, qué se evalúa, el instrumento correcto, los puntos
   y los textos. Solo salen los rangos que tocan al objetivo (incisión mínima y
   máxima, tolerancias, fuerza). Debajo hay botones que **capturan lo que se acaba
@@ -757,6 +763,16 @@ quitar).
   actual como inicial» queda como arranca el caso.
 - **El caso:** modelo 3D, bandeja, milímetros por unidad, eje largo y
   desplazamiento inicial.
+- **Paño:** el colchón y el paño que cubren al paciente (D-358). La casilla **«Sin colchón ni
+  paño»** los quita en ese caso. **«Color del paño»** elige azul (el de siempre), celeste o verde.
+  La ventana, lo que queda descubierto, es **automática**: lo que se recortó en el taller
+  anatómico. Para cambiarla, arrastre sobre el modelo los **puntos blancos del marco**: uno en
+  cada borde y el del centro, que la mueve entera. También se mueven con el tabulador y las
+  flechas: 5 mm por pulsación, o 2 cm con Mayúsculas. El paño se va cortando mientras arrastra.
+  **«Volver a la automática»** deshace el ajuste. Con esta pestaña abierta, el paño se ve aunque
+  esté quitado en «Capas». Los casos de antes llevan paño azul y ventana automática sin tocarlos.
+  Solo llevan paño los modelos exportados del taller anatómico, porque son los que saben en qué
+  parte del cuerpo estaban. Con otro modelo, la pestaña lo dice y el caso se ve como antes.
 
 **Probar un paso.** «Probar este paso» hace lo que haría el residente al aplicarlo,
 con las tolerancias que acaba de escribir, y dice el resultado. No puntúa, no avanza
@@ -947,9 +963,10 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   el recuadro «Herida» las lista —«Incisión 2 · músculo · 30 mm»— con una **×** que cierra solo esa;
   «Cerrar todas las heridas» las cierra todas. Cada separador y cada pinza abre la incisión en que
   se puso; un separador apoyado en un plano profundo abre además la incisión de la piel o de la
-  fascia que tiene justo encima, si cae sobre ella (a 30 mm o menos de su borde, lo mismo que se pide para colocarlo). Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
-  que deshace la última) y trace otra. El **borde rojo** de una incisión recién hecha se vuelve del
-  tono de la piel cuando se abre más de 5 mm o cuando hay una herida más profunda.
+  fascia que tiene justo encima, si cae debajo de ella: a 30 mm o menos de su línea, a lo ancho o pasado el extremo,
+  sin contar lo hondo que esté (D-367). Bajado con «A la fascia» o «Al músculo», pasa a abrir la incisión de ese plano que tiene debajo. Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
+  que deshace la última) y trace otra. El **borde rojo** de una incisión recién hecha desaparece en
+  cuanto la herida se abre lo bastante para que se vea el hueco, o cuando algo la aparta (P-015).
 - **Perforar (brocas de 1,5 a 4,5 mm, avellanador, machuelo, fresa).** El modo pasa a
   **Perforar**. Apunte al hueso y **mantenga pulsado**: la broca gira y avanza. Antes de
   empezar, dos deslizadores eligen la **inclinación** (a lo largo del hueso y a lo ancho, de
@@ -1122,6 +1139,22 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   El navegador recuerda cómo se dejaron.
 - **La posición del paciente** («De pie», «Supino», «Prono») está arriba a la derecha, en la misma fila que los modos («Orbitar», «Trazar»…). «Giro
   libre» y el giro de 90° siguen en la columna izquierda.
+- **El colchón y el paño (P-014).** El paciente está acostado sobre un colchón y cubierto por un paño que
+  deja descubierta solo la zona de la cirugía. **Lo que queda bajo el paño o bajo el colchón no se toca.**
+  Un clic ahí no corta ni perfora, y junto al cursor se lee por qué: «Eso queda bajo el paño: se opera por
+  la ventana. El paño se quita en “Capas”». El interruptor **«Paño»** de «Capas» lo quita y lo pone. Vale
+  solo para esa sesión, y el colchón y la sábana se quedan. Para operar por detrás se da la vuelta al
+  paciente. Un caso con un modelo que no salió del taller anatómico se ve como antes, sin colchón ni paño.
+- **Dar la vuelta al paciente (D-356).** «Supino» lo deja boca arriba y «Prono» boca abajo: el paciente rueda
+  sobre el colchón durante algo más de un segundo, y mientras rueda no se opera. **«De pie» no lo levanta.**
+  Sigue acostado y solo cambia desde dónde se le mira. Lo puesto sobre el paciente (separadores, placa, hilo)
+  rueda con él.
+- **La herida se abre sola al cortar (P-015).** Una incisión se separa sola unos milímetros, en huso, como
+  en un paciente. Se separa más en la piel que en la fascia, y el músculo más si se corta a través de sus
+  fibras que a lo largo. Un corte de 5 cm en la piel queda en un ojal de unos 7 mm. Lo que abren los
+  separadores se suma a eso, y la cifra «abierta N mm» del panel lo incluye. La cinta roja desaparece en
+  cuanto se ve el hueco. Con un separador **bajado al músculo**, se abren a la vez la piel, la fascia y el
+  músculo que tiene encima, si está a no más de 30 mm de su línea, a lo ancho o pasado el extremo.
 - **Señalar (solo editor).** El modo «Señalar» que ve quien edita sirve para **declarar las piezas del caso**: un clic en un trozo del modelo lo añade a la
   pestaña «Piezas» con su nombre exacto. El residente no lo tiene.
 - **Margen contra la pantalla en blanco.** Si el navegador le quita a la página el contexto gráfico, la consola espera **12 s** (antes 3) antes de ofrecer

@@ -48,6 +48,7 @@ import * as migration_20261105_185336_topes_por_plano from './20261105_185336_to
 import * as migration_20261105_193153_tornillos_por_fragmento_y_nota_del_servidor from './20261105_193153_tornillos_por_fragmento_y_nota_del_servidor';
 import * as migration_20261105_204916_rol_vaso_y_nervio from './20261105_204916_rol_vaso_y_nervio';
 import * as migration_20261105_222046_manguito_y_tiempos from './20261105_222046_manguito_y_tiempos';
+import * as migration_20261115_004640_campo_quirurgico_y_tema from './20261115_004640_campo_quirurgico_y_tema';
 
 export const migrations = [
   {
@@ -298,6 +299,11 @@ export const migrations = [
   {
     up: migration_20261105_222046_manguito_y_tiempos.up,
     down: migration_20261105_222046_manguito_y_tiempos.down,
-    name: '20261105_222046_manguito_y_tiempos'
+    name: '20261105_222046_manguito_y_tiempos',
+  },
+  {
+    up: migration_20261115_004640_campo_quirurgico_y_tema.up,
+    down: migration_20261115_004640_campo_quirurgico_y_tema.down,
+    name: '20261115_004640_campo_quirurgico_y_tema'
   },
 ];

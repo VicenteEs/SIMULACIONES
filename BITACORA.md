@@ -7762,7 +7762,7 @@ Hace lo que haría quien arrastra: deja el zoom y el desplazamiento en el panel,
 - (+) Cualquier otra pieza de interfaz que se reconozca por su nombre queda también fuera de la oclusión.
 - (−) Con un instrumento dentro ya no se ve el trazo entero de la incisión. Para verlo hay que quitar el separador.
 
-### D-253 · 2026-11-03 · vigente · segunda etapa de P-008 · resuelve O-081 y rehace cómo se posa la hoja de D-241 · la postura de la hoja, rehecha por D-261
+### D-253 · 2026-11-03 · vigente · segunda etapa de P-008 · resuelve O-081 y rehace cómo se posa la hoja de D-241 · la postura de la hoja, rehecha por D-261 · la cuerda en recta de la hoja a la punta, superada por el arco de D-363
 **Los separadores abren al milímetro desde su hoja: el borde que sostienen se aparta lo que dice la apertura, en su sitio. La hoja de mano queda con la pala metida en el labio y el mango tendido hacia fuera.**
 
 *De dónde sale.* Pedido del dueño (P-008): «que los separadores interactúen milimétricamente, que se meta y se desplace desde el borde en ese punto de la herramienta hacia afuera; todos los separadores». A media tarea, con un dibujo en rojo sobre una captura: «la herramienta debería quedar como lo rojo, con la paleta hacia abajo y metida en el músculo como si lo estuviera corriendo; así es como se usa, siempre despejando el campo visual y traccionando desde el centro hacia afuera».
@@ -10697,6 +10697,337 @@ El cierre por planos se cosía puntada a puntada: de nueve a once clics para och
 - (+) La ficha se abre sobre cualquier trozo de una pieza partida.
 - (−) La ficha es la de la pieza entera: no distingue entre «_1» y «_2». Es lo que el residente espera, pero quien quiera una ficha por trozo tendría que pedirlo.
 
+### D-354 · 2026-11-15 · vigente · P-014 E1
+**El colchón, la sábana y el paño salen de Blender por guion, en las coordenadas del cuerpo del atlas.**
+
+- **Qué se hizo.** `scripts/pabellon/` genera lo que viaja a `public/pabellon/`:
+  - `colchon.glb` (219 KB): la plancha sola, sin base, de 84 × 196 × 11 cm, con los cantos redondeados, la pared con su ribete y las tapas.
+  - `campo-supino.glb` y `campo-prono.glb` (3,7 MB cada uno): la sábana con la huella del cuerpo y el paño ya caído. Unos 167.000 triángulos por archivo.
+  - `relieve-supino.bin` y `relieve-prono.bin` (292 KB): dos rejillas de alturas en celdas de 6 mm, en enteros de 16 bits de 0,02 mm. Una dice dónde hay cuerpo. La otra es el **lecho**: la superficie a la que se pega el borde de la ventana, piel donde hay cuerpo y sábana donde no.
+  - `manifiesto.json`: las medidas del colchón y, por decúbito, su marco (origen, ancho, largo y normal), su modelo y su relieve.
+  - Cuatro mapas de normales en WebP: `tela-pliegues` (2048², único, con los dobleces de fábrica), `tela-relieve` (512², el gofrado del no tejido), `colchon-grano` y `colchon-pared`.
+- **Se tumba la gravedad, no el cuerpo.** Los vértices se escriben donde el atlas tiene la piel, y la gravedad se pone perpendicular al colchón de cada decúbito. El `.glb` sale en las mismas coordenadas en que el taller exporta el recorte antes de centrarlo: en el navegador no queda ningún giro que deshacer, ni que equivocar.
+- **El colchón va inclinado**, menos de dos grados. Un cuerpo de pie no queda plano al acostarlo: sobre un plano perpendicular a su eje, la pierna —que es lo que más se opera— flotaría tres centímetros.
+  - Lo que aun así queda en el aire se calza como en pabellón: un cojín bajo la cabeza, uno bajo cada brazo y, boca abajo, un rodillo bajo los tobillos.
+  - `medir.py` dice cuánto se hunde y cuánto flota cada zona. Con esa cuenta se eligieron los planos y los cojines.
+- **84 cm de ancho, y no los 76 del plan.** El atlas lleva los brazos junto al tronco y algo abiertos: las manos llegan a 33 cm del eje. Con 76 quedaban en el mismo canto, y el paño caía desde la mano al vacío con un pellizco.
+- **Boca abajo el colchón se corre hacia la cabeza** y los pies cuelgan del borde, como se pone a un paciente para el tendón de Aquiles. La punta de un pie en ángulo recto queda seis centímetros por debajo del plano.
+- **El paño se simula y la sábana se construye.**
+  - El paño es el modificador de tela de Blender. No cae desde plano: empieza tendido sobre la carpa del cuerpo y la simulación lo asienta. Boca arriba son unos once minutos.
+  - Choca contra el cuerpo «visto desde arriba» —la altura más alta de la piel en cada celda— y no contra la piel. Con la piel, la tela se colaba entre los dedos y la mano tapada parecía una garra.
+  - No es un rectángulo. A cada altura lleva el ancho que el cuerpo le va a comer, y cuelga parejo, 8,5 cm.
+  - Al acabar, `asentar` sube lo que haya quedado bajo la piel: 123 vértices boca arriba.
+  - La sábana está pillada entre el colchón y el cuerpo, que es lo que un simulador de tela resuelve mal: tiembla o atraviesa. Se construye sobre la rejilla de alturas y queda siempre por debajo de la piel.
+- **Las texturas no se hornean en Blender**, contra lo que decía el plan. Son campos de alturas calculados con numpy (`texturas.py`) y pasados a mapas de normales.
+  - Se repiten sin costura por construcción.
+  - La escala es exacta: el punto del no tejido mide 1,6 mm porque así está escrito, no porque un nodo de ruido haya quedado de ese tamaño.
+- **El lecho no puede quedar bajo la piel.** `cubrir` sube las celdas que haga falta hasta que la rejilla, interpolada como la interpola el navegador (`alturaEn`), pase por encima de cada punto de la piel. Las dos cuentas van juntas: si se cambia una, la garantía deja de valer.
+- **Lo caro no se repite.** La tela caída queda en `scripts/pabellon/salida/`, fuera de git. `--etapa campo` rehace los `.glb` en segundos sin volver a simular.
+
+*Qué se probó.* `vistas.py` abre los mismos `.glb` que carga el simulador y los fotografía, con y sin ventana. Con esas imágenes el dueño vio la forma antes de tocar el navegador.
+
+*Consecuencias.*
+- (+) Todo se regenera con una orden, y el archivo llega ya en su sitio.
+- (−) Son 9 MB de archivos estáticos. De ellos 7,4 son las dos telas, que viajan sin comprimir. Se cargan aparte del modelo (D-355).
+- (−) Si la piel del atlas se regenera, hay que volver a medir y a simular.
+- (−) La postura es la del atlas, con los brazos junto al tronco. No hay decúbito lateral ni mesa de mano.
+- (−) El dueño pidió las texturas «en Blender». La forma y la tela sí salen de Blender; los mapas, de una cuenta. Se le dice.
+
+### D-355 · 2026-11-15 · vigente · P-014 E2 y E3
+**El campo cuelga de la escena y no del modelo, la ventana se corta en la geometría, y un modelo que no sabe dónde estaba en el cuerpo se queda sin campo.**
+
+- **Dónde está cada cosa.** La aritmética, sin three y con sus pruebas, en `src/lib/campoQuirurgico.ts`. Lo que necesita una tarjeta gráfica, en `src/components/simulador/campoEnLaEscena.ts`.
+- **Cuelga de `escena`, fuera de `raiz`.** De la raíz del modelo cuelga lo que el residente toca. El lienzo lanza contra ella los rayos, la encuadra, la recorre para las capas y la guarda en la sesión. Nada de eso se encuentra con un colchón, y el centrado queda como estaba: el centro es lo recortado.
+- **Dónde cae el modelo en el cuerpo.** Es el centro que el exportador resta. Desde ahora va dentro del `.glb` (D-358); el de los modelos de antes se lee de la frase de sus notas. El grupo del campo se corre lo mismo que el modelo, y el colchón queda bajo la rodilla y no bajo el ombligo.
+- **Sin sitio en el cuerpo no hay campo.** El plan decía «paño liso, sin bulto». Se cambió.
+  - Un modelo que no salió del atlas abre como siempre, la pieza sola. Lo mismo uno en milímetros, uno con otro eje largo, o uno cuyo centro no cabe en el cuerpo (`cabeEnElCuerpo`).
+  - El colchón está hecho a la medida del cuerpo del atlas. Debajo de otra pieza no dice nada, y un paño liso sobre una pieza suelta tampoco.
+  - La pestaña «Paño» del editor lo explica (D-358).
+- **La ventana se corta partiendo triángulos** (`abrirLaVentana`), y no con un `discard`. Las sombras, la oclusión y la radiografía dibujan con sus propios materiales, y para ellos el `discard` del paño no existe: saldría la sombra de un paño entero sobre una pierna descubierta.
+  - El corte pasa por las aristas. El punto de cada arista se calcula una vez y lo comparten sus dos triángulos: la tela sale cosida.
+  - La primera versión cortaba con las rectas de los cuatro lados, una tras otra. Las rectas seguían más allá de la ventana y dejaban juntas en T, que es por donde a una tela se le ve la luz.
+  - Las esquinas van redondeadas a 18 mm. Ningún lado baja de 3 cm.
+- **La zona automática** (`zonaAutomatica`) es la caja de lo que no es piel ni fascia, la misma con que el exportador centra. La piel sale del taller con 5 cm de margen: los extremos cortados quedan 5 cm bajo el paño.
+  - Donde el cuerpo se acaba a menos de 4,5 cm del borde, la ventana se abre hasta pasar el contorno y un centímetro más. Vale para la punta de un pie y para el costado de un miembro. En la primera prueba, el borde cortado en la ladera de la pantorrilla salió dentado.
+  - Si pasado el contorno vuelve a haber cuerpo —la otra pierna—, el borde se queda a medio hueco. Más allá destaparía una pierna que no está en el modelo.
+  - Cada lado se mira en nueve puntos y manda la mayoría.
+- **Por donde la ventana se sale del colchón, el paño se abre en U** (`abrirPorDondeCuelga`). Boca abajo los pies cuelgan, y una ventana cerrada cortaba la tela en plena caída: quedaba una tira entre dos jirones. En pabellón eso se hace con un paño en U.
+- **El borde se ciñe** (`cenirAlBorde`). La tela se simuló sobre el cuerpo entero: junto a un muslo hace carpa hasta el colchón, y por el borde de la ventana se vería el hueco de debajo, donde no hay nada. En una franja de 5,5 cm la tela baja hasta 2,8 mm del lecho. Solo baja, nunca sube.
+- **La tira de refuerzo** que rodea la ventana, de 3,2 cm, se pinta en el sombreador con la misma cuenta de distancia.
+- **Los materiales.** La tela es mate, con el brillo de la fibra, y va por las dos caras: quien asoma la cámara bajo el paño ve tela y no el vacío.
+  - Lleva dos normales mezcladas: los pliegues, únicos, y el tejido, que se repite. Se consigue cambiando una línea del sombreador de three. Si una versión futura la escribe distinto, el cambio no entra y la tela sale sin grano, sin romper nada.
+  - La sábana es del color del paño, un punto más apagada.
+- **Sombras, oclusión y radiografía.** El campo proyecta y recibe sombra, y entra en la oclusión, que es lo que hace que la pierna parezca apoyada. En las tres tomas de la radiografía el grupo va en la lista `esconder`. No se marca `deInterfaz`: eso lo sacaría también de la oclusión.
+- **Se carga aparte.** El modelo se puede mirar y operar mientras llega el campo.
+  - Si un archivo falta o no mide lo que el manifiesto dice (`leerElManifiesto`, `leerElRelieve`), el caso sigue sin campo y se avisa.
+  - El otro decúbito se pide a los 2,5 s, para que la primera vuelta no lo espere.
+- **Con la calidad rebajada** —un equipo que ya perdió el contexto gráfico— la tela va sin mapas ni sombras.
+- **Al desmontar**, el campo suelta sus geometrías, materiales y texturas antes de que el lienzo recorra la escena.
+
+*Qué se probó.* `tests/unit/campoQuirurgico.test.ts`, 108 pruebas con las de D-356 a D-359. `tests/unit/campoEnLaEscena.test.ts` monta el campo entero en node con los archivos que hay en `public/pabellon/`: es la única que se entera si el guion de Blender cambia un nombre del manifiesto, el tamaño del relieve o el nombre de una malla. En el navegador, sobre una tibia derecha recortada del atlas: el paño con su ventana boca arriba y boca abajo, desde arriba, inclinado, oblicuo y de cerca; la radiografía sin paño ni colchón; y un caso con un modelo que no es del atlas, que abre sin campo.
+
+*Consecuencias.*
+- (+) El centrado, el encuadre y la sesión no cambiaron: el campo no existe para ellos.
+- (+) Los casos de antes abren con su colchón y su paño sin tocarlos.
+- (−) Un modelo importado de fuera no tiene campo, y no lo tendrá mientras no se le pueda decir dónde va en el cuerpo.
+- (−) Quedan cuatro defectos de aspecto, anotados en P-014: la trama se estira en las paredes empinadas de la tela, las esquinas de la U salen algo rectas, la sábana es del mismo azul que el paño, y en la vista cenital boca abajo se ve una línea negra del colchón.
+
+### D-356 · 2026-11-15 · vigente · P-014 E4
+**Dar la vuelta al paciente es girar la cámara y el colchón juntos. El modelo sigue sin moverse.**
+
+- **El decúbito va aparte de la vista** (`decubitoDeLaPosicion`). «De pie» y «Supino» son boca arriba; «Prono», boca abajo. «De pie» no levanta a nadie: sigue acostado y solo cambia desde dónde se le mira, que es lo que el dueño eligió.
+- **Por qué no se gira el modelo.** En el simulador se mueve la vista (`posicionDelPaciente.ts`): los separadores, la placa y el hilo viven en el mundo, y girar el cuerpo los dejaría donde estaban.
+  - Con un colchón, mover solo la cámara ya no vale: el colchón quedaría entre ella y el paciente.
+  - Así que el colchón da la misma media vuelta que la cámara, alrededor del eje largo del paciente (`colchonAlDarLaVuelta`, `camaraAlDarLaVuelta`). En la pantalla el colchón no se mueve y el que rueda es el paciente.
+- **La vuelta dura 1,1 s.** Más corta no se entiende qué pasó; más larga estorba a quien solo quería mirar la otra cara.
+  - De canto, el paciente es más ancho que tumbado: el colchón se aparta lo justo para no atravesarlo (`despejeParaGirar`).
+  - El colchón de boca abajo no es el de boca arriba girado: apoya en el pecho y va corrido hacia la cabeza. Esa diferencia se reparte a lo largo de la vuelta.
+  - El paño no se ve mientras dura. La sábana se cambia por la del otro decúbito a media vuelta, con el paciente de canto delante.
+  - Boca abajo se rueda hacia un lado y se vuelve por el mismo: nadie da la vuelta entera.
+  - Mientras rueda no se orbita ni se opera. Otra orden de la cámara da la vuelta por terminada.
+- **Un paso con encuadre guardado decide por la cámara** (`decubitoDeLaVista`), no por la posición que declara. Un paso guardado con «Supino» y la vista llevada después a la espalda dejaría el colchón delante. Cerca del perfil se queda como estaba.
+- **La lámpara cuelga sobre la camilla** (`pabellon.colocar(caja, acostado)`). Antes iba «hacia +Y», que es hacia la cabeza: boca abajo quedaba detrás del colchón, y con las sombras encendidas el paciente entero a oscuras. Va con el colchón: cuando el paciente rueda, ella no.
+- **Al cargar se abre con la pose de la posición pedida.** Antes se abría siempre de frente. Un caso cuyo primer paso declara «Prono» quedaba con el botón marcado y la vista de pie, que con colchón es mirar al paciente a través de él.
+
+*Qué se probó.* Las cuentas del giro, en `campoQuirurgico.test.ts`: el colchón y la cámara llegan a donde deben, y a media vuelta el colchón está de canto y apartado del paciente. `pabellon.test.ts`, de qué lado queda la lámpara boca arriba y boca abajo. En el navegador: «De pie», «Supino» y «Prono» sobre la tibia, y la vuelta fotografiada en cuatro instantes.
+
+*Consecuencias.*
+- (+) Lo puesto sobre el paciente no se entera de la vuelta.
+- (−) No hay decúbito lateral.
+- (−) La ayuda de los tres botones se reescribió para el colchón; sin campo sigue diciendo lo de antes (ver P-014).
+
+### D-357 · 2026-11-15 · vigente · P-014 E5
+**Lo que no se ve no se toca: el paño y el colchón paran los clics, y se dice por qué.**
+
+- **Un solo sitio.** `sinTapar` envuelve los cuatro rayos con que el cursor busca el modelo: la superficie, una capa, el hueso y el trozo que se agarra. Vale para el bisturí, la broca y los separadores sin que ninguna herramienta sepa que hay un paño.
+- **Se pregunta a la misma malla que se dibuja**, ya cortada y ceñida (`laTelaTapa`). El plan era una rejilla de alturas. Se cambió porque con la rejilla quedaba una franja, junto al borde, en que lo que se veía por la ventana no se podía tocar.
+  - El lienzo no tiene con qué acelerar un rayo contra ochenta mil triángulos. Pero el paño, visto desde arriba, apenas se pisa a sí mismo: la tela se reparte en casillas de 2 cm (`indexarLaTela`) y el rayo solo prueba los triángulos de las casillas por las que pasa su sombra.
+  - La tela cuenta por sus dos caras. Quien mete la cámara debajo ve la pieza por dentro, y por dentro la toca.
+- **El colchón también tapa** (`elColchonTapa`). Antes, quien llevaba la cámara por detrás de la rodilla la operaba por detrás. Ahora ahí hay un colchón: para operar por ese lado se le da la vuelta al paciente, como en pabellón.
+- **El aviso.** Quien pincha algo tapado lee por qué no pasó nada, junto al cursor, durante unos tres segundos: «Eso queda bajo el paño: se opera por la ventana. El paño se quita en "Capas"». Orbitando no se dice nada.
+- **El interruptor «Paño», en «Capas».** Lo quita y lo pone el residente, y vale para su sesión: el caso no lo recuerda. Sin paño se toca lo que tapaba. El colchón y la sábana se quedan.
+
+*Qué se probó.* `campoQuirurgico.test.ts`: rayos que dan en la tela, que entran por la ventana de frente y oblicuos, y rasantes; la respuesta comparada, rayo por rayo, con la cuenta directa contra todos los triángulos; y el colchón desde arriba, desde abajo y de canto. En el navegador: el clic bajo el paño con su aviso, el clic por la ventana, y el mismo punto ya sin paño.
+
+*Consecuencias.*
+- (+) Un caso con paño enseña a operar por la ventana.
+- (−) Un caso de antes cuyo paso pedía algo fuera de lo recortado ya no se puede cumplir con el paño puesto. El médico ajusta la ventana o apaga el paño en ese caso (D-358).
+- (+) No se nota al mover el ratón. Medido en E8, en el caso 4 con Edge y la tarjeta gráfica del equipo de desarrollo, sobre una rejilla de 40 × 40 rayos desde la vista de partida y de cerca: preguntar al colchón y al paño cuesta 0,004 ms de media por rayo, y 0,02 en el peor. El rayo contra el modelo, que ya se hacía, cuesta 6 ms. Es menos de una milésima de cada movimiento, también en «Mover» por trozos, que lanza varios rayos alrededor del cursor.
+
+### D-358 · 2026-11-15 · vigente · P-014 E6
+**El caso guarda si lleva paño, de qué color y qué deja descubierto. La ventana se ajusta con un marco sobre el modelo.**
+
+- **Los campos.** Un grupo `pano` en `Cirugias`: `apagado` («Sin colchón ni paño»), `color` (azul, celeste o verde) y `zona` (cuatro números).
+  - «Apagado» y no «encendido»: así el valor por omisión de la columna, falso, es lo que el dueño pidió para los casos que ya existen.
+  - La zona va en milímetros enteros sobre el plano del cuerpo. Nadie ajusta un paño por décimas, y un entero no acumula error al ir y volver por el formulario.
+  - Una zona a medias vale como automática (`panoDelCaso`).
+  - El colchón y la tela no se guardan: se arman al abrir el caso.
+- **La migración** es `20261115_004640_campo_quirurgico_y_tema`, con sus tablas de versiones. Lleva también la columna de la paleta (D-360).
+- **En `esquema.ts`.**
+  - El color no es obligatorio. Se probó: un caso al que le llegaba vacío abría con «1 obligatorio sin llenar», y un adorno no puede impedir que un caso de antes se publique. Vacío es azul.
+  - La zona va oculta, no ausente: lo que el esquema no describe, `depurar` lo tira al guardar.
+- **El centro, dentro del `.glb`.** `escribirGlb` acepta `extras` de la escena, y el exportador escribe ahí `centroEnElCuerpo`, con todos sus decimales. Sin extras el archivo sale byte a byte como antes.
+  - La frase de las notas se sigue escribiendo. La escribe `fraseDelCentro` y la lee `centroDesdeLasNotas`, en el mismo archivo: cambiar una sin la otra no pasa de la prueba.
+  - El archivo manda sobre la nota: no depende de que nadie haya tocado el texto.
+- **Hasta la consola.** `casoParaLaConsola` manda `campo` (el centro y el paño). Al editor del caso, el desplegable de modelos le trae el centro ya leído y no la nota entera.
+- **El marco** (`MarcoDelPano`) va en HTML encima del lienzo, no dentro de la escena.
+  - El lienzo ya reparte el puntero entre quince gestos según el modo. Un asa metida ahí tendría que ganarles a todos sin romper ninguno; un botón que captura su propio puntero no se cruza con nadie.
+  - Un botón se alcanza con el tabulador y se mueve con las flechas (5 mm; con mayúsculas, 2 cm). Una malla no.
+  - Son cinco asas: una en cada borde y la del centro, que mueve la ventana entera. Un borde no puede cruzar al de enfrente.
+  - Mientras se arrastra, el paño se corta de verdad por donde va el puntero. Al soltar, la zona se escribe en el formulario.
+- **La pestaña «Paño»** del editor del caso lleva la casilla, el color, la medida de la ventana y «Volver a la automática».
+  - Con la pestaña abierta el paño va puesto, diga lo que diga «Capas»: no se ajusta la ventana de una tela que no se ve.
+  - Con un modelo que no es del atlas se quedaba en «Cargando el modelo…» con el modelo delante: el lienzo no avisaba cuando no había campo que montar. Ahora avisa siempre, y la pestaña dice que ese modelo no lleva paño.
+
+*Qué se probó.* `migraciones.test.ts` y `esquema.test.ts`. `casoQuirurgico.test.ts`: lo que cruza a la consola desde la base y desde el formulario del editor. En el navegador, como administrador: abrir el marco, arrastrar un borde, mover la ventana entera, moverla con el teclado y volver a la automática; guardar el caso en celeste, en verde y apagado, publicarlo, y abrirlo como residente.
+
+*Consecuencias.*
+- (+) Los casos de antes abren con paño azul y ventana automática, sin migrarlos a mano.
+- (−) El desplegable del color sigue activo con el paño apagado, y ofrece «— sin definir —».
+- (−) Una sola ventana por caso.
+
+### D-359 · 2026-11-15 · vigente · P-014 E6
+**El paño sigue a la piel que hay en la escena, no a la del atlas. Y dos arreglos del borde que salieron al mover la ventana a mano.**
+
+- **La piel abultada.** El relieve sale del atlas, que es un paciente sano y quieto. El del caso no: la piel se abulta sobre el fragmento desplazado y sobre la placa, hasta tres centímetros.
+  - Con la ventana automática no se notaba: el bulto cae dentro de lo recortado, donde no hay tela.
+  - Al llevar el borde junto al tobillo de una tibia fracturada, el paño se ciñó a la pierna del atlas, dos centímetros y medio más estrecha, y la piel asomó por fuera del marco.
+  - `lechoConLaPiel` sube el lecho hasta la piel de la escena donde esta queda por encima. `levantarLaTela` levanta la tela suelta sobre el mismo bulto.
+  - Solo cuentan las mallas visibles con rol de piel.
+- **Sin rehacer de más.** El lienzo avisa cada vez que el abultamiento cambia (`seguirLaPiel`).
+  - El paño se rehace como mucho cada 120 ms: cuesta un cuadro entero, y mientras se arrastra un fragmento la piel cambia en todos.
+  - `huellaDeLoSubido` resume lo que subió donde hay tela. Reducir una fractura a la vista, dentro de la ventana, no rehace nada.
+- **Afinar el borde** (`afinarElBorde`). Ceñir baja cada vértice a su lecho; lo que quedaba mal era lo de entre medias.
+  - La tela llega con aristas de 9 a 14 mm, y en la cara de una pantorrilla la piel sube un centímetro en seis milímetros. Un triángulo con un vértice arriba y otro en la sábana tendía una cuerda por dentro de la pierna, y asomaba una tira de piel.
+  - Midiéndolo estaba también en la ventana automática: unos setenta triángulos de seis mil.
+  - Dos reglas, por arista: en la mitad de la franja pegada a la ventana, ninguna de más de 7 mm; en el resto, se parte la que queda bajo el lecho.
+  - La otra salida era ceñir contra un lecho «engordado» un centímetro y medio a la redonda. Son diez líneas, pero deja el borde flotando junto al miembro, con el hueco a la vista.
+- **Rellenar el lecho** (`rellenarElLecho`). Pasado el final del colchón no hay ni cuerpo ni sábana, y la tela no tenía a qué ceñirse: boca abajo, junto a los pies, el borde salía en jirones con escalones de quince centímetros.
+  - Las celdas pegadas a un dato toman lo más alto de lo que tocan, para que la piel no asome por encima.
+  - Todo lo demás vale un solo número: la mediana del canto de la sábana.
+  - Y se le quitan las caídas a plomo, con una pendiente máxima de 8.
+  - Rellenar por anillos desde el dato más cercano salió mal dos veces: desde la piel, el hueco junto a un pie tomaba la altura del pie; desde la sábana, el relleno quedaba a rayas.
+
+*Qué se probó.* `campoQuirurgico.test.ts`, con un caso por cada defecto. En el navegador: la tibia fracturada con la ventana junto al tobillo, y un pie recortado, boca arriba y boca abajo.
+
+*Consecuencias.*
+- (+) El marco se puede llevar a cualquier parte sin que la piel atraviese la tela.
+- (−) Boca abajo, donde el antepié cruza el borde más allá del colchón, el corte sale algo dentado. Y dentro de la ventana boca arriba asoma un resto pequeño de tela.
+
+### D-360 · 2026-11-15 · vigente · P-014 E7
+**Tres paletas clínicas y la de siempre, elegidas desde el taller para toda la plataforma.**
+
+- **Las paletas.** «Clara», «Oscura fría» y «Verde quirófano» son las tres que el dueño pidió. Se guarda una cuarta, «Original», para poder volver. La lista está en `src/lib/temas.ts`.
+- **Tres cosas que el dueño no dijo y se decidieron aquí.** Se le cuentan.
+  - **Vale para toda la plataforma**, no para cada persona. El residente no entra al taller: con una paleta por cuenta no tendría dónde elegirla. Va en `Ajustes.tema`, la fila única.
+  - **De fábrica es «Oscura fría».** Es la más parecida a lo que había, y el pedido era que se viera más clínico sin elegir nada.
+  - **La cambia también el editor.** `Ajustes` es del administrador, pero quien usa el taller es el médico. La acción `guardarElTema` exige editor y escribe solo ese campo.
+- **Los lienzos son transparentes**, sobre un fondo de CSS. Por eso una paleta es solo CSS: no toca la escena.
+- **En la consola** son los catorce tokens `--c-*` de `consola.css`, redefinidos por `data-tema`. La base sin atributo es «Original».
+- **En el taller** se redefinen los tokens del sitio (`--papel`, `--tinta`, `--marca`…) dentro de la caja del taller. El resto del panel no cambia: la caja queda como un recuadro de otro color.
+- **El atributo va en `<body>`, y solo ahí.** Lo pone la plantilla raíz, que lee la paleta una vez por petición (`temaDeLaPlataforma`).
+  - El esqueleto de carga del caso no puede esperar datos: con el atributo en la página, parpadeaba con la paleta original.
+  - Un envoltorio en la plantilla del segmento rompía los selectores `body > main` de la hoja del sitio.
+  - Con dos portadores podían no coincidir. `temas.test.ts` vigila que haya uno solo.
+  - La caja del taller lleva además el suyo, del estado del selector: se pinta al elegir, sin esperar al servidor.
+- **`temaDeLaPlataforma` no lanza.** Una paleta es un adorno. Si la tabla no contesta, o la columna aún no existe, se pinta con la de fábrica y se deja dicho en el registro.
+- **El selector.** Va junto a las pestañas del taller, porque vale para las dos.
+  - Al guardar se revalida la plantilla entera, y el `<body>` cambia sin recargar.
+  - Una acción de servidor que no llega no devuelve un error: lanza, y dentro de una transición se llevaría el taller entero, con el trabajo sin guardar. Se recoge, se vuelve a la paleta anterior y se dice.
+- **El contraste se mide, y por dos caminos.**
+  - `temas.test.ts` lee las hojas: cada texto contra sus fondos a 4,5:1 o más, el blanco sobre el acento, y la línea fuerte a 3:1. Y que cada bloque defina todos sus tokens.
+  - Un barrido en el navegador compara el color calculado de cada texto con el fondo que tiene debajo, en las cuatro paletas: el taller con sus pestañas, el editor del caso y diez estados de la consola.
+  - El barrido encontró lo que la hoja no dice: el texto blanco fijo de los botones sobre una marca clara (1,8:1), los textos de ejemplo en el gris del navegador (3,7:1), y las etiquetas de medida.
+  - Y cinco textos del editor del caso que ya eran ilegibles antes de las paletas, entre 1,95:1 y 2,5:1: el asterisco, la leyenda de los grupos, «Plegar todo», el número de fila y el valor del selector.
+
+*Qué se probó.* `temas.test.ts` (44 pruebas) y `accionesConGuardia.test.ts`. En el navegador: elegir cada paleta como administrador y verla en el taller, en el editor del caso y, como residente, en la consola; el barrido, sin ningún texto bajo el umbral; y el fallo al guardar, con la petición cortada a propósito.
+
+*Consecuencias.*
+- (+) El médico cambia el aspecto de la plataforma sin pedirlo a nadie, y vuelve atrás con «Original».
+- (+) Los textos del editor del caso que no se leían, ahora se leen, con cualquier paleta.
+- (−) Quien tiene la consola abierta no ve la paleta nueva hasta su siguiente carga.
+- (−) Sobre el fondo de «Clara», las guías amarillas y blancas del lienzo se ven menos. Con paño no pasa, porque detrás está el colchón.
+- (−) El pie de la consola, los negros de la radiografía y los cuadros de diálogo del sitio no cambian con la paleta.
+- (−) El resto del panel de administración sigue con sus colores.
+
+### D-361 · 2026-11-15 · vigente · P-015 E1
+**La herida se abre sola al cortarla, en huso, lo que se retrae su tejido. La cinta roja solo queda mientras no se ve el hueco.**
+
+- **Cuánto.** `retraccionDelCorte.ts`, por labio y en lo más ancho, crece con el largo de la incisión hasta un tope:
+  - piel, 0,07 mm por milímetro hasta 3,5 (un corte de 5 cm queda en un ojal de 7 mm);
+  - fascia, 0,04 hasta 2;
+  - músculo a lo largo de sus fibras, 0,03 hasta 1,2; cortado a través, 0,12 hasta 5. En medio, según el cuadrado del seno del ángulo entre el trazo y las fibras (`cuantoCruzaLasFibras`). El eje de las fibras es el eje principal de la malla. Los vasos y tendones van con el músculo.
+  - **Se decidió aquí, sin preguntar:** no hay una tabla de esto. Depende de la zona, la edad y la grasa. Son estimaciones redondeadas de lo que se ve en pabellón, y se le cuentan al dueño.
+- **Dónde.** En huso a lo largo de **la grieta** de cada malla, no del trazo (`husoDeLaGrieta`, `puntaDelHuso`: se cierra en los últimos 30 mm de cada punta). Por un extremo abierto —la grieta llega al borde de la malla— no se cierra.
+- **Con tope por grieta** (`topeDeLaRetraccionMm`). La retracción sale del largo de la incisión, pero cada malla la sufre en su grieta: una vena cruzada de través tiene una grieta de un milímetro, y abierta los 4,7 mm de su trazo plegaba 33 triángulos. La pendiente del huso no pasa de 2/3 (`PENDIENTE_MAXIMA_EN_LA_PUNTA`). Una grieta sin largo no se abre.
+- **Y se cierra junto a cada punta, en recto** (`distanciaALasPuntas`). Son puntas los vértices sencillos y los triángulos que, ya cortados, siguen uniendo los dos labios: el tejido entero. La grieta de un músculo no acaba solo en los extremos del trazo, y contando solo esos, el tibial posterior se retraía entero junto a una punta de en medio.
+- **Se suma** a lo que abren los separadores y las pinzas. El «abierta N mm» del panel lo incluye. La sutura la cierra con lo demás (`tension`).
+- **Se anima**: 320 ms, rápida al soltarse y frenando (`avanceDeLaRetraccion`). El reloj empieza en el primer cuadro dibujado, no al cortar: el corte de la piel tarda unos 60 ms y la animación se comía su comienzo.
+- **La cinta** se aparta en cuanto el hueco de la herida se ve solo, y cubre solo lo que esa malla se partió (`actualizarCinta`). Tendida por el trazo entero, la de un músculo apenas rozado cruzaba la herida como una barra roja por encima de la piel.
+- **La sonda** gana `queSeVeEn(x, y)` —qué cruza el rayo por un píxel y con qué se dibuja— y el tiempo de cada corte (`tardoMs`). Así se encontraron las seis causas de E0.
+
+*Qué se probó.* `retraccionDelCorte.test.ts`, `heridaQueSeAbreSola.test.ts`, `heridasEnLaEscena.test.ts`. En el navegador, el recorrido de E0 en el caso 4, con las mismas vistas.
+
+*Consecuencias.*
+- (+) Un corte recién hecho ya es una herida: un ojal de puntas agudas con su pared, sin pintar nada encima.
+- (−) Las cantidades son estimaciones. Si el dueño ve que una se abre de más o de menos, se cambia un número.
+- (−) Alargar una incisión vuelve a animar su apertura entera, no solo el tramo nuevo.
+
+### D-362 · 2026-11-15 · vigente · P-015 E2
+**El corte afina la malla junto a la incisión, para que el tejido que se aparta se doble en curva y no en facetas.**
+
+- **Qué.** Antes de partirla, `afinarLaFranja` divide las aristas de la franja que rodea al corte hasta que ninguna pasa de 3 mm (`ARISTA_JUNTO_AL_CORTE_MM`). Las de la fascia medían 9 mm de mediana y las de un músculo 12, hasta 94.
+- **Junto al telón, no junto al trazo.** La franja se mide contra la lámina que cuelga del trazo, con su hondura: un músculo cortado 2 cm por debajo de la piel también se afina donde se parte.
+- **Los vértices nuevos** toman color, textura y arrastre interpolados de los dos de su arista (`mezcla`). `componerCortes` hereda el arrastre de los dos: con uno solo, dos vecinos que heredaban de extremos distintos se cruzaban.
+
+*Qué se probó.* `corteDeMalla.test.ts` y `heridasEnLaEscena.test.ts`. En el navegador, el corte de la piel tarda unos 60 ms en el caso 4.
+
+*Consecuencias.*
+- (+) El labio se curva. Las facetas planas de E0, que eran media «gema», ya no están.
+- (−) La malla cortada pesa más: la piel del caso 4 pasa a 31 381 vértices.
+
+### D-363 · 2026-11-15 · vigente · P-015 E3 · supera la cuerda en recta de D-253
+**Entre la hoja de un separador y la punta de la herida, el labio va en arco, no en recta.**
+
+- `arcoDelLabio`: de la punta al borde de la hoja, en curva. La envolvente de las hojas sigue siendo la de D-253, y entre dos hojas del mismo labio sigue en recta, porque las dos tiran.
+- La cuerda en recta de D-253 hacía con dos Farabeuf un hexágono o un rombo de esquinas vivas. La piel no hace esquinas.
+
+*Qué se probó.* `exposicion.test.ts`.
+
+*Consecuencias.*
+- (+) La herida abierta es un óvalo, no un polígono.
+- (−) Cerca de las puntas el arco abre algo más que la recta. Lo limita el mismo tope de D-253.
+
+### D-364 · 2026-11-15 · vigente · P-015 E4
+**Las fascias, macizas en el simulador.**
+
+- `materialConAspecto` las deja opacas y escribiendo profundidad. El archivo las trae al 45 o al 60 % (`opacidadDelModelo`, P-006), que en el taller sirve para ver lo que tapan.
+- Tendida en el aire de un labio al otro de una herida abierta, esa lámina translúcida y con barniz era el «cristal» que veía el dueño.
+- **Se decidió aquí:** maciza siempre en el simulador, no solo junto a la herida. En un paciente la fascia tapa: para ver el músculo se la corta o se apaga su capa.
+
+*Consecuencias.*
+- (+) Lo que se ve en la herida es tejido, no vidrio.
+- (−) En el simulador, la fascia sin cortar ya no deja ver el músculo de debajo.
+
+### D-365 · 2026-11-15 · vigente · P-015 E5
+**El trazo del bisturí hondo, domado: el tejido se aparta con una curva promediada, nada se corta fuera del abanico de un quiebre, y los saltos del cursor en las puntas se quitan.**
+
+El trazo hondo se apoya en lo que el ratón encuentra —un músculo, un vaso, el fondo de la herida— y quiebra. En el caso 4 la fascia crural tenía 71 triángulos vueltos con los separadores en el músculo.
+
+- **La curva de apertura** (`CurvaDeIncision.deApertura`): el trazo promediado sobre sí mismo, a un tercio del alcance hacia cada lado, con sus mismos nodos. De ella salen la dirección en que se aparta cada vértice, a qué altura del largo cae (`largoT`) y cuánto se arrastra. Del trazo crudo, de qué lado queda y por dónde se parte.
+- **El abanico de los quiebres** (`ABANICO_DE_LOS_QUIEBRES`, ±30°). Más allá de un quiebre del trazo, fuera del abanico que cuelga de él, la hoja no pasó: no se corta, y se arrastra menos cuanto más se sale. El poplíteo se cortaba 17 a 29 mm más allá del final, con una grieta de largo cero.
+- **Los saltos del cursor en las puntas** (`recortarLosSaltosDeLasPuntas`). El primer y el último clic del trazo hondo caen en el borde de la piel: bajan 6 mm o trepan 11 por la pared. Un tramo a más de 30° del plano de la superficie, en el primer o último tercio del alcance, se quita. Los de en medio se quedan.
+
+*Qué se probó.* `corteDeMalla.test.ts`: el escalón por la pared, los saltos de las puntas, y lo que se arrastra en hondo sin saltar de un vértice al vecino. En el navegador, la fascia crural pasó de 71 vueltos a 1.
+
+*Consecuencias.*
+- (+) Las fascias y los músculos cortados con el bisturí hondo se abren sin plegarse.
+- (−) En una sesión guardada antes, la posición de un separador sobre una herida honda puede correrse un poco: su `t` se mide ahora sobre la curva recortada.
+
+### D-366 · 2026-11-15 · vigente · P-015 E5
+**Cada malla se abre entre las puntas de su propia grieta. Una hoja fuera de ella no la abre, y una punta con tejido entero más allá es cerrada.**
+
+- **Las puntas de cada malla** (`puntasDeLaGrieta`, `PuntasDeLaHerida`). El trazo es uno por incisión, pero cada malla se parte lo suyo: la fascia del caso 4 se cerraba en 0,85 y el trazo seguía hasta 1. Con el arco tendido hasta la punta del trazo, los separadores tiraban de fascia sin cortar y la doblaban en un colgajo.
+- **Una hoja que cae del todo fuera de la grieta no sostiene ese labio** (`cuerdaDelLabio`). Se acotaba a la punta y abría igual: un Farabeuf en 0,64 abría 4 mm el sóleo, partido de 0,06 a 0,20.
+- **Una punta que llega al borde de la malla, con la malla entera bajo el trazo más allá, es cerrada** (`cerrarLasPuntasConTejidoEntero`). Lo delata un triángulo con un vértice de cada labio, sin partir, del todo más allá de la grieta. El sóleo seguía bajo el trazo, y con esa punta abierta los separadores lo estiraban a los dos lados: triángulos de 5 mm² que pasaban a 25.
+  - **Se probó otra cosa antes y se descartó:** cerrar toda punta abierta 6 mm más allá de la grieta. Al sóleo le servía, pero la vena tibial, de 2 mm de grieta y cruzada en sesgo, quedaba con el perfil cambiando dentro de ella misma: sus vueltos pasaron de 10 a 42.
+- **La cinta** cubre solo esa misma grieta (D-361).
+
+*Qué se probó.* `exposicion.test.ts` y `corteDeMalla.test.ts`. En el navegador, el sóleo pasó de 29 vueltos a 0, y los vasos quedaron como estaban.
+
+*Consecuencias.*
+- (+) Lo que no se cortó no se abre.
+- (−) Un vaso cortado de lado a lado sigue apartándose entero con el separador del músculo, sus dos cabos 14 mm. Ver O-100.
+
+### D-367 · 2026-11-15 · vigente · P-015 E5 · arregla lo que dejó pendiente P-003 E4 al dar una incisión a cada capa
+**El separador que se baja a otro plano pasa a ser de la incisión de ese plano. Y abre la herida de encima si está debajo de ella, sin contar la hondura.**
+
+- **El defecto.** «Al músculo» bajaba la hoja pero dejaba al separador con el número de la incisión de la piel. En el músculo, las heridas se buscan por incisión, y ninguna era de la piel: **el Farabeuf bajado al músculo no sostenía músculo alguno**. En todas las mediciones de P-015 los músculos decían «sostiene +0 −0». La piel se abría porque era la de su número.
+- **Ahora** `cambiarElPlanoDelSeparador` le pone la incisión de la herida que tiene debajo en el plano nuevo. Se busca cada vez, también con el sitio guardado de ese plano: la incisión pudo rehacerse desde entonces.
+- **Lo de encima** (`posicionBajoLaHerida`). Un separador de un plano hondo abre la herida de encima si queda a no más de 30 mm de su trazo, de lado y pasadas las puntas (`LIMITE_PARA_COLOCAR_MM`), y a no más de 80 mm de hondo (`HONDURA_PARA_CAMBIAR_DE_PLANO_MM`, lo que baja la hoja al cambiar de plano).
+  - Antes era la distancia en el espacio al vértice de labio más cercano, contra los mismos 30 mm, y esa distancia lleva la hondura dentro. Los Farabeuf del caso 4 apoyaban unos 20 mm bajo la piel: a 36,8 mm de los labios de la piel, que no habría abierto, y a 30,1 y 29,7 de los de la fascia, que sostenía de un lado y no del otro («+0 −12»).
+  - Mide la `t` igual que los labios, con la curva de apertura (`bajoElTrazo`).
+
+*Qué se probó.* `separadorEnElLabio.test.ts`: un separador 32 mm bajo la piel la abre aunque sus labios queden a más de 30 mm, y uno de lado, pasado de la punta o demasiado hondo, no. En el navegador: con los dos Farabeuf en el músculo, piel +14 −14, fascia +14 −13,1, y el músculo cortado +14 −14.
+
+*Consecuencias.*
+- (+) Bajar un Farabeuf al músculo separa el músculo.
+- (−) Un separador bajado en una sesión guardada antes conserva el número viejo hasta que se lo vuelve a mover de plano.
+
+### D-368 · 2026-11-15 · vigente · P-015 E5
+**Los planos hondos se apartan paralelos a la piel de encima, no por su propia tangente.**
+
+- **El defecto.** Sobre la cresta de la tibia del caso 4, la fascia crural va a 30° de la piel y casi pegada a ella. Abierta 12 mm por su tangente, su labio subía 6 mm por encima de la piel y asomaba como una solapa rosada sobre el borde de la herida. Se midió: 131 vértices de la fascia crural quedaban por fuera de la fascia superficial, hasta 6,9 mm.
+- **Ahora** un corte de fascia o de músculo recibe, para cada punto del trazo, la normal de la piel cortada que tiene encima (`normalDeLaPielEncima`, con el mismo criterio de «encima» que D-367). Con ella sale la curva de apertura: la dirección en que se aparta el tejido. Por dónde se parte la malla no cambia, eso lo sigue diciendo su propia normal.
+- Un punto sin piel cortada encima se queda con la suya.
+- **Por qué paralelas a la piel.** La hoja de un Farabeuf tira de la pared entera, en el plano de la piel. Las capas se apartan apiladas, como las lleva la hoja, y no se cruzan.
+
+*Qué se probó.* `corteDeMalla.test.ts`: una lámina inclinada 30° con la piel encima se aparta sin subir ni bajar respecto de ella, y se parte igual que sin la piel. En el navegador: 16 vértices por fuera, a 0,27 mm como mucho, y la solapa ya no está.
+
+*Consecuencias.*
+- (+) Las capas de una herida honda quedan en escalera, cada una bajo la de encima.
+- (−) Lo poco que la fascia se abre sola (2 mm) va también paralelo a la piel, no a su superficie: se mete o se sale de ella un milímetro donde va inclinada. No se ve.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -12153,8 +12484,34 @@ Con una cuenta 1 en la base, las 15 pasan (comprobado en P-011).
 *Por qué importa.* Poco: el panel y el registro dicen lo que hay en la mano. Pero la barra habla de un instrumento que ya no está.
 *Qué hacer, sin aplicar.* Vaciarla al soltar el instrumento que la escribió, como se vacía al cambiar de modo.
 
----
+### O-098 · 2026-11-15 · media · abierta
+**El bisturí profundo corta a través del hueso: lo que hay detrás de la tibia sale partido, y un vaso de ahí cuenta como lesión.**
+*Dónde se vio.* En E0 de P-015, sobre la cara anteromedial de la tibia derecha, donde bajo la piel y la fascia no hay músculo. El segundo trazo del bisturí profundo —el que corta «el músculo»— partió el poplíteo, el sóleo, el tibial posterior, la membrana interósea, la arteria tibial anterior y una vena genicular. Todos están detrás del hueso o a su lado, a más de 30 mm de la piel por dentro de la tibia.
+*Por qué pasa.* El telón del corte baja 50 mm desde el trazo por la normal de la piel (`profundidad`, en `aplicarElCorte`) y parte toda malla del plano que encuentre en ese tramo. No sabe que en medio hay un hueso.
+*Por qué importa.* Un bisturí se para en el hueso. Y la arteria partida se anota como complicación (P-012 E6) a quien hizo una incisión correcta sobre la tibia: es un castigo que el residente no se ganó. No se ve —lo cortado queda tapado por el hueso—, y por eso nadie lo había notado.
+*Qué hacer, sin aplicar.* Acotar la hondura del telón, nodo a nodo del trazo, al primer hueso que haya debajo (un rayo por nodo contra las mallas de hueso y fragmento). `cortarMalla` recibe hoy una sola `profundidad`; haría falta una por tramo. Es pariente de O-096 (la otra hoja de la fascia) y conviene resolverlas juntas.
 
+*Lo que se vio después, en P-015.* Con los Farabeuf bajados al músculo (D-367), el tibial posterior, cortado detrás de la tibia, se abre 14 mm por labio y pliega 30 triángulos. No se ve: está detrás del hueso. Y la grieta del músculo cambia mucho de una corrida a otra con el mismo trazo (la del sóleo midió de 6 a 37 mm): el telón lo encuentra a hondura variable. Sigue sin arreglarse.
+
+### O-099 · 2026-11-15 · baja · abierta
+**El abultamiento de la piel (P-013) pliega 23 triángulos lejos de la herida.**
+Se vio midiendo los vueltos de la piel en P-015: con los separadores en el músculo, 5 en la herida y 23 más, todos con arrastre cero, lejos de ella. Son del bulto sobre el fragmento desplazado, no del corte. No se tocó.
+
+### O-100 · 2026-11-15 · baja · abierta
+**Un separador en el músculo aparta también los cabos de un vaso cortado, y deja esquirlas de menos de un milímetro cuadrado.**
+Los vasos van en el plano muscular. Con los Farabeuf bajados al músculo del caso 4 (D-367), la vena genicular y las tibiales anteriores, partidas de lado a lado, se apartan 14 mm por cabo, como el músculo. En pabellón la hoja aparta el músculo y el vaso se queda o se liga. Además quedan entre 4 y 13 triángulos vueltos en cada vaso, de menos de un milímetro cuadrado. No se ven a la distancia de trabajo.
+
+### O-101 · 2026-11-15 · baja · resuelta
+**`tableroDeEquipo.test.ts` caducó el 9 de noviembre.**
+La prueba de `leerEquipo` fabricaba una ficha «de ayer» con el `hoy` fijo de las demás pruebas (2 de noviembre de 2026), pero `leerEquipo` cuenta con el reloj de verdad: desde el día 9 la ficha ya llevaba una semana en la cola y la prueba fallaba. Ahora la ficha es de ayer de verdad. Se encontró al correr la suite en P-015.
+
+### O-102 · 2026-11-15 · baja · abierta
+**Un antebrazo exportado del taller se lleva una tira de la piel del costado.**
+*Dónde se vio.* En E8 de P-014, con un antebrazo derecho del atlas, del codo a la muñeca. Junto al antebrazo corre una tira suelta de piel, del codo a la muñeca, sin nada debajo. Con el paño se ve más, porque cae dentro de la ventana; sin paño ya estaba.
+*Por qué pasa.* `recortarLaPiel` corta la piel con la caja de lo exportado, ampliada 5 cm por lado (`MARGEN_DE_LA_PIEL`). El atlas trae los brazos junto al tronco, y la caja de un antebrazo alcanza el costado.
+*Qué hacer, sin aplicar.* Quedarse con la piel conexa a lo exportado, o recortar por cercanía a las piezas y no por caja. En la tibia del caso 4 no se vio.
+
+---
 
 ## 4. Preguntas abiertas
 
@@ -16431,9 +16788,193 @@ Hechas el 2026-11-06, contra la base desechable de 55432:
 
 #### Lo que queda
 
-- El paño azul (pedido 10), cuando el dueño lo diga.
+- El paño azul (pedido 10), cuando el dueño lo diga. Lo dijo el 2026-11-14: es P-014.
 - O-096 y O-097.
 - Puntuar la sutura (D-351): antes hay que acordar con Cristóbal qué es un buen cierre.
+
+### P-014 · 2026-11-14 · hecha en local (E0 a E8), sin subir ni desplegar
+**El campo quirúrgico. El paciente del simulador pasa a estar acostado sobre el colchón de una camilla y tapado con un paño que conserva el bulto del cuerpo entero y deja descubierta solo la zona que el médico elija. «De pie», «Supino» y «Prono» lo dan vuelta sobre el colchón. Y tres paletas «clínicas» que se eligen desde el taller.**
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-14. Es el «paño azul» de Cristóbal (pedido 10 de P-013), que esperaba, y la mitad de la propuesta 6 de P-010 («El campo quirúrgico»: paños y la pierna apoyada en la mesa). Con sus palabras:
+
+- «agregarle las mantas quirúrgicas azules o celestes al paciente, es como si fuera el paciente real que solo tiene destapado una parte del cuerpo»;
+- «una manta entera tapando al paciente y desde el simulador poder seleccionar qué parte del cuerpo queda descubierta», después de que el médico recorte en el taller;
+- «el centrado quiero que sea tal cual como está ahora, el centro es la parte recortada»;
+- «la manta quiero que sea como la silueta […] pero que se mantenga, no quiero que el cuerpo entero esté abajo, solo lo recortado desde el taller»;
+- «cuando cambie las posiciones […] quiero que se dé vuelta sobre la camilla. Quiero una camilla que sea sin base, solo el colchón»;
+- «cambiar los colores del simulador para que parezca más clínico»;
+- «que los crees en Blender con las texturas lo más realista posible, con harto detalle, y que pienses bien cómo interactúa todo para que no pase a llevar nada de lo que ya está».
+
+El dueño dice «manta»; Cristóbal, «paño», que es como se llama en pabellón. En la interfaz y en el código es **paño**; el conjunto —colchón, sábana y paño— es el **campo quirúrgico**.
+
+#### Lo que el dueño respondió antes de empezar
+
+| Pregunta | Respuesta |
+|---|---|
+| Cómo se ve el paño donde ya no hay cuerpo debajo | Con el bulto del cuerpo entero: cabeza, tronco, brazos y piernas, como una persona tapada con una sábana |
+| Qué hace «De pie» con el paciente siempre en el colchón | Sigue acostado boca arriba; solo se gira la vista para ver el miembro vertical, como hoy |
+| Cómo se elige la zona descubierta | Un marco que sale ya puesto sobre lo recortado y se ajusta arrastrando sus bordes encima del modelo |
+| Quién la elige | El médico, en el editor del caso; queda guardada y la ven todos los residentes |
+| Los casos que ya existen | Pasan a tener colchón y paño solos, con lo recortado descubierto; el médico puede ajustar la zona o apagar el paño caso por caso |
+| Lo tapado, ¿se puede tocar? | No: el paño bloquea. Un interruptor «Paño» en «Capas» lo apaga para mirar |
+| Color del paño | Azul por omisión; el médico lo puede cambiar a celeste o verde en cada caso |
+| Los colores «más clínicos» | Tres paletas —clara, oscura fría y verde quirófano— que el médico elige con un selector dentro del taller anatómico, y que cambian los colores del taller y los del simulador |
+
+Una cosa quedó sin preguntar y se decide aquí, a la espera de que el dueño diga otra cosa: la paleta elegida en el taller vale **para toda la plataforma** —la ven también los residentes— y no solo para quien la eligió. El residente no entra al taller: si la paleta fuera de cada persona, él no tendría dónde elegirla y se quedaría para siempre con la de fábrica.
+
+#### Cómo está hecho hoy lo que se toca
+
+Leído el 2026-11-14, antes de escribir una línea.
+
+- **Del taller al simulador.** `exportarPreparacion` rehace la preparación guardada y escribe un `.glb` centrado en la caja de lo que no es piel ni fascia (`centrarEnSuCaja`). La piel sale recortada a esa caja más 5 cm (`MARGEN_DE_LA_PIEL`), abierta y con el borde dentado. Cuánto se restó para centrar solo queda escrito en las `notas` del modelo, en milímetros y en prosa.
+- **El lienzo.** Carga el `.glb` en `raiz`, lo vuelve a centrar por su caja y lo cuelga de `escena`. Todo lo que mide, encuadra o señala recorre `raiz`: `encuadrarVisible`, los rayos de los clics (`superficieBajoElCursor`, `golpeEnLaCapa`, `huesoBajoElCursor`, `trozoBajoElCursor`), la caja de la lámpara. Lo que cuelga de `escena` sin ser de `raiz` no existe para ellos.
+- **Lo que sí recorre `escena` entera.** La radiografía, que pinta como metal cualquier malla que no reconozca; la oclusión ambiental, que deja fuera lo marcado `deInterfaz` y lo transparente; `liberar`, que suelta toda geometría al desmontar; y tres búsquedas por nombre al restaurar la sesión.
+- **Las posiciones.** «De pie», «Supino» y «Prono» son poses de la cámara (`posicionDelPaciente.ts`): se mueve la vista y no el modelo, porque separadores, placas e hilo viven en el mundo. `ponerPosicion` salta de una a otra sin animar. La lámpara se pone siempre hacia +Y, el eje del hueso, esté el paciente como esté.
+- **La consola.** Es la única pantalla oscura (D-149): catorce tokens `--c-*` en `consola.css`, y 47 colores escritos a mano fuera de ellos. Ninguna prueba mide su contraste.
+- **El caso.** Un campo nuevo son cinco sitios: `Cirugias.ts`, `esquema.ts`, la migración (con su tabla de versiones), `payload-types.ts` y `casoQuirurgico.ts`, que es por donde llega a la consola del residente y a la del editor.
+
+#### Lo que condiciona el plan
+
+1. **Se sigue moviendo la vista, no el modelo.** Dar vuelta al paciente es, en el mundo, girar la cámara, el colchón y la lámpara alrededor de él. En la pantalla el colchón queda debajo y es el paciente quien gira. Girar el modelo obligaría a girar con él todo lo puesto encima, que es el error que `posicionDelPaciente.ts` existe para no cometer.
+2. **El centrado no se toca.** El colchón, la sábana y el paño cuelgan de `escena`, fuera de `raiz`: ni el encuadre, ni la lámpara, ni la radiografía que encuadra, ni la sonda los cuentan. El centro sigue siendo lo recortado.
+3. **El paño trae el bulto del cuerpo del atlas, así que hay que saber dónde cae el modelo en ese cuerpo.** Es el centro que el exportador resta. Se escribe en el propio `.glb` desde ahora, y para los modelos ya exportados se lee de la frase de las notas. Un modelo que no viene del atlas, o uno movido entero en el taller, no tiene sitio en el cuerpo: lleva paño liso, sin bulto, y se dice en el editor. *(Cambió al hacerlo: ese modelo se queda sin campo, D-355.)*
+4. **La ventana se corta en la geometría, no en el sombreador.** Un `discard` solo existe para el material que lo lleva. Las sombras, la oclusión y la radiografía dibujan la escena con otros materiales, y para ellos el paño seguiría entero: sombra de un paño que no está, oclusión sobre la piel descubierta.
+5. **En la radiografía el paño no sale.** Va en la lista `esconder` de cada toma, y no marcado `deInterfaz`: esa marca lo sacaría también de la oclusión, que es lo que hace que la pierna parezca apoyada en la sábana.
+6. **El bloqueo no puede costar un rayo más.** Un rayo contra la piel ya cuesta unos 22 ms (D-241) y no hay estructura de aceleración. El paño es una superficie de una sola altura sobre el colchón: se guarda como una rejilla de alturas y el rayo se recorre sobre ella, en microsegundos. *(Cambió al hacerlo: se pregunta a la misma malla que se dibuja, repartida en casillas, D-357.)*
+7. **La memoria de vídeo es escasa** (P-004 E2: el contexto se pierde). El campo entero no pasa de unos 20 MB en la tarjeta: mapas propios de 1024, mapas repetidos de 512, y con la calidad degradada, sin mapas.
+8. **Lo que se escribe a mano pasa por `ruta()`**: los `.glb` y las texturas viven en `public/pabellon/`.
+9. **Los casos que existen no se migran a mano.** Las columnas nuevas nacen con su valor por omisión —paño encendido, azul, zona automática—, y la zona automática se calcula al abrir.
+
+#### El diseño
+
+**Las piezas, hechas en Blender** (`scripts/pabellon/`, salida en `public/pabellon/`).
+
+- El **colchón**: una plancha de camilla de 76 × 205 × 11 cm, de poliuretano negro, con sus costuras, el ribete y las esquinas redondeadas. Sin base. *(Quedó en 84 × 196 × 11 cm, D-354.)*
+- La **sábana**: un paño tendido sobre el colchón, con la huella del cuerpo. Es lo que se ve bajo el miembro descubierto: en pabellón el miembro descansa sobre un paño, no sobre el colchón.
+- El **paño**: una tela simulada cayendo sobre la piel del atlas acostada. Una para boca arriba y otra para boca abajo, porque el bulto no es el mismo.
+- Se modela en las coordenadas del cuerpo del atlas, con la gravedad puesta hacia la espalda o hacia el pecho. Así el archivo sale ya en su sitio y no hay giro que deshacer en el navegador.
+- Las texturas se hornean en Blender: el tejido no tejido con su gofrado, las marcas del doblez de fábrica, el brillo, la oclusión de los pliegues. *(Cambió al hacerlo: son mapas de normales calculados con numpy, D-354.)*
+
+**En la escena** (`src/components/simulador/campoEnLaEscena.ts`, y la aritmética, sin three, en `src/lib/campoQuirurgico.ts`).
+
+- Se carga aparte del modelo, sin bloquearlo. Si un archivo no llega, el simulador sigue como hoy y se avisa.
+- Se coloca con el centro restado, y la ventana se corta partiendo los triángulos del paño contra el marco.
+- La zona automática es la caja de lo preparado —la misma con que el exportador centra—. Los extremos cortados del modelo quedan así 5 cm bajo el paño, que es el margen de piel que ya trae; donde el cuerpo se acaba (los dedos), el marco se abre un poco más allá.
+- Proyecta y recibe sombra, entra en la oclusión y no sale en la radiografía.
+
+**Las posiciones.**
+
+- El paciente tiene un decúbito, supino o prono, aparte de cómo se le mira. «De pie» y «Supino» son boca arriba; «Prono», boca abajo.
+- Al cambiar de decúbito: el paño se retira, el paciente rueda sobre su eje largo mientras el colchón se aparta lo justo para no atravesarlo, y cae el paño del otro lado. Cerca de un segundo.
+- La lámpara pasa a estar encima del paciente acostado, y gira con el colchón.
+
+**El bloqueo.** Los cuatro rayos de los clics descartan lo que el paño tapa. Con «Paño» apagado en «Capas» no bloquea.
+
+**El marco**, en el editor del caso: cuatro asas en los bordes y una en el centro, sobre el propio lienzo. Al soltar se escribe en el formulario, como «Guardar este encuadre». «Volver a la automática» lo borra.
+
+**Las paletas.** Un campo en `Ajustes`, que es la fila única de la plataforma; un selector en el taller; y un atributo `data-tema` en la consola y en el taller, con los tokens de cada una. *(El atributo quedó en `<body>` y en la caja del taller, D-360.)*
+
+#### Etapas
+
+- [x] **E0 · Leer, preguntar y dejar este plan.**
+- [x] **E1 · El colchón, la sábana y el paño, en Blender.** Los guiones, la simulación de la tela boca arriba y boca abajo, las texturas horneadas y los `.glb`. Con imágenes para que el dueño diga si es eso. → D-354.
+- [x] **E2 · La aritmética.** `src/lib/campoQuirurgico.ts`, con sus pruebas: el sitio en el cuerpo, la zona automática, el corte de la ventana, la rejilla de alturas y su rayo, y el giro del colchón. → D-355.
+- [x] **E3 · En la escena.** Cargar, colocar, cortar; sombras, oclusión y radiografía; calidad degradada; soltar al desmontar. → D-355.
+- [x] **E4 · Dar vuelta al paciente.** El decúbito, la animación, la lámpara encima, y los tres botones con su texto. → D-356.
+- [x] **E5 · El paño bloquea.** Los cuatro rayos, el aviso al pinchar lo tapado y el interruptor «Paño». → D-357.
+- [x] **E6 · El caso.** Los campos y su migración, el centro en el `.glb`, `casoQuirurgico.ts`, y el marco en el editor. → D-358 y D-359.
+- [x] **E7 · Las tres paletas.** Los tokens de la consola y del taller, el campo en `Ajustes`, el selector y la prueba de contraste. → D-360.
+- [x] **E8 · Comprobar y documentar.** Las cinco órdenes de «Antes de subir», el recorrido en el navegador con sus capturas, los manuales y el `README`. Hecha en local el 2026-11-15, junto con P-015:
+  - **Las cinco órdenes**, contra la base desechable recién migrada:
+    - `typecheck` y `lint` limpios. Quedan los 15 avisos de `<img>` de siempre, en archivos que no se tocaron.
+    - La suite entera con cobertura: 6498 pruebas pasan y 11 fallan, todas ya conocidas. Son las 3 de los respaldos en Windows, las 7 de `estructuras` en una base sin la cuenta 1 (O-092), y una de `privacidad`, que choca con la matriz de roles al correr juntas sobre la misma base y pasa sola. Cobertura, 87,5 % de las sentencias.
+    - `test:integration`, con la cuenta 1 creada: 261 de 261.
+    - `build` como el de Docker, con el prefijo `/traumahub`.
+  - **El costo del bloqueo**, medido: ver D-357.
+  - **En el navegador.**
+    - Como residente, en la tibia con paño: boca arriba y boca abajo, un clic bajo el paño con su aviso y el mismo clic sin paño, y una incisión por la ventana, que se abre sola (P-015).
+    - En el caso antiguo, cuyo modelo no salió del taller: abre sin campo.
+    - Como editor, la pestaña «Paño».
+    - Un antebrazo derecho exportado del atlas, boca arriba, boca abajo y «De pie». El campo sirve igual; lo que salió es del exportador (O-102).
+  - **Escrito.** `scripts/pabellon/LEEME.md`, una nota en el `README`, y el paño, la vuelta, la paleta y la herida en `docs/MANUAL-DE-USO.md`. **Los tres manuales en Word de `docs/` no se tocaron**: siguen sin el paño.
+- [ ] **E9 · Subir y desplegar**, cuando el dueño lo diga.
+
+Cada etapa deja su decisión, desde D-354.
+
+#### Lo que quedó con defecto, y se sabe
+
+Visto en el navegador al hacer E3 a E6 y dejado así, porque ninguno estorba para operar. Van aquí para que el siguiente no los descubra otra vez.
+
+- La trama del tejido se estira en las paredes empinadas de la tela, junto al muslo.
+- Boca abajo, donde el antepié cruza el borde de la ventana más allá del colchón, el corte sale algo dentado. Y las esquinas de la U quedan rectas.
+- Boca arriba asoma un resto pequeño de tela dentro de la ventana.
+- La sábana es del mismo azul que el paño: bajo el miembro descubierto no se distingue una de otro.
+- En la vista cenital boca abajo se ve una línea negra del colchón junto al borde.
+- El desplegable del color sigue activo con «Sin colchón ni paño» marcado.
+- Las dos telas viajan sin comprimir: 3,7 MB cada una.
+
+#### Cómo se comprueba
+
+- Cada etapa, con sus pruebas unitarias. E6 lleva migración, y `migraciones.test.ts` y `esquema.test.ts` la vigilan.
+- Contra una base desechable en el puerto 55432. La del dueño no se toca: el `.env` del repositorio apunta a la base y al correo de verdad.
+- En el navegador, sobre una pierna del taller y sobre un brazo:
+  - el centrado igual que antes, comparando el encuadre con y sin campo;
+  - cada posición y cada giro;
+  - un caso viejo, que debe abrir con su paño automático;
+  - una incisión dentro de la zona, y otra fuera, que no debe entrar;
+  - la radiografía sin paño ni colchón;
+  - las tres paletas en el taller y en la consola.
+- Lo que no debe cambiar se mide: el encuadre al cargar, los pasos de un caso ya escrito y el tiempo de un cuadro.
+
+#### Lo que queda fuera
+
+- El resto de la propuesta 6 de P-010: la piel teñida de antiséptico, el manguito puesto en el muslo y la media en el pie.
+- El decúbito lateral, la mesa de mano y la mesa ortopédica. El cuerpo del atlas está de pie y con los brazos junto al tronco, y no se le cambia la postura: el colchón es ancho, de camilla, para que los brazos quepan.
+- Más de una zona descubierta en el mismo caso.
+- Que el residente coloque el paño él mismo, como un paso.
+
+### P-015 · 2026-11-15 · hecha en local (E0 a E5), sin subir ni desplegar
+**Los cortes. Que la piel, la fascia y el músculo se abran y se retraigan al cortarlos, como en un paciente, en vez de quedar «como cristal».**
+
+#### De dónde sale
+
+Pedido del dueño, 2026-11-15, mientras se hacía E1 de P-014. Con sus palabras: «cuando se corta la piel, no parece un corte limpio sino que parece cristal; quiero que cuando se corte piel, fascias, músculos, etc. se puedan retraer como en la realidad y no se coloque como cristal; por lo general la tensión y arqueo normal de la piel. Compruébalo y mejóralo. Esto en el simulador quirúrgico».
+
+#### Qué se sabe y qué no
+
+No se ha mirado todavía: llegó a mitad de otra etapa y se anota aquí para no perderlo. Lo primero es **comprobarlo**, como él pide: abrir un caso, cortar piel, fascia y músculo, y ver qué es exactamente lo que se lee como cristal —el brillo de la cara cortada, el labio recto y sin grosor, que los bordes no se separen, o las tres cosas—. Recién entonces se decide qué se cambia. El orden importa: el paño de P-014 y los cortes tocan el mismo archivo (`LienzoQuirurgico.tsx`), así que esto va después de que el campo quirúrgico esté en la escena.
+
+#### Lo que E0 encontró (2026-11-15)
+
+Se reprodujo en el navegador sobre una tibia derecha con paño (42-A2, clavo endomedular): incisión de piel de 50 mm con el bisturí n.º 10, dos trazos del bisturí profundo encima (fascia y músculo), un Farabeuf en cada labio de la piel abierto 9 mm, y los dos bajados al plano del músculo y abiertos 14 mm. Con la sonda nueva `queSeVeEn(x, y)` —qué cruza el rayo de la cámara por un píxel y con qué se dibuja cada cosa— se midió de qué está hecho lo que se ve. Son seis causas, y ninguna es «el brillo de la cara cortada» que se sospechaba:
+
+1. **Recién cortada, la herida no se abre nada.** Los labios quedan pegados (apertura 0 en los tres planos) y lo único que se ve es la cinta: una tira roja oscura de 2,4 mm, plana, sin luz, de puntas cuadradas, tendida un milímetro por encima de la piel. De lado parece cinta adhesiva. No hay retracción: el tejido cortado se queda donde estaba.
+2. **Las fascias se dibujan como vidrio.** La superficial sale del `.glb` con opacidad 0,45 y la crural con 0,6 (`opacidadDelModelo`, P-006), transparentes, sin escribir profundidad, con barniz 0,5 de rugosidad 0,15. Sobre el músculo eso es una lámina nacarada; tendida en el aire de un labio a otro de una herida abierta, son paneles de cristal.
+3. **Sus triángulos son enormes.** La arista mediana de la piel mide 4,5 mm; la de la fascia crural, 9,4; la de la fascia superficial, 14,1 (hasta 50); la de un músculo, 12 (hasta 94). El labio tiene un vértice cada 2 mm (D-253), pero el abanico que lo une al resto arranca de vértices que están a centímetros: al apartar el labio, cada abanico es una faceta plana, y varios se doblan sobre sí mismos. Facetas planas, translúcidas y brillantes: una gema tallada.
+4. **El labio es un polígono.** La «cuerda tensa» de D-253 va en recta de la hoja a cada punta: con dos Farabeuf la herida es un hexágono o un rombo de esquinas vivas. La piel de verdad no hace esquinas: se arquea.
+5. **La cinta del músculo flota a la altura de la piel.** Se tiende por los puntos del trazo, que están sobre la piel, también cuando la herida es de un plano de debajo. Con la piel abierta 28 mm, cruza el hueco de lado a lado: es la franja roja ancha de las capturas.
+6. **Todos los planos abren exactamente lo mismo.** Con el separador en el músculo, piel y fascia superficial abren 14 mm por labio, una encima de otra: no se ve la escalera de planos que tiene una herida.
+
+Además, dos cosas que no son de aspecto y se anotan aparte: la fascia crural abrió un solo labio (0 y 12 mm), y el corte «del músculo» sobre la cara anteromedial de la tibia, donde no hay músculo bajo la piel, partió el poplíteo, el sóleo, el tibial posterior, la membrana interósea y la arteria tibial anterior, que están **detrás del hueso**: el telón de 50 mm lo atraviesa (O-098).
+
+Capturas en el borrador de la sesión (`corte-1-*`, `corte-3-*`), enseñadas al dueño en el chat.
+
+#### Etapas
+
+- [x] **E0 · Comprobar.** Reproducirlo en el navegador, con capturas, y leer cómo se hace hoy el corte de cada plano. → arriba
+- [x] **E1 · La retracción.** Cada herida se abre sola al cortarla, en huso, lo que su tejido se retrae: más la piel, menos la fascia, y el músculo según corte a lo largo o a través de sus fibras. Se suma a lo que abren los separadores, se anima al cortar y la sutura la cierra. La cinta roja deja de hacer falta. → D-361
+- [x] **E2 · La malla.** El corte afina la malla en la franja que rodea a la incisión, para que el tejido que se aparta se doble en curva y no en facetas. → D-362
+- [x] **E3 · El arco.** Entre la hoja de un separador y la punta de la herida el labio va en arco, no en recta. → D-363
+- [x] **E4 · El tejido.** Las fascias, opacas y sin barniz de vidrio dentro del simulador. → D-364
+- [x] **E5 · Comprobar otra vez.** Pruebas, el mismo recorrido en el navegador con las mismas vistas, y las capturas de antes y después al dueño. Comprobarlo sacó cuatro defectos más, que se arreglaron: el trazo hondo (D-365), las puntas de cada malla (D-366), el separador bajado al músculo que no lo separaba (D-367) y la fascia que asomaba por encima de la piel (D-368).
+
+#### Cómo quedó (2026-11-15)
+
+En el caso 4, con el mismo recorrido de E0: la piel recién cortada es un ojal de 7 mm de puntas agudas, con su pared; con dos Farabeuf a 9 mm, piel y grasa opacas, y la fascia debajo con su propio corte; con los dos bajados al músculo a 14 mm, piel, fascia y músculo apartados en escalera, y la tibia al fondo. Ni cinta roja ni cristal. Las capturas de antes y después se le enseñaron al dueño en el chat.
+
+Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que anotan O-099 y O-100.
 
 ---
 

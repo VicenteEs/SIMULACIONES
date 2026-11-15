@@ -3,13 +3,13 @@ import * as THREE from 'three'
 import { cortarCapa, sitioEnLaHerida, type HeridaEnCapa } from '@/components/simulador/heridas'
 import {
   aplicarSeparadoresALasHeridas,
-  cercaDeLaHerida,
   labioDelSeparador,
   labioEnLaPosicion,
   posarSeparador,
+  posicionBajoLaHerida,
   type SeparadorEnEscena,
 } from '@/components/simulador/exposicionEnLaEscena'
-import { LIMITE_PARA_COLOCAR_MM } from '@/lib/abordajePorPlanos'
+import { HONDURA_PARA_CAMBIAR_DE_PLANO_MM, LIMITE_PARA_COLOCAR_MM } from '@/lib/abordajePorPlanos'
 import type { CapaDeLaHerida, SeparadorColocado } from '@/lib/exposicion'
 
 /**
@@ -71,12 +71,9 @@ const farabeuf = (cambios: Partial<SeparadorColocado> = {}): SeparadorColocado =
   ...cambios,
 })
 
-/** Lo que hace el lienzo (`reaplicarSeparadores`): dónde cae el separador en otra herida, si está a su alcance. */
-function posicionEn(sitio: THREE.Vector3, alcanceMm = LIMITE_PARA_COLOCAR_MM) {
-  return (_s: SeparadorColocado, h: HeridaEnCapa) => {
-    const cerca = cercaDeLaHerida(h, sitio)
-    return cerca && cerca.distancia <= alcanceMm ? cerca.t : null
-  }
+/** Lo que hace el lienzo (`reaplicarSeparadores`): dónde cae el separador en otra herida, si está debajo de ella. */
+function posicionEn(sitio: THREE.Vector3) {
+  return (_s: SeparadorColocado, h: HeridaEnCapa) => posicionBajoLaHerida(h, sitio, 1)
 }
 
 /** Un separador en la escena, sin modelo cargado: lo que importa es dónde queda su grupo. */
@@ -126,18 +123,19 @@ describe('un separador de la fascia abre también la piel de encima', () => {
   })
 
   it('abre la piel en el sitio que el separador tiene sobre ella, no en el de su incisión', () => {
-    // A un cuarto de la fascia: la piel es más larga, y ese punto cae en otro tanto por ciento de ella.
+    // A un décimo de la fascia (x = −12): la piel es más larga, y ese punto cae en otro tanto por ciento de ella, 0,2.
+    // A un cuarto caía en un nodo a 0,05 de distancia, lo que mide una hoja de 2 mm en una piel de 40.
     const { piel, fascia, heridas } = pielYFascia()
     // Una hoja angosta: con la de 12 mm, en una piel de 40 el tramo que aparta entero cubriría los dos sitios.
-    const s = farabeuf({ posicion: 0.25, anchoMm: 2 })
-    const apoyo = sitioEnLaHerida(fascia, 0.25, 1)!.punto
-    const t = cercaDeLaHerida(piel, apoyo)!.t
-    expect(Math.abs(t - 0.25)).toBeGreaterThan(0.05)
+    const s = farabeuf({ posicion: 0.1, anchoMm: 2 })
+    const apoyo = sitioEnLaHerida(fascia, 0.1, 1)!.punto
+    const t = posicionBajoLaHerida(piel, apoyo, 1)!
+    expect(t).toBeCloseTo(0.2, 2)
 
     aplicarSeparadoresALasHeridas(heridas, [s], [], 1, posicionEn(apoyo))
     // Donde está el separador sobre la piel abre lo más; en el sitio de la fascia, menos.
     expect(piel.perfil!(t).mas).toBeCloseTo(piel.mas, 5)
-    expect(piel.perfil!(0.25).mas).toBeLessThan(piel.mas)
+    expect(piel.perfil!(0.1).mas).toBeLessThan(piel.mas)
   })
 
   it('lejos de la piel no la abre, y un separador de la piel en otra incisión tampoco', () => {
@@ -153,6 +151,41 @@ describe('un separador de la fascia abre también la piel de encima', () => {
     const { fascia, heridas } = pielYFascia()
     aplicarSeparadoresALasHeridas(heridas, [farabeuf({ plano: 'piel', incision: 1 })], [], 1, () => 0.5)
     expect(fascia.mas).toBe(0)
+  })
+})
+
+describe('un separador hondo abre lo que tiene encima por estar debajo, no por estar cerca (P-015)', () => {
+  // Un Farabeuf bajado al músculo del caso 4 apoyaba a unos 20 mm bajo la piel: a 36,8 mm de los labios de ella y a
+  // 30,1 y 29,7 de los de la fascia. Medido en el espacio contra el límite de colocar, sostenía un labio de la fascia y
+  // no el otro, y la piel no la habría abierto.
+  it('a 32 mm bajo la piel, junto al labio, la abre en su sitio aunque los labios queden a más del límite', () => {
+    const { piel, heridas } = pielYFascia()
+    const apoyo = new THREE.Vector3(5, 2, -32)
+    const cadena = [...piel.corte.labios.mas, ...piel.corte.labios.menos]
+    const posiciones = piel.malla.geometry.getAttribute('position') as THREE.BufferAttribute
+    const alLabio = Math.min(...cadena.map((v) => new THREE.Vector3().fromBufferAttribute(posiciones, v).distanceTo(apoyo)))
+    expect(alLabio).toBeGreaterThan(LIMITE_PARA_COLOCAR_MM)
+
+    const t = posicionBajoLaHerida(piel, apoyo, 1)
+    // La piel va de x = −20 a 20: x = 5 cae a 25/40 de su largo.
+    expect(t).not.toBeNull()
+    expect(t!).toBeCloseTo(25 / 40, 2)
+    aplicarSeparadoresALasHeridas(heridas, [farabeuf({ plano: 'musculo', incision: 3 })], [], 1, posicionEn(apoyo))
+    expect(piel.mas).toBeGreaterThan(5)
+  })
+
+  it('lo que se aparta de lado, o pasa de la punta, más que el límite, no está debajo', () => {
+    const { piel } = pielYFascia()
+    expect(posicionBajoLaHerida(piel, new THREE.Vector3(0, LIMITE_PARA_COLOCAR_MM + 2, -10), 1)).toBeNull()
+    expect(posicionBajoLaHerida(piel, new THREE.Vector3(20 + LIMITE_PARA_COLOCAR_MM + 2, 0, -10), 1)).toBeNull()
+    expect(posicionBajoLaHerida(piel, new THREE.Vector3(0, LIMITE_PARA_COLOCAR_MM - 2, -10), 1)).not.toBeNull()
+  })
+
+  it('más hondo de lo que un separador baja al cambiar de plano, o por encima, tampoco', () => {
+    const { piel } = pielYFascia()
+    expect(posicionBajoLaHerida(piel, new THREE.Vector3(0, 0, -HONDURA_PARA_CAMBIAR_DE_PLANO_MM - 2), 1)).toBeNull()
+    expect(posicionBajoLaHerida(piel, new THREE.Vector3(0, 0, -HONDURA_PARA_CAMBIAR_DE_PLANO_MM + 2), 1)).not.toBeNull()
+    expect(posicionBajoLaHerida(piel, new THREE.Vector3(0, 0, LIMITE_PARA_COLOCAR_MM + 2), 1)).toBeNull()
   })
 })
 

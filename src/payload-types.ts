@@ -1660,6 +1660,25 @@ export interface Cirugia {
    */
   ejeLargo?: ('y' | 'x' | 'z') | null;
   /**
+   * El paciente va acostado en el colchón y tapado con un paño; por su ventana asoma lo que se opera. Solo en los modelos exportados del atlas, que son los que saben dónde estaban en el cuerpo.
+   */
+  pano?: {
+    /**
+     * El caso se ve como antes de haber paño: el modelo solo.
+     */
+    apagado?: boolean | null;
+    color?: ('azul' | 'celeste' | 'verde') | null;
+    /**
+     * La escribe el marco del editor del simulador, arrastrando sus bordes sobre el modelo. Vacía, queda descubierto lo recortado en el taller.
+     */
+    zona?: {
+      xMin?: number | null;
+      xMax?: number | null;
+      yMin?: number | null;
+      yMax?: number | null;
+    };
+  };
+  /**
    * Qué es cada objeto del archivo. El nombre tiene que coincidir exactamente con el del objeto en Blender.
    */
   piezas?:
@@ -2397,6 +2416,10 @@ export interface Ajuste {
    * Los residentes los ven como «Próximamente», sin poder abrirlos. Los editores y administradores sí, con la insignia «En mantención».
    */
   modulosEnMantencion?: ('patologias' | 'maniobras' | 'casos-ao' | 'cirugias' | 'estudios-ia')[] | null;
+  /**
+   * Se elige desde el taller anatómico. Vale para toda la plataforma.
+   */
+  tema?: ('clara' | 'oscura-fria' | 'verde-quirofano' | 'original') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3780,6 +3803,20 @@ export interface CirugiasSelect<T extends boolean = true> {
   modelo?: T;
   milimetrosPorUnidad?: T;
   ejeLargo?: T;
+  pano?:
+    | T
+    | {
+        apagado?: T;
+        color?: T;
+        zona?:
+          | T
+          | {
+              xMin?: T;
+              xMax?: T;
+              yMin?: T;
+              yMax?: T;
+            };
+      };
   piezas?:
     | T
     | {
@@ -4300,6 +4337,7 @@ export interface TiempoActivoSelect<T extends boolean = true> {
 export interface AjustesSelect<T extends boolean = true> {
   nombre?: T;
   modulosEnMantencion?: T;
+  tema?: T;
   updatedAt?: T;
   createdAt?: T;
 }

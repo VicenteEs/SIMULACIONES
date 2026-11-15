@@ -83,8 +83,9 @@ describe('el lienzo', () => {
   it('«Mover» y la pinza agarran por la regla, y el primer hueso del rayo sigue siendo para lo demás', () => {
     expect(lienzo).toContain('const golpe = trozoBajoElCursor()')
     expect(lienzo).toContain('trozoQueSeAgarra(')
-    // `huesoBajoElCursor` no cambia: la broca, la placa y el medidor siguen apuntando al primer hueso.
-    expect(lienzo).toContain('const huesoBajoElCursor = (): THREE.Intersection | null =>\n      rayo.intersectObjects(mallasDeHueso(), false).find((g) => g.object.visible) ?? null')
+    // `huesoBajoElCursor` no cambia: la broca, la placa y el medidor siguen apuntando al primer hueso. Desde P-014 pasa
+    // por `sinTapar`, como todo lo que se toca: el paño cubre lo que no está en la ventana.
+    expect(lienzo).toContain('const huesoBajoElCursor = (): THREE.Intersection | null =>\n      sinTapar(rayo.intersectObjects(mallasDeHueso(), false).find((g) => g.object.visible))')
   })
 
   it('lo que se agarraría se resalta al pasar el cursor', () => {

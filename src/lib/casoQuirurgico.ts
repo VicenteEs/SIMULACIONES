@@ -15,6 +15,7 @@ import { objetivoDelPaso, type Objetivo } from '@/lib/simulador'
 import { transformacionValida } from '@/lib/reduccionAutomatica'
 import { encuadreDelGrupo, posicionDelPaso } from '@/lib/encuadreDelPaso'
 import { manguitoDelDocumento } from '@/lib/relojesDelCaso'
+import { centroDesdeElArchivo, centroDesdeLasNotas, panoDelCaso, type CampoDelCaso } from '@/lib/campoQuirurgico'
 
 /**
  * Traduce un documento de Payload en lo que la consola necesita.
@@ -376,6 +377,25 @@ export function conTodaLaMesa(documento: Documento, catalogo: readonly Documento
   return { ...documento, instrumental: [...declarados, ...nuevos] }
 }
 
+/**
+ * El campo quirúrgico del caso (P-014): dónde está lo recortado en el cuerpo del atlas y cómo va su paño.
+ *
+ * El centro sale de la nota que el exportador deja en el modelo («para devolverlo a su sitio en el cuerpo, sumar…»):
+ * es lo único que dice dónde estaba un modelo exportado antes de P-014, y sin ello un caso ya hecho no tendría ni
+ * colchón ni paño. Los modelos de ahora lo llevan además dentro del archivo, y el lienzo se fía de ese primero. El
+ * editor no trae la nota sino el centro ya leído (`opcionesDeRelacion`), y se acepta igual.
+ *
+ * Un modelo que no salió del atlas no trae ninguna de las dos cosas: su centro es `null` y el simulador sigue como
+ * siempre, con la pieza sola.
+ */
+function campoDelDocumento(documento: Documento): CampoDelCaso {
+  const modelo = documento.modelo && typeof documento.modelo === 'object' ? (documento.modelo as Documento) : null
+  return {
+    centroEnElCuerpo: modelo ? (centroDesdeLasNotas(modelo.notas) ?? centroDesdeElArchivo(modelo)) : null,
+    pano: panoDelCaso(documento.pano),
+  }
+}
+
 export function casoParaLaConsola(documento: Documento): CasoDeConsola {
   const modelo = documento.modelo
   const desplazamiento = (documento.desplazamientoInicial ?? {}) as Documento
@@ -403,6 +423,7 @@ export function casoParaLaConsola(documento: Documento): CasoDeConsola {
     bandeja: bandejaDelDocumento(documento),
     // Con su presión y su tope ya saneados (P-012 E5): un caso mal escrito no deja al residente sin reloj.
     manguito: manguitoDelDocumento(documento.usaManguito, documento.presionDelManguito, documento.topeDelManguito),
+    campo: campoDelDocumento(documento),
     instrumental: bandejaDelCaso(
       Array.isArray(documento.pasos) ? (documento.pasos as Documento[]) : [],
       documento.instrumental,
@@ -432,6 +453,8 @@ export interface OpcionDeCatalogo {
   id: string
   etiqueta: string
   url?: string
+  /** De un modelo 3D exportado del atlas: dónde estaba en el cuerpo, leído de sus notas (P-014). */
+  centroEnElCuerpo?: [number, number, number]
 }
 
 /**
@@ -498,7 +521,7 @@ export function casoDesdeElFormulario(
 
   const base = casoParaLaConsola({
     ...valores,
-    modelo: modelo ? { id: modelo.id, url: modelo.url ?? null } : null,
+    modelo: modelo ? { id: modelo.id, url: modelo.url ?? null, centroEnElCuerpo: modelo.centroEnElCuerpo ?? null } : null,
     hueso: poblarNombre('huesos-ao', valores.hueso),
     clasificacion: poblarNombre('clasificaciones-ao', valores.clasificacion),
     tecnica: poblarNombre('tecnicas-quirurgicas', valores.tecnica),

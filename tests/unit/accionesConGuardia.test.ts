@@ -305,6 +305,9 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'atlas.ts:exportarComoModelo': { guardia: 'editor', argumentos: () => ['5'] },
   // Crea un modelo nuevo: es de quien edita (P-003 E9).
   'atlas.ts:reexportarConEstructurasSeparadas': { guardia: 'editor', argumentos: () => ['5'] },
+  // La paleta del simulador y del taller (P-014 E7): la elige el médico, que es editor, aunque el campo viva
+  // en `ajustes`, que es del administrador. Qué escribe y qué no, en `temas.test.ts`.
+  'atlas.ts:guardarElTema': { guardia: 'editor', argumentos: () => ['clara'] },
 
   // El listado global de estructuras anatómicas (D-179): llenan el editor y el administrador; cargar las
   // piezas del atlas toca miles de filas y es solo del administrador.

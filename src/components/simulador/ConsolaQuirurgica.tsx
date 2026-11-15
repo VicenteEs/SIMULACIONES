@@ -170,7 +170,9 @@ import {
   tipoDelTornillo,
   type EtapaDeFijacion,
 } from '@/lib/tornillos'
-import type { EstadoDeLaBroca, EstadoDeLaTrayectoria, EstadoDelTornilloQueEntra, SucesoDeFijacion } from './LienzoQuirurgico'
+import type { EstadoDeLaBroca, EstadoDeLaTrayectoria, EstadoDelCampo, EstadoDelTornilloQueEntra, SucesoDeFijacion } from './LienzoQuirurgico'
+import type { CampoDelCaso, ZonaDelPano } from '@/lib/campoQuirurgico'
+import { MarcoDelPano } from './MarcoDelPano'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
 import {
@@ -456,6 +458,11 @@ export interface CasoDeConsola {
    * para los casos armados a mano en las pruebas; `casoParaLaConsola` lo manda siempre.
    */
   manguito?: ManguitoDelCaso | null
+  /**
+   * El campo quirúrgico del caso (P-014): dónde está lo recortado en el cuerpo del atlas y cómo va su paño. Opcional
+   * para los casos armados a mano en las pruebas, que siguen sin colchón; `casoParaLaConsola` lo manda siempre.
+   */
+  campo?: CampoDelCaso | null
   instrumental: InstrumentoDeBandeja[]
   /**
    * Solo en el editor: el catálogo entero, para ofrecer «Añadir a la bandeja». La bandeja que se pinta
@@ -494,6 +501,8 @@ export interface VistaDelEnsayo {
   modeloCargado: boolean
   /** El instrumento que se tiene en la mano. */
   instrumentoEnLaMano: string | null
+  /** El campo quirúrgico que el lienzo tiene montado (P-014): si hay, y la ventana de ahora y la automática. `null` mientras carga. */
+  campo: EstadoDelCampo | null
 }
 
 export interface EdicionEnLaConsola {
@@ -518,6 +527,12 @@ export interface EdicionEnLaConsola {
   instrumentoDelPaso: string | null
   /** El fragmento se movió con el ratón: dónde está respecto de su reposo. */
   alMoverFragmento?: () => void
+  /**
+   * El marco de la ventana del paño (P-014 E6). Presente mientras el editor tiene abierta su pestaña «Paño»: la
+   * consola dibuja el marco sobre el lienzo, con el paño puesto aunque en «Capas» esté quitado, y avisa aquí
+   * cuando se suelta un asa. Lo que llega es la zona en el cuerpo y en metros; guardarla es cosa del editor.
+   */
+  marcoDelPano?: { alCambiar: (zona: ZonaDelPano) => void } | null
 }
 
 /**
@@ -1340,6 +1355,16 @@ export function ConsolaQuirurgica({
   // necesita ver el hueso, lo declara con `muestra` y al entrar los interruptores quedan como el paso pide
   // (`capasAlEntrarEnPaso`); y siempre se puede apagar una capa o usar «Rayos X».
   const [capasApagadas, setCapasApagadas] = useState<Set<string>>(() => new Set())
+  // El campo quirúrgico (P-014): lo que el lienzo dice de él —si lo hay, cómo está acostado el paciente— y si el
+  // residente tiene puesto el paño. Quitarlo es cosa suya y de esta sesión: el caso no lo recuerda.
+  const [campoMontado, setCampoMontado] = useState<EstadoDelCampo | null>(null)
+  const [panoPuesto, setPanoPuesto] = useState(true)
+  // Con el marco del editor abierto el paño va puesto diga lo que diga «Capas»: no se ajusta la ventana de una
+  // tela que no se ve. Es un valor derivado y no un cambio del interruptor, para que al cerrar el marco vuelva
+  // a estar como el autor lo tenía.
+  const panoALaVista = panoPuesto || !!editor?.marcoDelPano
+  // Lo que se enmarca: la ventana que tiene el paño, o —si no llegó a cortarse ninguna— la que saldría sola.
+  const zonaDelMarco = campoMontado?.zona ?? campoMontado?.zonaAutomatica ?? null
   /**
    * Las capas que el residente encendió a mano en este paso. Enseñan todas sus piezas aunque el paso declare
    * ver solo algunas: el interruptor manda sobre lo que el paso propone (D-171). Se vacía al cambiar de paso,
@@ -6281,6 +6306,25 @@ instrumentoElegido ? (
         <div className="consola-capas-bloque">
           <h3 className="consola-subtitulo">Capas</h3>
           <ul className="consola-capas">
+            {/* El paño (P-014): no es una capa del modelo, pero se quita y se pone como ellas, y aquí es donde el
+                residente lo busca. Solo sale si hay campo: un caso sin colchón no tiene paño que quitar. Sin él se
+                puede tocar lo que tapaba; el colchón y la sábana se quedan. */}
+            {campoMontado?.hay ? (
+              <li>
+                <label className="consola-interruptor" title="El paño que tapa al paciente. Con él puesto solo se opera por su ventana.">
+                  <span>Paño</span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={panoALaVista}
+                    // Mientras se ajusta su ventana el paño no se puede quitar: el marco se quedaría sin tela.
+                    disabled={!!editor?.marcoDelPano}
+                    onChange={(e) => setPanoPuesto(e.target.checked)}
+                  />
+                  <span className="consola-interruptor-pista" aria-hidden />
+                </label>
+              </li>
+            ) : null}
             {CAPAS.map((capa) => {
               const hay = piezas.some((p) => capaDelRol(p.rol) === capa.rol)
               return (
@@ -6430,7 +6474,8 @@ instrumentoElegido ? (
                 type="button"
                 className={`consola-modo consola-posicion${posicion === p.valor ? ' activo' : ''}`}
                 aria-pressed={posicion === p.valor}
-                title={p.ayuda}
+                // Con colchón el botón hace otra cosa —«Prono» le da la vuelta al paciente— y lo dice (P-014 E4).
+                title={campoMontado?.hay ? p.ayudaEnLaCamilla : p.ayuda}
                 onClick={() => {
                   setPosicion(p.valor)
                   mando.current?.ponerPosicion(p.valor)
@@ -6681,6 +6726,9 @@ instrumentoElegido ? (
             alCambiarElInjerto={setInjerto}
             medidasDelFoco={medidasDelFoco}
             clavoPrevistoMm={clavoPrevisto?.diametroMm ?? null}
+            campo={caso.campo ?? null}
+            panoALaVista={panoALaVista}
+            alCambiarElCampo={setCampoMontado}
             url={caso.modeloUrl}
             piezas={piezas}
             modo={modo}
@@ -6937,6 +6985,11 @@ instrumentoElegido ? (
             }}
             mando={asignarMando}
           />
+          {/* El marco de la ventana del paño (P-014 E6): solo con la pestaña «Paño» del editor abierta, y solo si
+              hay ventana que enmarcar. Va después del lienzo para quedar encima de él. */}
+          {editor?.marcoDelPano && campoMontado?.hay && zonaDelMarco ? (
+            <MarcoDelPano mando={mando} zona={zonaDelMarco} alCambiar={editor.marcoDelPano.alCambiar} />
+          ) : null}
           {avisoDelContexto.mensaje ? (
             <div
               className={`consola-contexto${avisoDelContexto.urgente ? ' urgente' : ''}`}
@@ -7462,6 +7515,7 @@ instrumentoElegido ? (
               datosDeLosNodos: delArchivo?.url === caso.modeloUrl ? delArchivo.datos : [],
               modeloCargado: delArchivo?.url === caso.modeloUrl,
               instrumentoEnLaMano: instrumento,
+              campo: campoMontado,
             })}
           </div>
         ) : null}

@@ -17,7 +17,11 @@
  * poner y se abre con la rueda —o con una barra deslizante, que es lo que hay en
  * una tableta—. La apertura no es pareja a lo largo de toda la herida: bajo la hoja
  * abre lo que dice el panel, al milímetro, y de ahí a cada punta el labio va en
- * recta, tenso, como la piel de verdad. Eso es lo que calcula `perfilDeLaCapa`.
+ * arco, combado como la piel de verdad cuando se tira de ella (P-015; hasta entonces
+ * iba en recta). Eso es lo que calcula `perfilDeLaCapa`.
+ *
+ * Todo esto es lo que **apartan** las hojas y las pinzas. Lo que la herida se abre
+ * sola al cortarla va aparte (`retraccionDelCorte.ts`) y se suma en la malla.
  */
 
 import type { PlanoBlando } from './planosBlandos'
@@ -264,9 +268,44 @@ const suave = (x: number) => {
   return k * k * (3 - 2 * k)
 }
 
+/**
+ * Entre qué fracciones del trazo va la herida de una malla: de una punta de su grieta a la otra (P-015). Sin ellas, el
+ * trazo entero.
+ *
+ * El trazo es uno por incisión y cada malla se parte lo suyo. La fascia del caso 4 se cerraba en t = 0,85 y el trazo
+ * hondo seguía, trepando por la pared de la herida, hasta 1: con el arco del labio tendido hasta la punta del trazo,
+ * los separadores tiraban a los dos lados de fascia que no estaba cortada, y se doblaba hacia fuera en un colgajo.
+ */
+export interface PuntasDeLaHerida {
+  desde: number
+  hasta: number
+}
+
+/**
+ * Las puntas de la herida de una malla, de su grieta (`MallaCortada.grieta`).
+ *
+ * Una punta cerrada es donde acaba el corte dentro de la malla, o donde llega a su borde con la malla siguiendo entera
+ * más allá (`cerrarLasPuntasConTejidoEntero`, en `corteDeMalla.ts`): ahí el labio se cierra. Por una abierta no queda
+ * nada que lo sujete —el vaso cortado de lado a lado—, y vale el trazo entero: los dos cabos se apartan enteros.
+ *
+ * Se probó a cerrar la punta abierta a lo que mide una punta más allá de la grieta, por el sóleo del caso 4, que se
+ * desgarraba con los Farabeuf. Al sóleo le servía, pero la vena tibial, de grieta de 2 mm y cruzada en sesgo, quedaba
+ * con el perfil cambiando dentro de ella misma y sus triángulos vueltos pasaron de 10 a 42 (P-015). Una grieta sin
+ * largo no abre nada.
+ */
+export function puntasDeLaGrieta(grieta: { desde: number; hasta: number; cerradaAlInicio: boolean; cerradaAlFinal: boolean }): PuntasDeLaHerida {
+  if (!(grieta.hasta > grieta.desde)) return { desde: grieta.desde, hasta: grieta.desde }
+  return { desde: grieta.cerradaAlInicio ? grieta.desde : 0, hasta: grieta.cerradaAlFinal ? grieta.hasta : 1 }
+}
+
+const TRAZO_ENTERO: PuntasDeLaHerida = { desde: 0, hasta: 1 }
+
+/** Lo que dista la posición de la punta más cercana, en fracción del trazo: negativo fuera de la herida. */
+const hastaLaPunta = (posicion: number, puntas: PuntasDeLaHerida) => Math.min(posicion - puntas.desde, puntas.hasta - posicion)
+
 /** De 0 en la punta a 1 a `PUNTA_QUE_SE_CIERRA_MM` de ella: lo que se cierra lo que abre en campana. */
-const cierreEnLasPuntas = (posicion: number, largoMm: number) =>
-  suave((Math.min(posicion, 1 - posicion) * largoMm) / PUNTA_QUE_SE_CIERRA_MM)
+const cierreEnLasPuntas = (posicion: number, largoMm: number, puntas: PuntasDeLaHerida = TRAZO_ENTERO) =>
+  suave((hastaLaPunta(posicion, puntas) * largoMm) / PUNTA_QUE_SE_CIERRA_MM)
 
 /** Un tramo del labio sostenido por una hoja: de dónde a dónde (fracción del largo) y cuánto lo aparta. */
 interface Apoyo {
@@ -282,24 +321,34 @@ interface Apoyo {
  * Antes cada separador abría en campana alrededor de su sitio, y la malla además estrechaba la apertura hacia las
  * puntas: un Farabeuf a un cuarto del largo, abierto 12 mm, abría 6 en su sitio, y la hoja no estaba donde estaba el
  * borde. Lo que hace el labio de verdad es otra cosa: el tramo que apoya en la hoja se aparta entero —la hoja es
- * rígida—, y de ahí a cada punta la piel va tensa, en recta. Con dos hojas en el mismo labio, entre ellas también va
- * en recta: no se hunde, porque las dos tiran de él. Es la envolvente de arriba de los apoyos y de las dos puntas.
+ * rígida—, y de ahí a cada punta la piel va tensa, en arco (`arcoDelLabio`, P-015; hasta entonces, en recta). Con dos
+ * hojas en el mismo labio, entre ellas va en recta: no se hunde, porque las dos tiran de él. Es la envolvente de arriba
+ * de los apoyos y de las dos puntas, combada en sus dos extremos.
  *
  * Cerca de una punta, lo que se aparta tiene tope (`PENDIENTE_MAXIMA_DEL_LABIO`): la punta no se abre. El tope es
  * el del borde de la hoja más cercano a la punta, y vale para toda la hoja: es rígida, no abre más por un lado que
  * por el otro. Lo que la hoja tapa a menos de `PUNTA_QUE_SE_CIERRA_MM` de la punta no cuenta: una hoja puesta encima
- * de la punta abriría la punta, y con el tope de ese borde —cero— no abriría nada.
+ * de la punta abriría la punta, y con el tope de ese borde —cero— no abriría nada. Y una hoja que cae del todo fuera
+ * de las puntas no apoya en este labio.
  */
-function cuerdaDelLabio(apoyos: readonly Apoyo[], largoMm: number): (posicion: number) => number {
-  if (apoyos.length === 0) return () => 0
+function cuerdaDelLabio(
+  apoyos: readonly Apoyo[],
+  largoMm: number,
+  puntas: PuntasDeLaHerida = TRAZO_ENTERO,
+): (posicion: number) => number {
+  const { desde: inicio, hasta: final } = puntas
+  if (apoyos.length === 0 || !(final > inicio)) return () => 0
   const puntos: [number, number][] = [
-    [0, 0],
-    [1, 0],
+    [inicio, 0],
+    [final, 0],
   ]
-  const tope = (x: number) => PENDIENTE_MAXIMA_DEL_LABIO * Math.min(x, 1 - x) * largoMm
-  const margen = Math.min(0.5, PUNTA_QUE_SE_CIERRA_MM / largoMm)
-  const dentro = (x: number) => Math.min(1 - margen, Math.max(margen, x))
+  const tope = (x: number) => PENDIENTE_MAXIMA_DEL_LABIO * Math.max(0, hastaLaPunta(x, puntas)) * largoMm
+  const margen = Math.min((final - inicio) / 2, PUNTA_QUE_SE_CIERRA_MM / largoMm)
+  const dentro = (x: number) => Math.min(final - margen, Math.max(inicio + margen, x))
   for (const a of apoyos) {
+    // Una hoja entera fuera de la herida de esta malla no sostiene su labio (P-015): se acotaba a la punta y la abría
+    // igual, y un Farabeuf del caso 4 en 0,64 del trazo abría 4 mm el sóleo, partido solo de 0,06 a 0,20.
+    if (!(a.hasta > inicio && a.desde < final)) continue
     const desde = dentro(a.desde)
     const hasta = dentro(a.hasta)
     const mm = Math.min(a.mm, tope(desde), tope(hasta))
@@ -318,14 +367,41 @@ function cuerdaDelLabio(apoyos: readonly Apoyo[], largoMm: number): (posicion: n
     cuerda.push(p)
   }
   return (posicion) => {
-    const x = Math.min(1, Math.max(0, posicion))
+    // Fuera de la herida de esta malla, el tejido está entero: no se aparta.
+    if (!(posicion > inicio && posicion < final)) return 0
+    const x = posicion
     for (let i = 0; i + 1 < cuerda.length; i++) {
       const [x0, y0] = cuerda[i]
       const [x1, y1] = cuerda[i + 1]
-      if (x <= x1) return x1 > x0 ? y0 + ((y1 - y0) * (x - x0)) / (x1 - x0) : Math.max(y0, y1)
+      if (x > x1) continue
+      if (!(x1 > x0)) return Math.max(y0, y1)
+      const u = (x - x0) / (x1 - x0)
+      // De una punta a la primera hoja, y de la última a la otra punta, el labio va en arco (P-015).
+      if (i === 0 && y0 === 0) return y1 * arcoDelLabio(u, y1, (x1 - x0) * largoMm)
+      if (i + 2 === cuerda.length && y1 === 0) return y0 * arcoDelLabio(1 - u, y0, (x1 - x0) * largoMm)
+      return y0 + (y1 - y0) * u
     }
     return 0
   }
+}
+
+/**
+ * La forma del labio entre la punta de la herida (`u` = 0) y el borde de la hoja que lo sostiene (`u` = 1): de 0 a 1,
+ * en arco (P-015).
+ *
+ * D-253 lo llevaba en recta, «tenso», y con una hoja en cada labio la herida era un rombo de esquinas vivas: una de
+ * las cosas que el dueño leía como cristal («la tensión y arqueo normal de la piel»). La piel no es una cuerda: es una
+ * lámina, y tirada de un punto se comba. El arco es el de una parábola que llega a la hoja sin esquina —con pendiente
+ * cero, la misma que lleva bajo la hoja, que es rígida— y sale de la punta con el doble de la pendiente de la recta.
+ *
+ * Ese doble es lo que no siempre cabe. La punta aguanta `PENDIENTE_MAXIMA_DEL_LABIO` y la recta ya puede llegar a ella
+ * (una hoja pegada a la punta y abierta a tope): ahí no queda margen para combarse y el labio va en recta, como antes.
+ * Entre un caso y otro se comba lo que la punta deja.
+ */
+function arcoDelLabio(u: number, aperturaMm: number, hastaLaPuntaMm: number): number {
+  if (!(aperturaMm > 0) || !(hastaLaPuntaMm > 0)) return u
+  const comba = Math.min(1, Math.max(0, (PENDIENTE_MAXIMA_DEL_LABIO * hastaLaPuntaMm) / aperturaMm - 1))
+  return u + comba * u * (1 - u)
 }
 
 /**
@@ -338,6 +414,8 @@ function cuerdaDelLabio(apoyos: readonly Apoyo[], largoMm: number): (posicion: n
 export function perfilDeLosSeparadores(
   separadores: readonly SeparadorColocado[],
   largoMm: number = LARGO_DE_REFERENCIA_MM,
+  /** Dónde acaba la herida de la malla que se abre (`PuntasDeLaHerida`): ahí se cierra el labio. Sin ellas, en las del trazo. */
+  puntas: PuntasDeLaHerida = TRAZO_ENTERO,
 ): PerfilDeApertura {
   const largo = largoMm > 0 ? largoMm : LARGO_DE_REFERENCIA_MM
   const mas: Apoyo[] = []
@@ -355,14 +433,14 @@ export function perfilDeLosSeparadores(
     if (s.lado >= 0) mas.push(apoyo)
     if (s.lado <= 0) menos.push(apoyo)
   }
-  const cuerdaMas = cuerdaDelLabio(mas, largo)
-  const cuerdaMenos = cuerdaDelLabio(menos, largo)
+  const cuerdaMas = cuerdaDelLabio(mas, largo, puntas)
+  const cuerdaMenos = cuerdaDelLabio(menos, largo, puntas)
   return (posicion) => {
     let m = cuerdaMas(posicion)
     let n = cuerdaMenos(posicion)
     for (const s of romas) {
       const d = (posicion - s.posicion) / ALCANCE_POR_TIPO.roma
-      const abre = Math.max(0, s.aperturaMm) * Math.exp(-0.5 * d * d) * cierreEnLasPuntas(posicion, largo)
+      const abre = Math.max(0, s.aperturaMm) * Math.exp(-0.5 * d * d) * cierreEnLasPuntas(posicion, largo, puntas)
       if (s.lado >= 0) m = Math.max(m, abre)
       if (s.lado <= 0) n = Math.max(n, abre)
     }
@@ -389,16 +467,19 @@ export function perfilDeLaCapa(
   separadores: readonly SeparadorColocado[],
   pellizcos: readonly Pellizco[] = [],
   largoMm: number = LARGO_DE_REFERENCIA_MM,
+  /** Dónde acaba la herida de la malla que se abre: ver `perfilDeLosSeparadores`. */
+  puntas: PuntasDeLaHerida = TRAZO_ENTERO,
 ): PerfilDeApertura {
   const deSeparadores = perfilDeLosSeparadores(
     separadores.filter((s) => abreLaCapa(s, capa)),
     largoMm,
+    puntas,
   )
   if (capa !== 'piel' || pellizcos.length === 0) return deSeparadores
   return (posicion) => {
     const s = deSeparadores(posicion)
     const p = aperturaPorLasPinzas(pellizcos, posicion)
-    const k = cierreEnLasPuntas(posicion, largoMm > 0 ? largoMm : LARGO_DE_REFERENCIA_MM)
+    const k = cierreEnLasPuntas(posicion, largoMm > 0 ? largoMm : LARGO_DE_REFERENCIA_MM, puntas)
     return { mas: Math.max(s.mas, p.mas * k), menos: Math.max(s.menos, p.menos * k) }
   }
 }

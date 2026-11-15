@@ -75,6 +75,12 @@
   --tono-atencion: var(--c-atencion);
   --tono-grave: var(--c-grave);
   --tono-fondo: rgba(255, 255, 255, 0.04);
+  /* Lo que separa dos mandos dentro de un mismo recuadro. */
+  --c-separador: rgba(255, 255, 255, 0.2);
+  /* El fondo del lienzo, del centro al borde: un foco de luz bajo la lámpara. */
+  --c-lienzo-1: #2b3b5e;
+  --c-lienzo-2: #16213a;
+  --c-lienzo-3: #0b1120;
 
   display: grid;
   /* `--col-*` manda sobre `--ancho-*` cuando la columna está plegada (P-012 E5): el ancho elegido con el asa se escribe en
@@ -96,6 +102,84 @@
      barra de acción del móvil (`position: sticky`) se pegaba al borde de la
      consola en vez de al de la pantalla, o sea, no se pegaba. */
   overflow: clip;
+}
+
+/* ---------- las paletas (P-014 E7) ----------
+   El dueño pidió una consola «más clínica» y, de tres propuestas, que el médico pudiera elegir entre las tres.
+   La elegida se guarda en `Ajustes` y llega aquí como `data-tema` en el `<body>` (la plantilla del sitio): de
+   él cuelgan la consola del caso, su silueta de carga y la que va dentro del editor del caso, en el panel. El
+   selector `.consola[data-tema]` queda para quien la monte suelta y le ponga el atributo a ella.
+
+   Cada paleta vuelve a dar los mismos tokens que la base, y nada más: ninguna regla de esta hoja sabe qué
+   paleta hay. Por eso los colores que quedaban escritos a mano —los velos sobre el lienzo, su fondo, los
+   separadores— pasaron a ser tokens o a salir de uno con `color-mix`.
+
+   La base de arriba es la «Original» (D-149) y no lleva bloque propio. Los contrastes de las cuatro los
+   comprueba `tests/unit/temas.test.ts` leyendo esta hoja: cada texto a 4,5:1 o más sobre los tres fondos y
+   sobre el lienzo, el blanco sobre `--c-acento-solido` igual, y `--c-linea-fuerte` a 3:1. La misma prueba
+   exige que un bloque dé todos los tokens: el que falte se quedaría con el azul de la original. */
+
+/* Oscura fría: grafito y acero, con celeste donde iba el naranja. */
+.consola[data-tema='oscura-fria'],
+[data-tema='oscura-fria'] .consola {
+  --c-fondo: #101418;
+  --c-panel: #171c22;
+  --c-panel-2: #1f262e;
+  --c-linea: #2c3540;
+  --c-linea-fuerte: #73849a;
+  --c-texto: #e8edf2;
+  --c-texto-2: #b4c0cc;
+  --c-rotulo: #92a3b5;
+  --c-acento: #7cc7f2;
+  --c-acento-solido: #1b6ea8;
+  --c-acento-tenue: rgba(124, 199, 242, 0.14);
+  --c-lienzo-1: #3a4654;
+  --c-lienzo-2: #1c232b;
+  --c-lienzo-3: #0b0e12;
+}
+
+/* Verde quirófano: el de la ropa de pabellón, sobre fondo oscuro. */
+.consola[data-tema='verde-quirofano'],
+[data-tema='verde-quirofano'] .consola {
+  --c-fondo: #0c1614;
+  --c-panel: #12201d;
+  --c-panel-2: #192b27;
+  --c-linea: #27403a;
+  --c-linea-fuerte: #6b9389;
+  --c-texto: #e6f0ed;
+  --c-texto-2: #afc8c1;
+  --c-rotulo: #8db0a7;
+  --c-acento: #6fd6bd;
+  --c-acento-solido: #0e7562;
+  --c-acento-tenue: rgba(111, 214, 189, 0.14);
+  --c-lienzo-1: #2f4f48;
+  --c-lienzo-2: #152824;
+  --c-lienzo-3: #091210;
+}
+
+/* Clara: blanco y gris frío con azul, como un monitor clínico de día. Es la única clara, y por eso la única que
+   cambia también los tres tonos del registro y los separadores: los de la base están hechos para fondo oscuro. */
+.consola[data-tema='clara'],
+[data-tema='clara'] .consola {
+  --c-fondo: #e9eef4;
+  --c-panel: #ffffff;
+  --c-panel-2: #f3f6fa;
+  --c-linea: #d3dce6;
+  --c-linea-fuerte: #76869a;
+  --c-texto: #0f1c2e;
+  --c-texto-2: #3d4e63;
+  --c-rotulo: #56677c;
+  --c-acento: #0a65a3;
+  --c-acento-solido: #0a65a3;
+  --c-acento-tenue: rgba(10, 101, 163, 0.1);
+  --c-bien: #1b6f45;
+  --c-atencion: #7a5a1c;
+  --c-grave: #9e2e27;
+  --tono-fondo: rgba(15, 28, 46, 0.04);
+  --c-separador: rgba(15, 28, 46, 0.18);
+  --c-lienzo-1: #ffffff;
+  --c-lienzo-2: #e6edf4;
+  --c-lienzo-3: #cbd7e3;
 }
 
 .consola-rotulo {
@@ -366,10 +450,10 @@
 .consola-barra-de-modos-ayuda { margin: var(--e-1) 0 0; font-size: var(--t-xs); }
 
 /* El menú de movimiento por ejes (P-004 E7): Trasladar · Angular · Rotar, y sus ejes, en una fila bajo los modos. */
-.consola-menu-de-movimiento { display: grid; gap: 2px; margin-top: var(--e-1); padding-top: var(--e-1); border-top: 1px solid var(--c-borde, rgba(255, 255, 255, 0.2)); }
+.consola-menu-de-movimiento { display: grid; gap: 2px; margin-top: var(--e-1); padding-top: var(--e-1); border-top: 1px solid var(--c-borde, var(--c-separador)); }
 .consola-menu-de-movimiento-fila { display: flex; flex-wrap: wrap; align-items: center; gap: var(--e-2); }
 .consola-menu-de-movimiento-titulo { font-size: var(--t-xs); font-weight: 700; color: var(--c-texto-2); }
-.consola-menu-de-movimiento-ejes { display: inline-flex; gap: 2px; padding-left: var(--e-2); border-left: 1px solid var(--c-borde, rgba(255, 255, 255, 0.2)); }
+.consola-menu-de-movimiento-ejes { display: inline-flex; gap: 2px; padding-left: var(--e-2); border-left: 1px solid var(--c-borde, var(--c-separador)); }
 .consola-menu-de-movimiento-ayuda { margin: 0; font-size: var(--t-xs); }
 
 /* Los tornillos (P-004 E9): la bandeja por tipo, los tres tiempos de la fijación y la trayectoria de dos clics. */
@@ -528,7 +612,7 @@
   min-height: 460px;
   /* Un foco de luz en el centro del campo, como bajo la lámpara: el hueso gris
      se despega del fondo sin necesidad de un fondo claro. */
-  background: radial-gradient(ellipse at 50% 42%, #2b3b5e 0%, #16213a 55%, #0b1120 100%);
+  background: radial-gradient(ellipse at 50% 42%, var(--c-lienzo-1) 0%, var(--c-lienzo-2) 55%, var(--c-lienzo-3) 100%);
 }
 .consola .consola-lienzo-cargando { color: var(--c-texto-2); }
 .consola-lienzo-herramientas {
@@ -547,7 +631,7 @@
   font: inherit;
   font-size: var(--t-sm);
   color: var(--c-texto);
-  background: rgba(15, 23, 41, 0.78);
+  background: color-mix(in srgb, var(--c-fondo) 78%, transparent);
   border: 1px solid var(--c-linea-fuerte);
   border-radius: var(--r-full);
   backdrop-filter: blur(6px);
@@ -784,7 +868,7 @@
   text-align: right;
   padding: 4px 8px;
   border-radius: 6px;
-  border: 1px solid var(--c-borde, rgba(255, 255, 255, 0.2));
+  border: 1px solid var(--c-borde, var(--c-separador));
   background: transparent;
   color: inherit;
   font: inherit;
@@ -865,7 +949,7 @@
   padding: var(--e-3);
   font-size: var(--t-xs);
   color: var(--c-texto-2);
-  background: rgba(15, 23, 41, 0.88);
+  background: color-mix(in srgb, var(--c-fondo) 88%, transparent);
   border: 1px solid var(--c-linea-fuerte);
   border-radius: var(--r-lg);
   backdrop-filter: blur(6px);
@@ -926,6 +1010,11 @@
   border: 1px solid var(--c-linea-fuerte);
   border-radius: var(--r);
 }
+/* El marcador de un campo vacío lo pintaba el navegador con su gris de fábrica (#757575), pensado para papel
+   blanco: 3,9:1 sobre el fondo de la consola, y lo mismo en la paleta clara. Con el color de los rótulos pasa
+   de 4,5:1 en las cuatro paletas. Va con `:where()` para no pesar más que la regla de `editor.css` que usa el
+   marcador de un selector para enseñar el valor elegido. */
+.consola :where(input, textarea)::placeholder { color: var(--c-rotulo); opacity: 1; }
 /* ---------- la mesa de instrumental, a la izquierda (P-008 E6) ----------
    Lo que hay en la mano, los recientes, el buscador y un cuadro con dibujo por familia; al pinchar un cuadro, su lista se
    despliega debajo de su fila. Reemplaza los acordeones de ancho completo de la columna derecha (D-167): de ellos solo se
@@ -1534,6 +1623,38 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 }
 .consola-contexto p { margin: 0; max-width: 46ch; }
 .consola-contexto.urgente { background: color-mix(in srgb, var(--c-fondo) 92%, transparent); }
+/* El marco de la ventana del paño, en el editor (P-014 E6). Una caja del tamaño del lienzo —`MarcoDelPano` le
+   escribe la posición en cada cuadro— que no recibe el puntero: lo reciben solo sus cinco asas, y el resto del
+   lienzo se sigue pudiendo orbitar por debajo. Por encima del lienzo y por debajo de su barra de herramientas.
+
+   Blanco con halo oscuro y no el acento de la consola: el marco se dibuja sobre el paño, que es azul, celeste o
+   verde según el caso, y sobre la piel; el blanco con borde es lo único que se lee encima de los cuatro. */
+.consola-marco-pano { position: absolute; z-index: 2; overflow: hidden; pointer-events: none; }
+.consola-marco-pano svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.consola-marco-pano-halo { fill: none; stroke: rgba(8, 14, 28, 0.6); stroke-width: 5; stroke-linejoin: round; }
+.consola-marco-pano-linea { fill: none; stroke: #fff; stroke-width: 2; stroke-dasharray: 8 5; stroke-linejoin: round; }
+/* El botón mide 36 px para que el dedo lo encuentre; lo que se ve es el punto de 16 de dentro. Va en el origen de
+   la caja y se lleva a su sitio con `transform`, que es lo que se escribe en cada cuadro. */
+.consola-marco-pano-asa {
+  position: absolute; left: -18px; top: -18px; width: 36px; height: 36px;
+  display: grid; place-items: center; padding: 0; border: 0; background: none;
+  pointer-events: auto; cursor: grab; touch-action: none;
+}
+.consola-marco-pano-asa::before {
+  content: ''; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 0 0 2px rgba(8, 14, 28, 0.75), 0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 120ms ease;
+}
+/* El del centro es cuadrado: mueve la ventana entera, que es otra cosa que correr un borde. */
+.consola-marco-pano-asa.del-centro::before { border-radius: 4px; }
+.consola-marco-pano-asa:hover::before,
+.consola-marco-pano-asa.cogida::before { transform: scale(1.25); }
+.consola-marco-pano-asa.cogida { cursor: grabbing; }
+.consola-marco-pano-asa:focus-visible { outline: none; }
+.consola-marco-pano-asa:focus-visible::before { box-shadow: 0 0 0 2px rgba(8, 14, 28, 0.75), 0 0 0 5px #fff; }
+@media (prefers-reduced-motion: reduce) {
+  .consola-marco-pano-asa::before { transition: none; }
+}
 .consola-herida-bloque { display: grid; gap: var(--e-2); }
 /* La posición del paciente (de pie, supino, prono) y el giro libre. */
 .consola-paciente-bloque { display: grid; gap: var(--e-2); }
@@ -1998,7 +2119,7 @@ body:has(.consola-completa) { overflow: hidden; }
   font-size: var(--t-xs);
   line-height: 1.45;
   color: var(--c-texto-2);
-  background: rgba(15, 23, 41, 0.88);
+  background: color-mix(in srgb, var(--c-fondo) 88%, transparent);
   border: 1px solid var(--c-linea-fuerte);
   border-radius: var(--r-lg);
   backdrop-filter: blur(6px);
@@ -2081,7 +2202,7 @@ body:has(.consola-completa) { overflow: hidden; }
   font-size: var(--t-xs);
   line-height: 1.45;
   color: var(--c-texto-2);
-  background: rgba(15, 23, 41, 0.9);
+  background: color-mix(in srgb, var(--c-fondo) 90%, transparent);
   border: 1px solid var(--c-linea-fuerte);
   border-radius: var(--r-lg);
   backdrop-filter: blur(6px);
@@ -2358,7 +2479,7 @@ body:has(.consola-completa) { overflow: hidden; }
 /* «Retirar» va siempre al final, separado y en el tono de lo grave: es lo único del menú que saca algo del paciente. */
 .consola-menu-objeto-boton.retirar { margin-top: var(--e-1); color: var(--c-grave); border-top-color: var(--c-linea); border-radius: 0 0 var(--r-sm) var(--r-sm); }
 .consola-menu-objeto-boton.retirar:hover,
-.consola-menu-objeto-boton.retirar:focus-visible { background: rgba(255, 154, 143, 0.12); border-color: var(--c-grave); border-radius: var(--r-sm); }
+.consola-menu-objeto-boton.retirar:focus-visible { background: color-mix(in srgb, var(--c-grave) 12%, transparent); border-color: var(--c-grave); border-radius: var(--r-sm); }
 .consola-menu-objeto-deslizador { display: grid; gap: 2px; padding: var(--e-1) var(--e-2); font-size: var(--t-sm); }
 .consola-menu-objeto-deslizador output { font-variant-numeric: tabular-nums; color: var(--c-acento); }
 .consola-menu-objeto-deslizador input { width: 100%; accent-color: var(--c-acento-solido); }
@@ -2424,7 +2545,7 @@ body:has(.consola-completa) { overflow: hidden; }
   transform: translate(-50%, -50%);
   border: 1px solid var(--c-linea);
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(15, 23, 41, 0.2) 0 28%, rgba(15, 23, 41, 0.82) 29% 100%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--c-fondo) 20%, transparent) 0 28%, color-mix(in srgb, var(--c-fondo) 82%, transparent) 29% 100%);
   backdrop-filter: blur(4px);
   pointer-events: none;
 }

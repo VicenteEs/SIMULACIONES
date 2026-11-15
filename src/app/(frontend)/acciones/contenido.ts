@@ -49,6 +49,7 @@ import {
   revisionDe,
 } from '@/lib/revisionServidor'
 import type { OrigenDeContenido } from '@/lib/revision'
+import { centroDesdeLasNotas } from '@/lib/campoQuirurgico'
 
 /**
  * La revisión de una ficha, si está en revisión (D-142), sin que un fallo de su
@@ -345,7 +346,7 @@ const LISTABLES_APARTE: Record<string, string> = {
 
 export async function opcionesDeRelacion(
   coleccion: unknown,
-): Promise<Respuesta<{ id: string; etiqueta: string; url?: string; tipo?: string; clase?: string }[]>> {
+): Promise<Respuesta<{ id: string; etiqueta: string; url?: string; tipo?: string; clase?: string; centroEnElCuerpo?: [number, number, number] }[]>> {
   return accion(async () => {
     const aparte =
       typeof coleccion === 'string' ? LISTABLES_APARTE[coleccion] : undefined
@@ -378,6 +379,9 @@ export async function opcionesDeRelacion(
         tipo: typeof doc.mimeType === 'string' ? doc.mimeType : undefined,
         // La carpeta de un modelo 3D (P-004 E1): con ella el desplegable ofrece solo la suya.
         clase: typeof doc.clase === 'string' ? doc.clase : undefined,
+        // Dónde estaba en el cuerpo un modelo exportado del atlas (P-014): lo dice su nota, y va ya leído porque la
+        // nota entera —un párrafo por modelo, quinientos modelos— no hace falta en ningún desplegable.
+        centroEnElCuerpo: slug === 'modelos-3d' ? (centroDesdeLasNotas(doc.notas) ?? undefined) : undefined,
       }
     })
   })

@@ -11,6 +11,7 @@ import { editorClinico, pilaDeBloques } from '@/blocks'
 // arrastrar código de servidor al paquete del navegador. Lo que entra por aquí
 // son datos sin código.
 import { REGLAS_DEL_OBJETIVO_DEL_PASO } from '@/admin/esquema'
+import { COLORES_DEL_PANO } from '@/lib/campoQuirurgico'
 import { motivoSinNadaQueReducir } from '@/lib/reduccionDelCaso'
 
 /**
@@ -322,6 +323,62 @@ export const Cirugias: CollectionConfig = {
             description:
               'Separa la diástasis del desplazamiento lateral: a lo largo del eje es hueco, de lado es desalineación.',
           },
+        },
+      ],
+    },
+
+    // --- el campo quirúrgico (P-014) ---------------------------------------
+    {
+      // El colchón, la sábana y el paño no se guardan: salen de dónde estaba el modelo en el cuerpo del atlas y se
+      // arman al abrir el caso. Lo que el caso guarda es lo que decide el médico: si lo lleva, de qué color y qué
+      // deja descubierto. Los tres nacen con su valor por omisión —encendido, azul, zona automática—, así que un
+      // caso de antes de P-014 abre con su paño sin que nadie lo toque, que es lo que el dueño pidió.
+      name: 'pano',
+      type: 'group',
+      label: 'Paño quirúrgico',
+      admin: {
+        description:
+          'El paciente va acostado en el colchón y tapado con un paño; por su ventana asoma lo que se opera. Solo en los modelos exportados del atlas, que son los que saben dónde estaban en el cuerpo.',
+      },
+      fields: [
+        {
+          // «Apagado» y no «encendido»: así el valor por omisión de la columna, falso, es el que el dueño pidió
+          // para los casos que ya existen.
+          name: 'apagado',
+          type: 'checkbox',
+          defaultValue: false,
+          label: 'Sin colchón ni paño',
+          admin: { description: 'El caso se ve como antes de haber paño: el modelo solo.' },
+        },
+        {
+          name: 'color',
+          type: 'select',
+          defaultValue: 'azul',
+          label: 'Color del paño',
+          options: COLORES_DEL_PANO.map((c) => ({ label: c.etiqueta, value: c.valor })),
+        },
+        {
+          // La ventana, en milímetros enteros sobre el plano del cuerpo del atlas: X de lado a lado —la derecha
+          // del paciente es negativa— e Y de los pies a la cabeza. Vacía, la zona es la automática, la caja de lo
+          // recortado. La lee `panoDelCaso`, que no se fía: tres números y un vacío valen como vacía.
+          name: 'zona',
+          type: 'group',
+          label: 'Zona descubierta',
+          admin: {
+            description:
+              'La escribe el marco del editor del simulador, arrastrando sus bordes sobre el modelo. Vacía, queda descubierto lo recortado en el taller.',
+          },
+          fields: [
+            {
+              type: 'row',
+              fields: [
+                { name: 'xMin', type: 'number', label: 'Desde (x, mm)' },
+                { name: 'xMax', type: 'number', label: 'Hasta (x, mm)' },
+                { name: 'yMin', type: 'number', label: 'Desde (y, mm)' },
+                { name: 'yMax', type: 'number', label: 'Hasta (y, mm)' },
+              ],
+            },
+          ],
         },
       ],
     },

@@ -5,6 +5,7 @@ import type { Payload } from 'payload'
 import { corregirCatalogo } from '@/atlas/clasificacion'
 import { piezaDe, type CatalogoDelAtlas, type ContenidoDeInstancia } from '@/atlas/formato'
 import { escribirGlb } from '@/lib/glb'
+import { fraseDelCentro } from '@/lib/campoQuirurgico'
 import {
   avisosDeLaExportacion,
   nombresDelArchivo,
@@ -342,7 +343,9 @@ export async function exportarPreparacion(
       // hueso ya partido, `prepararExportacion` usa SU lista de piezas y no la de arriba: las fascias van en las dos.
       partido: corte ? null : rehecha.partido ? { ...rehecha.partido, piezas: [...rehecha.partido.piezas, ...deFascia.piezas] } : null,
     })
-  const glb = escribirGlb(objetos, 'TraumaHub · exportado del atlas anatómico')
+  // El centro va también dentro del archivo, entero y no redondeado al milímetro como en las notas: es con lo
+  // que el simulador devuelve el modelo a su sitio en el cuerpo para acostarlo bajo el paño (P-014).
+  const glb = escribirGlb(objetos, 'TraumaHub · exportado del atlas anatómico', { centroEnElCuerpo: centro })
 
   if (glb.byteLength > TECHO_BYTES) {
     const mb = (n: number) => (n / 1024 / 1024).toFixed(1)
@@ -356,10 +359,6 @@ export async function exportarPreparacion(
     )
   }
 
-  // En milímetros y con signo: es lo que hay que SUMAR para devolver el
-  // modelo a su sitio en el cuerpo. Sin anotarlo, quien quiera juntar dos
-  // exportaciones en Blender no tiene cómo alinearlas.
-  const milimetros = centro.map((v) => Math.round(v * 1000)).join(', ')
   const nombre = `${String(instancia.nombre ?? 'Preparación')} · del atlas`
   const archivo = `${String(instancia.nombre ?? 'preparacion')
     .toLowerCase()
@@ -396,8 +395,9 @@ export async function exportarPreparacion(
         `(${catalogo.version}), con ${encontradas.length} piezas. ` +
         `Objetos del archivo: ${piezas.map((p) => `${p.nodo} (${p.etiqueta}, ${p.rol})`).join(', ')}.` +
         delCorte +
-        ` Centrado en su propia caja: para devolverlo a su sitio en el cuerpo, ` +
-        `sumar ${milimetros} mm (x, y, z).` +
+        // Sin anotarlo, quien quiera juntar dos exportaciones en Blender no tiene cómo alinearlas; y es de
+        // donde el simulador saca el sitio de los modelos exportados antes de que el archivo lo llevara dentro.
+        fraseDelCentro(centro) +
         avisosDeLaExportacion({ pielRecortada, pielFuera, sinTraducir, corte: cortado })
           .concat(rehecha.avisos)
           .map((aviso) => ` ${aviso}`)

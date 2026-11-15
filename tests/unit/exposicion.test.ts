@@ -16,7 +16,9 @@ import {
   laPareja,
   MAXIMO_DE_SEPARADORES,
   PENDIENTE_MAXIMA_DEL_LABIO,
+  perfilDeLaCapa,
   posicionQueAcompana,
+  puntasDeLaGrieta,
   ladoAlColocar,
   limitarAgarre,
   limitarApertura,
@@ -45,13 +47,20 @@ const separador = (extra: Partial<SeparadorColocado> = {}): SeparadorColocado =>
 })
 
 describe('los separadores colocados abren donde están', () => {
-  it('bajo la hoja abre lo del panel y de ahí a cada punta el labio va tenso, en recta (P-008 E2)', () => {
+  it('bajo la hoja abre lo del panel y de ahí a cada punta el labio va en arco (P-008 E2, P-015)', () => {
     const s = [separador({ posicion: 0.5, aperturaMm: 20 })]
     // Una herida de 60 mm y una hoja de 12: de 0,4 a 0,6 del largo abre los 20 enteros.
     expect(aperturaEnLaPosicion(s, 0.5, 60).mas).toBeCloseTo(20, 5)
     expect(aperturaEnLaPosicion(s, 0.41, 60).mas).toBeCloseTo(20, 5)
-    // De la hoja a la punta va en recta: a mitad de camino, la mitad.
-    expect(aperturaEnLaPosicion(s, 0.2, 60).mas).toBeCloseTo(10, 5)
+    // De la hoja a la punta va en arco de parábola: a mitad de camino lleva ya tres cuartos, y no la mitad de la recta
+    // de D-253, que con una hoja en cada labio hacía de la herida un rombo.
+    expect(aperturaEnLaPosicion(s, 0.2, 60).mas).toBeCloseTo(15, 5)
+    // Llega a la hoja sin esquina: pegado a ella ya casi no sube.
+    expect(aperturaEnLaPosicion(s, 0.39, 60).mas).toBeGreaterThan(19.9)
+    // Y sale de la punta con el doble de la pendiente de la recta, sin pasar de lo que la punta aguanta.
+    const juntoALaPunta = aperturaEnLaPosicion(s, 0.01, 60).mas
+    expect(juntoALaPunta).toBeGreaterThan(0.6 * 20 * (0.01 / 0.4) * 2)
+    expect(juntoALaPunta).toBeLessThanOrEqual(PENDIENTE_MAXIMA_DEL_LABIO * 0.01 * 60 + 1e-9)
     // Las puntas no se abren nunca.
     expect(aperturaEnLaPosicion(s, 0, 60).mas).toBe(0)
     expect(aperturaEnLaPosicion(s, 1, 60).mas).toBe(0)
@@ -88,7 +97,7 @@ describe('los separadores colocados abren donde están', () => {
     expect(aperturaEnLaPosicion(s, 0.1, 60).mas).toBeCloseTo(12, 5)
     expect(aperturaEnLaPosicion(s, 0.2, 60).mas).toBeCloseTo(12, 5)
     expect(aperturaEnLaPosicion(s, 0.3, 60).mas).toBeCloseTo(12, 5)
-    // Y de ahí a la punta, en recta.
+    // Y de ahí a la punta, en recta: la hoja ya abre todo lo que la punta aguanta y no queda margen para combarse.
     expect(aperturaEnLaPosicion(s, 0.05, 60).mas).toBeCloseTo(6, 5)
   })
 
@@ -123,6 +132,57 @@ describe('los separadores colocados abren donde están', () => {
   it('sin separadores no se abre nada', () => {
     expect(aperturaEnLaPosicion([], 0.5)).toEqual({ mas: 0, menos: 0 })
     expect(aperturaMaxima([])).toBe(0)
+  })
+
+  it('en una malla cuya grieta acaba antes que el trazo, el labio se cierra en la punta de la grieta (P-015)', () => {
+    // Como la fascia del caso 4: el trazo hondo sigue hasta 1 trepando por la pared, pero la fascia se partió solo
+    // hasta 0,85. Más allá está entera, y tirar de ella a los dos lados la doblaba en un colgajo.
+    const s = [separador({ posicion: 0.5, aperturaMm: 12 })]
+    const puntas = { desde: 0, hasta: 0.85 }
+    const perfil = perfilDeLaCapa('piel', s, [], 60, puntas)
+    expect(perfil(0.5).mas).toBeCloseTo(12, 5)
+    expect(perfil(0.85).mas).toBe(0)
+    expect(perfil(0.9).mas).toBe(0)
+    expect(perfil(1).mas).toBe(0)
+    // Y de la hoja a esa punta en arco, sin pasar de lo que la punta aguanta.
+    const cerca = perfil(0.84).mas
+    expect(cerca).toBeGreaterThan(0)
+    expect(cerca).toBeLessThanOrEqual(PENDIENTE_MAXIMA_DEL_LABIO * 0.01 * 60 + 1e-9)
+    // Con el trazo entero, como antes, en 0,9 todavía abría.
+    expect(perfilDeLaCapa('piel', s, [], 60)(0.9).mas).toBeGreaterThan(2)
+  })
+
+  it('una grieta sin largo no abre nada, ni con la hoja encima', () => {
+    const perfil = perfilDeLaCapa('piel', [separador({ posicion: 0.5, aperturaMm: 12 })], [], 60, { desde: 0.5, hasta: 0.5 })
+    for (const t of [0.3, 0.5, 0.7]) expect(perfil(t)).toEqual({ mas: 0, menos: 0 })
+    const abierta = puntasDeLaGrieta({ desde: 0.5, hasta: 0.5, cerradaAlInicio: false, cerradaAlFinal: false })
+    expect(perfilDeLaCapa('piel', [separador({ posicion: 0.5, aperturaMm: 12 })], [], 60, abierta)(0.5).mas).toBe(0)
+  })
+
+  it('una hoja que cae del todo fuera de la grieta de la malla no la abre (P-015)', () => {
+    // El sóleo del caso 4 se partió solo de 0,06 a 0,20 del trazo; los Farabeuf, en 0,64, lo abrían 4 mm en su punta.
+    const puntas = { desde: 0.06, hasta: 0.2 }
+    const lejos = perfilDeLaCapa('musculo', [separador({ plano: 'musculo', posicion: 0.64, aperturaMm: 14 })], [], 60, puntas)
+    for (const t of [0.07, 0.13, 0.19]) expect(lejos(t).mas).toBe(0)
+    // Dentro, abre.
+    const dentro = perfilDeLaCapa('musculo', [separador({ plano: 'musculo', posicion: 0.13, aperturaMm: 4 })], [], 60, puntas)
+    expect(dentro(0.13).mas).toBeGreaterThan(0)
+  })
+
+  // Las puntas de la herida de cada malla salen de su grieta (P-015).
+  it('una punta cerrada se queda donde acaba la grieta; por una abierta vale el trazo entero', () => {
+    expect(puntasDeLaGrieta({ desde: 0.1, hasta: 0.85, cerradaAlInicio: true, cerradaAlFinal: true })).toEqual({ desde: 0.1, hasta: 0.85 })
+    expect(puntasDeLaGrieta({ desde: 0.1, hasta: 0.85, cerradaAlInicio: false, cerradaAlFinal: true })).toEqual({ desde: 0, hasta: 0.85 })
+    expect(puntasDeLaGrieta({ desde: 0.4, hasta: 0.45, cerradaAlInicio: false, cerradaAlFinal: false })).toEqual({ desde: 0, hasta: 1 })
+  })
+
+  it('el vaso cortado de lado a lado, sin nada que lo sujete, se aparta entero aunque su grieta sea corta', () => {
+    // La vena tibial del caso 4: 2 mm de grieta, cruzada en sesgo. Con el perfil cerrándose junto a ella, cambiaba
+    // dentro del propio vaso y lo cizallaba.
+    const puntas = puntasDeLaGrieta({ desde: 0.4, hasta: 0.43, cerradaAlInicio: false, cerradaAlFinal: false })
+    const perfil = perfilDeLaCapa('musculo', [separador({ plano: 'musculo', posicion: 0.5, aperturaMm: 12 })], [], 60, puntas)
+    const enElVaso = [0.36, 0.4, 0.415, 0.43, 0.47].map((t) => perfil(t).mas)
+    for (const mm of enElVaso) expect(mm).toBeCloseTo(enElVaso[0], 0)
   })
 
   it('la apertura máxima cuenta los dos lados de un autoestático', () => {

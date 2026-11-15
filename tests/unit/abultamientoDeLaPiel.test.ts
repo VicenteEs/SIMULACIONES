@@ -329,12 +329,15 @@ describe('en la escena', () => {
     const lienzo = readFileSync(join(process.cwd(), 'src/components/simulador/LienzoQuirurgico.tsx'), 'utf8')
     const i = lienzo.indexOf('quitarElAbultamiento(malla)')
     expect(i).toBeGreaterThan(0)
-    expect(lienzo.indexOf('const herida = cortarCapa(malla, puntos, normales, parametros)', i)).toBeGreaterThan(i)
+    // Desde P-015 cada malla lleva sus propios parámetros (lo que se retrae un músculo depende de cómo lo cruza el trazo).
+    expect(lienzo.indexOf('const herida = cortarCapa(malla, puntos, normales, parametrosDe(malla))', i)).toBeGreaterThan(i)
   })
 
   it('el lienzo la pone al día antes de cada dibujo, con la placa, los tornillos y el trozo del foco', () => {
     const lienzo = readFileSync(join(process.cwd(), 'src/components/simulador/LienzoQuirurgico.tsx'), 'utf8')
-    expect(lienzo).toContain("const cambio = abultamiento.alDia(mallasConRol(t, ultimas.current.piezas, ['piel']), loQueEmpujaLaPiel(), mm)")
+    // Las pieles se guardan en una variable desde P-014: el paño también las pide, para seguir a la piel abultada.
+    expect(lienzo).toContain("const pieles = mallasConRol(t, ultimas.current.piezas, ['piel'])")
+    expect(lienzo).toContain('const cambio = abultamiento.alDia(pieles, loQueEmpujaLaPiel(), mm)')
     expect(lienzo).toContain('if (t.implantes?.placa) deGrupo(t.implantes.placa.grupo)')
     expect(lienzo).toContain("const delFoco = m === t.fragmento || !!t.posesReducidas?.has(m) || rolDe.get(m.name) === 'fragmento'")
   })

@@ -19,6 +19,8 @@ import { piezasDelArchivo } from '@/lib/piezasDeUnModelo'
 import { accion, exigirEditor, type Respuesta } from '@/lib/guardias'
 import { puedeEditarModulo, type UsuarioSesion } from '@/access/reglas'
 import { exigirIdentificador, exigirTexto, textoOpcional } from '@/lib/validacion'
+import { SLUG_DE_AJUSTES } from '@/lib/mantencion'
+import { TEMAS, type Tema } from '@/lib/temas'
 import type { Payload } from 'payload'
 import { normalizarSeleccion, piezasPerdidas } from '@/atlas/catalogo'
 import type { ContenidoDeInstancia } from '@/atlas/formato'
@@ -40,6 +42,45 @@ const RUTA_PANEL = '/admin-panel/atlas'
 // es donde vive también la exportación: un guion de servidor tiene que poder
 // leerlos sin pasar por una acción, y dos lecturas del mismo catálogo —una aquí
 // y otra allí— serían dos sitios donde olvidar `corregirCatalogo`.
+
+/**
+ * Guarda la paleta del simulador y del taller (P-014 E7).
+ *
+ * La elige el médico desde el taller, y el médico es el rol editor: por eso basta con `exigirEditor`, aunque
+ * `ajustes` sea una colección del administrador. No se le abre la colección —sigue sin poder leerla ni tocar
+ * los módulos en mantención—: esta acción escribe por su cuenta un solo campo, con un valor de una lista de
+ * cuatro. Es lo que el dueño pidió, y es lo más que un editor puede hacerle a esa fila.
+ *
+ * Actualiza la fila más antigua, la misma que lee `leerElTema`, y la crea si la plataforma aún no tiene: una
+ * instalación nueva no ha tocado nunca el interruptor de mantención y no tiene fila que actualizar.
+ *
+ * `revalidatePath` del diseño entero y no de una ruta: la paleta la lleva el contorno del panel y la página de
+ * cada caso, y quien la cambia va a ir a mirarla a otra parte.
+ */
+export async function guardarElTema(tema: unknown): Promise<Respuesta<{ tema: Tema }>> {
+  return accion(async () => {
+    const { payload, usuario } = await exigirEditor()
+    const elegido = TEMAS.find((t) => t.valor === tema)
+    if (!elegido) throw new Error('Esa paleta no existe.')
+
+    const { docs } = await payload.find({
+      collection: SLUG_DE_AJUSTES as never,
+      limit: 1,
+      sort: 'createdAt',
+      depth: 0,
+      pagination: false,
+      overrideAccess: true,
+    })
+    const fila = docs[0] as { id: number | string } | undefined
+    if (fila) {
+      await payload.update({ collection: SLUG_DE_AJUSTES as never, id: fila.id, data: { tema: elegido.valor } as never, user: usuario as never })
+    } else {
+      await payload.create({ collection: SLUG_DE_AJUSTES as never, data: { tema: elegido.valor } as never, user: usuario as never })
+    }
+    revalidatePath('/', 'layout')
+    return { tema: elegido.valor }
+  })
+}
 
 /** Versión del atlas instalado, para la página de sistema. */
 export async function versionDelAtlas(): Promise<Respuesta<{ version: string; piezas: number }>> {

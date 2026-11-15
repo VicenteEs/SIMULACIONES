@@ -1,5 +1,6 @@
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { EspacioDelTaller } from '@/components/admin/atlas/EspacioDelTaller'
+import { temaDeLaPlataforma } from '@/lib/temaDeLaPlataforma'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,7 @@ export default async function PaginaAtlas({
         preparacionInicial={preparacionInicial}
         comentarioInicial={comentarioInicial}
         pestanaInicial={pestanaInicial}
+        temaInicial={await temaDeLaPlataforma()}
       />
     </div>
   )

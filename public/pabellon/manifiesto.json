@@ -1,0 +1,88 @@
+{
+  "generadoPor": "scripts/pabellon/generar.py",
+  "unidades": "metros, en las coordenadas del cuerpo del atlas (Y hacia la cabeza, +Z hacia delante)",
+  "colchon": {
+    "modelo": "colchon.glb",
+    "ejesDelModelo": {
+      "x": "ancho",
+      "y": "normal",
+      "z": "-largo"
+    },
+    "ancho": 0.84,
+    "largo": 1.96,
+    "grosor": 0.11,
+    "hundimiento": 0.024,
+    "repeticionesDeLaTira": 50,
+    "altoDeLaTira": 0.11097011727963761
+  },
+  "decubitos": {
+    "supino": {
+      "origen": [
+        0.0,
+        0.85,
+        -0.122745
+      ],
+      "ancho": [
+        1.0,
+        -0.0,
+        0.0
+      ],
+      "largo": [
+        0.0,
+        0.999559,
+        -0.029687
+      ],
+      "normal": [
+        0.0,
+        0.029687,
+        0.999559
+      ],
+      "modelo": "campo-supino.glb",
+      "relieve": "relieve-supino.bin",
+      "signo": 1
+    },
+    "prono": {
+      "origen": [
+        0.0,
+        1.065,
+        0.108085
+      ],
+      "ancho": [
+        -1.0,
+        0.0,
+        0.0
+      ],
+      "largo": [
+        0.0,
+        0.99958,
+        0.028988
+      ],
+      "normal": [
+        0.0,
+        0.028988,
+        -0.99958
+      ],
+      "modelo": "campo-prono.glb",
+      "relieve": "relieve-prono.bin",
+      "signo": -1
+    }
+  },
+  "relieve": {
+    "x0": -0.522,
+    "y0": -0.34,
+    "paso": 0.006,
+    "nx": 174,
+    "ny": 420,
+    "unidad": 2e-05,
+    "sinDato": -32768,
+    "rejillas": [
+      "cuerpo",
+      "lecho"
+    ]
+  },
+  "textura": {
+    "lado": 2.4,
+    "repeticionesDelRelieve": 50,
+    "repeticionesDelGrano": 3
+  }
+}

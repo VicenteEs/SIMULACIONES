@@ -8,6 +8,7 @@ import { obtenerSesion } from '@/lib/sesion'
 import { ProveedoresDeUI } from '@/components/ui/Proveedores'
 import { PantallaDelAviso } from '@/components/privacidad/PantallaDelAviso'
 import { debeAceptarElAviso } from '@/lib/avisoDePrivacidad'
+import { temaDeLaPlataforma } from '@/lib/temaDeLaPlataforma'
 // La fuente va antes que las hojas propias: `--sans` la nombra primero.
 import '@fontsource-variable/inter'
 import './estilos.css'
@@ -38,10 +39,16 @@ export default async function Layout({ children }: { children: React.ReactNode }
   // acepta es la persona y no el papel que está mirando.
   const pideElAviso = sesion.activo && debeAceptarElAviso(sesion.usuario)
   const dentro = sesion.activo && !pideElAviso
+  // La paleta del simulador (P-014 E7), en `<body>` y en ningún otro sitio. La consola aparece en tres lugares
+  // —la página del caso, su silueta de carga y el editor del caso, dentro del panel— y de aquí cuelgan los
+  // tres. Antes iba en el `<main>` de la página y en el contorno del panel, y la silueta, que no puede preguntar
+  // nada, salía con la paleta original un instante antes de cada caso: marino, y luego blanco. Con dos sitios,
+  // además, podían no decir lo mismo. No lanza nunca: sin base, la de fábrica.
+  const tema = await temaDeLaPlataforma()
 
   return (
     <html lang="es">
-      <body>
+      <body data-tema={tema}>
         {dentro ? (
           <Navegacion
             nombre={sesion.usuario?.nombre as string | undefined}

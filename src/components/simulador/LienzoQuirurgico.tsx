@@ -59,8 +59,11 @@ import type { AjustesDeInstrumento, ArticulacionDeclarada } from '@/instrumental
 import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
 import {
   ANCHO_VISIBLE_DE_LA_INCISION_MM,
+  ARISTA_JUNTO_AL_CORTE_MM,
   GROSOR_MAXIMO_DE_LA_PIEL_MM,
+  aberturaDe,
   abrirCapa,
+  asentarHeridas,
   cerrarCapa,
   cortarCapa,
   ladoDeLaHerida,
@@ -68,7 +71,15 @@ import {
   sitioEnLaHerida,
   type HeridaEnCapa,
 } from './heridas'
+import {
+  DURACION_DE_LA_RETRACCION_MS,
+  avanceDeLaRetraccion,
+  cuantoCruzaLasFibras,
+  retraccionDelLabioMm,
+} from '@/lib/retraccionDelCorte'
 import { ATRIBUTO_DE_LA_CARA_DE_DENTRO, crearAbultamientoDeLaPiel, quitarElAbultamiento } from './abultamientoEnLaEscena'
+import { ejePrincipal } from '@/lib/aspectoAnatomico'
+import { flotantesDe } from '@/atlas/canalDeLaGeometria'
 import { EL_PLANO, planDelCierre, textoDelCierre, type PlanoQueSeCierra } from '@/lib/cierreDeUnClic'
 import { incisionQueAlarga, UMBRAL_PARA_ALARGAR_MM, type Punto, type ResumenDeIncision } from '@/lib/incisiones'
 import { juicioDeLaPotencia, type ModoDelElectrobisturi } from '@/lib/electrobisturi'
@@ -139,7 +150,7 @@ import {
   type AccionDeMovimiento,
   type EjeAnatomico,
 } from '@/lib/movimientoPorEjes'
-import { LIMITE_PARA_COLOCAR_MM, avisoDelClicSinEfecto, correrElApoyo, decidirElClicDelSeparador, invertirLaDireccion, type CandidatoDeHerida } from '@/lib/abordajePorPlanos'
+import { HONDURA_PARA_CAMBIAR_DE_PLANO_MM, avisoDelClicSinEfecto, correrElApoyo, decidirElClicDelSeparador, invertirLaDireccion, type CandidatoDeHerida } from '@/lib/abordajePorPlanos'
 import {
   aperturaPorLabioEnMm,
   avanzo,
@@ -155,8 +166,10 @@ import {
   girarLaVista,
   poseDeLaPosicion,
   rodarLaVista,
+  type EjeDelHueso,
   type PoseDeLaVista,
   type PosicionDelPaciente,
+  type Vec3,
 } from '@/lib/posicionDelPaciente'
 import { POSE_AL_CARGAR, aplicarLaPose, poseActual, ponerLaPose, sincronizarElArriba } from './vistaDelPaciente'
 import type { EncuadreDelPaso } from '@/lib/encuadreDelPaso'
@@ -176,14 +189,15 @@ import {
 import {
   aplicarSeparadoresALasHeridas,
   apoyarSeparadorEn,
-  cercaDeLaHerida,
   colocarInstrumento,
   soltarInstrumento,
   type InstrumentoColocado,
   crearPliegue,
   posarEn,
   posarPliegue,
+  normalDeLaPielEncima,
   posarSeparador,
+  posicionBajoLaHerida,
   soltarPellizco,
   soltarSeparador,
   type PellizcoEnEscena,
@@ -267,6 +281,27 @@ import { emparejarNodos, normalizarNombreDeNodo } from '@/lib/emparejarNodos'
 import { restaurarLoColocado, serializarLoColocado } from './sesionDeLoColocado'
 import { crearAspectoDelModelo, soltarElAspecto, velloAlDia, vestirElModelo } from './aspectoDelPaciente'
 import { crearEntornoDePabellon, crearOclusion, montarElPabellon, ponerLaSala, prepararElRenderizador, type Oclusion } from './pabellon'
+import { crearElCampo, type CampoEnLaEscena } from './campoEnLaEscena'
+import { esSistemaDeFascia } from '@/atlas/fascias'
+import {
+  asasDelMarco,
+  avisoDeLoTapado,
+  cabeEnElCuerpo,
+  camaraAlDarLaVuelta,
+  centroDesdeElArchivo,
+  contornoDeLaVentana,
+  cruceConElPlano,
+  decubitoDeLaPosicion,
+  decubitoDeLaVista,
+  despejeParaGirar,
+  type AsaDelMarco,
+  type CampoDelCaso,
+  type Decubito,
+  type FormaDelRelieve,
+  type QueTapa,
+  type VistaDeLaCamara,
+  type ZonaDelPano,
+} from '@/lib/campoQuirurgico'
 import { causaProbable, guardarDiagnostico, type RegistroDeUnaPerdida } from '@/lib/diagnosticoDelLienzo'
 import { destornilladorDelNombre, juzgarElApriete, juzgarLaPunteria, posicionDelOrificioMm, type OrificioDelClavo } from '@/lib/bloqueoDelClavo'
 import { CERCA_DEL_FOCO_MM, VOLUMEN_POR_PUNADO_CC, juzgarElInjerto, largoDeBloqueParaElDefecto, type InjertoPuesto, type TipoDeInjerto } from '@/lib/injertoOseo'
@@ -473,6 +508,38 @@ export interface LecturaDelFragmento {
   separacionMm: Punto3
   /** Si se sabe de qué lado es el hueso. Sin él, varo y valgo podrían salir al revés y se dicen sin el sentido. */
   ladoConocido: boolean
+}
+
+/** Lo que el lienzo le cuenta a la consola de su campo quirúrgico (P-014). */
+export interface EstadoDelCampo {
+  /** Hay colchón y paño en la escena. Sin ellos la consola no enseña su interruptor. */
+  hay: boolean
+  /** Cómo está acostado el paciente; `null` sin campo. */
+  decubito: Decubito | null
+  /** La ventana que tiene ahora el paño, en el cuerpo y en metros; `null` si no la hay. */
+  zona: ZonaDelPano | null
+  /** La que saldría sola de lo recortado: es a la que vuelve el editor con «Volver a la automática». */
+  zonaAutomatica: ZonaDelPano | null
+}
+
+/** Un punto del marco de la ventana en pantalla, en píxeles desde la esquina de arriba a la izquierda del lienzo. */
+export interface PuntoDelMarco {
+  x: number
+  y: number
+}
+
+/**
+ * El marco de la ventana del paño visto desde la cámara de ahora (P-014 E6): por dónde pasa su borde y dónde cae
+ * cada asa. Lo dibuja el editor encima del lienzo (`MarcoDelPano`), en HTML y no en la escena, para que el
+ * arrastre de un asa no tenga que abrirse paso entre los quince gestos que el lienzo ya atiende.
+ */
+export interface MarcoEnPantalla {
+  /** Dónde está el lienzo en la ventana del navegador: lo que se dibuja encima se recorta a él. */
+  caja: { izquierda: number; arriba: number; ancho: number; alto: number }
+  /** El borde, punto a punto. `null` donde cae detrás de la cámara: ahí la línea se corta. */
+  contorno: (PuntoDelMarco | null)[]
+  /** Cada asa, con la altura de la escena a la que está: es el plano sobre el que se arrastra. */
+  asas: Record<AsaDelMarco, (PuntoDelMarco & { altura: number }) | null>
 }
 
 export interface MandoDelLienzo {
@@ -783,6 +850,23 @@ export interface MandoDelLienzo {
   /** Desde dónde se mira ahora mismo (P-009): lo que el editor guarda como encuadre del paso. `null` antes de cargar. */
   encuadreActual: () => EncuadreDelPaso | null
   /**
+   * Dónde cae en pantalla el marco de esa ventana (P-014 E6). `null` si no hay paño a la vista —el caso no lo
+   * lleva, está quitado en «Capas» o al paciente se le está dando la vuelta—: sin tela no hay ventana que enmarcar.
+   */
+  marcoDelPano: (zona: ZonaDelPano) => MarcoEnPantalla | null
+  /**
+   * El punto (x, y) del cuerpo que queda bajo el puntero, sobre el plano horizontal que pasa por esa altura de la
+   * escena. `null` si la cámara mira de canto y el cruce no sirve para arrastrar (`cruceConElPlano`).
+   */
+  puntoDelCuerpo: (clienteX: number, clienteY: number, altura: number) => [number, number] | null
+  /**
+   * Abre el paño por esa zona sin que el caso la haya guardado: lo que se ve mientras se arrastra un asa. Con
+   * `null` vuelve la del caso, que es lo que hay que hacer si el arrastre se abandona.
+   */
+  probarLaZonaDelPano: (zona: ZonaDelPano | null) => void
+  /** Hasta dónde puede llegar la ventana: lo que cubre el relieve del decúbito de ahora. `null` sin campo. */
+  limitesDelPano: () => FormaDelRelieve | null
+  /**
    * Llama a `oyente` con el lienzo justo después de cada dibujo, hasta que se deje de escuchar (P-013, pedido 11): de
    * ahí copia sus cuadros la grabación del editor. Tiene que ser justo después porque el lienzo no guarda su imagen entre
    * un dibujo y otro (`preserveDrawingBuffer` apagado; encenderlo costaría en cada cuadro de cada residente), y leído en
@@ -1011,6 +1095,12 @@ export interface PiezaDelCaso {
   posicionReducida?: TransformacionRigida | null
 }
 
+/**
+ * Lo que tarda el paciente en darse la vuelta sobre la camilla (P-014 E4). Más corto no se entiende qué pasó —el
+ * modelo aparece del revés—, y más largo estorba a quien solo quería mirar la otra cara.
+ */
+const DURACION_DE_LA_VUELTA_MS = 1100
+
 const EJES = ['x', 'y', 'z'] as const
 const grados = (rad: number) => (rad * 180) / Math.PI
 const radianes = (g: number) => (g * Math.PI) / 180
@@ -1080,6 +1170,9 @@ export function LienzoQuirurgico({
   alCambiarElInjerto,
   medidasDelFoco,
   clavoPrevistoMm,
+  campo = null,
+  panoALaVista = true,
+  alCambiarElCampo,
   mando,
 }: {
   url: string
@@ -1291,6 +1384,16 @@ export function LienzoQuirurgico({
   /** El calibre del clavo que se va a poner, si el caso lo trae en su bandeja: con él se juzga el fresado (P-005 E4). */
   clavoPrevistoMm?: number | null
   /**
+   * El campo quirúrgico del caso (P-014): dónde está lo recortado en el cuerpo y cómo va su paño. Con él, al
+   * paciente se le acuesta sobre el colchón y se le tapa dejando una ventana. Sin él —un modelo que no salió del
+   * atlas, o un caso que apagó el paño— el simulador es el de siempre: la pieza sola.
+   */
+  campo?: CampoDelCaso | null
+  /** El residente tiene puesto el paño. Se quita y se pone en «Capas»; el colchón y la sábana se quedan. */
+  panoALaVista?: boolean
+  /** Cambió el campo: se montó, se retiró, se le dio la vuelta al paciente o se movió la ventana. */
+  alCambiarElCampo?: (estado: EstadoDelCampo) => void
+  /**
    * Se llama con el nombre del objeto pinchado, en modo «senalar».
    *
    * Es lo que permite que el autor de un caso elija las piezas pinchándolas en
@@ -1427,6 +1530,20 @@ export function LienzoQuirurgico({
     posicion?: PosicionDelPaciente
     /** Cuántas veces se mandó la cámara a un encuadre: el movimiento de una orden anterior se para al ver otro número. */
     turnoDeLaCamara?: number
+    /** El campo quirúrgico (P-014): el colchón, la sábana y el paño con su ventana. Vacío hasta que el modelo dice dónde está en el cuerpo. */
+    campo?: CampoEnLaEscena
+    /**
+     * Cómo tiene que estar acostado el paciente. Lo deciden los botones de posición y la cámara de cada paso, y se
+     * apunta aunque el campo no haya llegado todavía: cuando llega, se monta ya así.
+     */
+    decubito?: Decubito
+    /**
+     * Le da la vuelta al paciente sobre la camilla si hace falta para mirarlo desde `destino`, y lleva la cámara allí
+     * mientras rueda. Devuelve `false` si no hay nada que girar: la cámara es entonces cosa de quien llama.
+     */
+    darLaVuelta?: (hasta: Decubito, destino: VistaDeLaCamara) => boolean
+    /** Vuelve a mirar lo que el caso dice de su campo: lo monta, lo retira o le cambia el paño. */
+    acostarAlPaciente?: () => void
     /** El lienzo va a desmontarse para volver a un estado guardado (P-009): ya no guarda nada en la pestaña. */
     sinGuardar?: boolean
     /** Quita la placa de cristal y la línea de la broca (P-009): las vistas previas de antes de actuar. */
@@ -1548,6 +1665,9 @@ export function LienzoQuirurgico({
     alCambiarElInjerto,
     medidasDelFoco,
     clavoPrevistoMm,
+    campo,
+    panoALaVista,
+    alCambiarElCampo,
     alCargarInstrumento,
     alHerir,
     alPerforar,
@@ -1616,6 +1736,9 @@ export function LienzoQuirurgico({
       alCambiarElInjerto,
       medidasDelFoco,
       clavoPrevistoMm,
+      campo,
+      panoALaVista,
+      alCambiarElCampo,
       alCargarInstrumento,
       alHerir,
       alPerforar,
@@ -1650,6 +1773,16 @@ export function LienzoQuirurgico({
       alCambiarLaTrayectoria,
     }
   })
+
+  // El campo del caso cambió —el autor movió la ventana, eligió otro color o apagó el paño—. Se compara por su
+  // contenido y no por identidad: la consola arma el objeto en cada dibujo, y por identidad esto correría siempre.
+  const claveDelCampo = campo ? JSON.stringify(campo) : ''
+  useEffect(() => {
+    taller.current.acostarAlPaciente?.()
+  }, [claveDelCampo])
+  useEffect(() => {
+    taller.current.campo?.mostrarElPano(panoALaVista)
+  }, [panoALaVista])
 
   // Solo en desarrollo: lo que las pruebas de extremo a extremo y las grabaciones del instrumental necesitan medir
   // desde fuera —dónde cae una pieza en pantalla, si un separador está sobre su labio— (`sondaDelLienzo`).
@@ -1735,7 +1868,13 @@ export function LienzoQuirurgico({
     ponerPosicion: (posicion) => {
       const t = taller.current
       t.posicion = posicion
-      encuadrarVisible(t, poseDeLaPosicion(posicion, ultimas.current.ejeLargo))
+      const pose = poseDeLaPosicion(posicion, ultimas.current.ejeLargo)
+      const hasta = decubitoDeLaPosicion(posicion)
+      t.decubito = hasta
+      // Con colchón, «Prono» no es solo mirar por detrás: al paciente se le da la vuelta sobre la camilla (P-014 E4).
+      const encuadre = encuadreDeLoVisible(t)
+      if (encuadre && t.darLaVuelta?.(hasta, { centro: encuadre.centro.toArray() as Vec3, distancia: encuadre.distancia, ...pose })) return
+      encuadrarVisible(t, pose)
     },
 
     rodarVista: (grados) => {
@@ -2187,7 +2326,7 @@ export function LienzoQuirurgico({
         destino,
         { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado, ajustes },
         t.cuadro ?? 0,
-        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
+        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio, t.campo?.grupo],
       )
     },
 
@@ -2204,7 +2343,7 @@ export function LienzoQuirurgico({
         { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado, ajustes, forzar: true },
         // Un cuadro propio por disparo: el grano del ruido de cada toma es distinto, como en una imagen de verdad.
         (t.cuadro ?? 0) + (t.disparos = (t.disparos ?? 0) + 1),
-        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
+        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio, t.campo?.grupo],
       )
     },
 
@@ -2222,7 +2361,7 @@ export function LienzoQuirurgico({
         destino,
         { proyeccion, zoom, ejeLargo: ultimas.current.ejeLargo, desplazamiento, lado: 768, ajustes, forzar: true },
         (t.cuadro ?? 0) + (t.disparos = (t.disparos ?? 0) + 1),
-        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio],
+        [t.trazo, t.guias, t.fantasma, t.marcaDeInicio, t.campo?.grupo],
         'placa',
       )
       reiniciarLaFluoroscopia(t.fluoroscopia)
@@ -2544,7 +2683,7 @@ export function LienzoQuirurgico({
     // medida, vuelve a la vista de siempre.
     encuadrar: () => {
       const t = taller.current
-      encuadrarVisible(t, t.posicion ? poseDeLaPosicion(t.posicion, ultimas.current.ejeLargo) : undefined)
+      encuadrarVisible(t, poseDeEncuadre(t, ultimas.current.ejeLargo))
     },
 
     // Todas las heridas de todas las capas: las profundas están debajo de la de la piel, así que la caja es casi la
@@ -2585,6 +2724,57 @@ export function LienzoQuirurgico({
       }
     },
 
+    marcoDelPano: (zona) => {
+      const { render, camara, campo } = taller.current
+      if (!render || !camara || !campo?.elPanoSeVe()) return null
+      const caja = render.domElement.getBoundingClientRect()
+      if (caja.width < 1 || caja.height < 1) return null
+      const enPantalla = (x: number, y: number): (PuntoDelMarco & { altura: number }) | null => {
+        const punto = campo.sobreElLecho(x, y)
+        if (!punto) return null
+        const altura = punto.z
+        const p = punto.project(camara)
+        // Detrás de la cámara la proyección sale reflejada y con la profundidad fuera de rango: ese punto no se dibuja.
+        if (!(p.z > -1 && p.z < 1)) return null
+        return { x: ((p.x + 1) / 2) * caja.width, y: ((1 - p.y) / 2) * caja.height, altura }
+      }
+      const asas = asasDelMarco(zona)
+      return {
+        caja: { izquierda: caja.left, arriba: caja.top, ancho: caja.width, alto: caja.height },
+        contorno: contornoDeLaVentana(zona).map(([x, y]) => enPantalla(x, y)),
+        asas: {
+          xMin: enPantalla(...asas.xMin),
+          xMax: enPantalla(...asas.xMax),
+          yMin: enPantalla(...asas.yMin),
+          yMax: enPantalla(...asas.yMax),
+          centro: enPantalla(...asas.centro),
+        },
+      }
+    },
+
+    puntoDelCuerpo: (clienteX, clienteY, altura) => {
+      const { render, camara, campo } = taller.current
+      if (!render || !camara || !campo) return null
+      const caja = render.domElement.getBoundingClientRect()
+      if (caja.width < 1 || caja.height < 1) return null
+      const rayo = new THREE.Raycaster()
+      rayo.setFromCamera(new THREE.Vector2(((clienteX - caja.left) / caja.width) * 2 - 1, 1 - ((clienteY - caja.top) / caja.height) * 2), camara)
+      const cruce = cruceConElPlano(rayo.ray.origin.toArray(), rayo.ray.direction.toArray(), altura)
+      if (!cruce) return null
+      // El campo cuelga de la escena sin girar: del punto de la escena al del cuerpo solo hay su corrimiento.
+      const origen = campo.grupo.position
+      return [cruce[0] - origen.x, cruce[1] - origen.y]
+    },
+
+    probarLaZonaDelPano: (zona) => {
+      const { campo } = taller.current
+      const delCaso = ultimas.current.campo
+      if (!campo?.decubito() || !delCaso) return
+      campo.ponerElPano(zona ? { ...delCaso.pano, zona } : delCaso.pano)
+    },
+
+    limitesDelPano: () => taller.current.campo?.limites() ?? null,
+
     escucharLosCuadros: (oyente, anchoDeseado) => {
       const t = taller.current
       const oyentes = (t.oyentesDelCuadro ??= new Map())
@@ -2605,6 +2795,12 @@ export function LienzoQuirurgico({
     irAlEncuadre: (encuadre, posicion, ms) => {
       const t = taller.current
       t.posicion = posicion ?? undefined
+      // Cómo tiene que estar acostado para mirarlo desde ahí (P-014 E4). Manda de qué lado queda la cámara y no la
+      // posición que declara el paso: un paso guardado con «Supino» y la vista llevada después a la espalda —orbitar
+      // no borra la posición— dejaría el colchón entre la cámara y el paciente.
+      const hasta = decubitoDeLaVista(encuadre.direccion, posicion ? decubitoDeLaPosicion(posicion) : (t.decubito ?? 'supino'))
+      t.decubito = hasta
+      if (t.darLaVuelta?.(hasta, encuadre)) return
       llevarLaCamaraAlEncuadre(t, encuadre, ms)
     },
 
@@ -3055,6 +3251,217 @@ export function LienzoQuirurgico({
     const cargador = new GLTFLoader()
     cargador.setDRACOLoader(draco)
     cargador.setMeshoptDecoder(MeshoptDecoder)
+
+    // --- el campo quirúrgico (P-014) -----------------------------------------------------------------
+    // El colchón, la sábana y el paño. Nace vacío: no hay nada que pedir hasta que el modelo diga dónde está en el
+    // cuerpo, y un modelo que no salió del atlas no lo dice nunca.
+    const campo = crearElCampo({
+      escena,
+      cargador,
+      // Con la calidad más baja —la de un equipo que ya perdió el contexto gráfico dos veces— la tela va lisa: sus
+      // mapas son decenas de megabytes de tarjeta, y la memoria es justo lo que a ese equipo le falta.
+      conTexturas: calidad.sombras,
+      sombras: calidad.sombras,
+      anisotropia: render.capabilities.getMaxAnisotropy(),
+      pedirDibujo,
+      alFallar: (motivo) => {
+        console.warn('[simulador] el campo quirúrgico no se pudo montar:', motivo)
+        ultimas.current.alGesto?.('No se pudo cargar el colchón y el paño: el caso sigue sin ellos.', 'atencion')
+      },
+    })
+    taller.current.campo = campo
+    /** La caja del modelo recién cargado: sobre ella cuelga la lámpara. */
+    let cajaDelModelo: THREE.Box3 | null = null
+    /** Lo que el lienzo corrió el modelo para centrarlo: con el centro que dice el archivo, da dónde cae el cuerpo en la escena. */
+    let corridoAlCentrar: THREE.Vector3 | null = null
+    /**
+     * La lámpara, donde toca. Con el paciente acostado cuelga sobre la camilla y no «hacia +Y», que era hacia su
+     * cabeza: boca abajo quedaba detrás del colchón, y con las sombras encendidas el paciente entero a oscuras.
+     */
+    const iluminar = () => {
+      if (!cajaDelModelo) return
+      const arriba = campo.arriba()
+      const cabeza = campo.cabeza()
+      pabellon.colocar(cajaDelModelo, arriba && cabeza ? { arriba, cabeza } : undefined)
+    }
+    const avisarDelCampo = () => {
+      const decubito = campo.decubito()
+      ultimas.current.alCambiarElCampo?.({ hay: decubito !== null, decubito, zona: campo.zona(), zonaAutomatica: campo.zonaAutomatica() })
+    }
+    /**
+     * Lo que **envuelve** lo recortado en vez de ser parte de ello: la piel y las fascias. Es la misma pregunta que
+     * se hace el exportador para centrar el archivo (`esEnvoltura`, en `exportarAtlas.ts`), con los mismos datos, que
+     * viajan en los `extras` de cada nodo: la caja de lo que queda es la que él centró, y de ella sale la ventana.
+     */
+    const envuelve = (o: THREE.Object3D): boolean => {
+      const rol = (o.userData.rol as string | undefined) ?? taller.current.rolesAplicados.get(o.name)
+      const sistema = o.userData.sistema as unknown
+      return rol === 'piel' || rol === 'fascia' || (typeof sistema === 'string' && esSistemaDeFascia(sistema))
+    }
+    const acostarAlPaciente = () => {
+      const raiz = taller.current.raiz
+      if (!raiz || !corridoAlCentrar) return
+      const u = ultimas.current
+      const delCaso = u.campo
+      // El archivo manda sobre la nota: lo dice con todos sus decimales y no depende de que nadie haya tocado el texto.
+      const enElCuerpo = delCaso && !delCaso.pano.apagado ? (centroDesdeElArchivo(raiz.userData) ?? delCaso.centroEnElCuerpo) : null
+      // El colchón está hecho a la medida del cuerpo del atlas: en metros, de pie sobre el eje Y. Un modelo en otra
+      // unidad o con otro eje largo no es ese cuerpo, y acostarlo sería ponerle un colchón del tamaño de un edificio.
+      const esDelAtlas = u.ejeLargo === 'y' && Math.abs((u.milimetrosPorUnidad || 1000) - 1000) < 1
+      if (!delCaso || !enElCuerpo || !esDelAtlas || !cabeEnElCuerpo(enElCuerpo)) {
+        if (campo.decubito()) {
+          campo.retirar()
+          iluminar()
+        }
+        // Se avisa también cuando no había campo que retirar. La pestaña «Paño» del editor espera esta noticia para
+        // saber si el modelo lo lleva, y con uno que no salió del atlas no llegaba nunca: se quedaba en «Cargando
+        // el modelo…» con el modelo delante.
+        avisarDelCampo()
+        return
+      }
+      if (campo.decubito()) {
+        // Ya está acostado: lo que cambió es el paño —el autor movió la ventana o eligió otro color—.
+        campo.ponerElPano(delCaso.pano)
+        avisarDelCampo()
+        return
+      }
+      const delCuerpoALaEscena = new THREE.Vector3(...enElCuerpo).add(corridoAlCentrar).negate()
+      raiz.updateMatrixWorld(true)
+      const deLoRecortado = new THREE.Box3()
+      raiz.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh && !esDeInterfazDelModelo(o) && !envuelve(o)) deLoRecortado.expandByObject(o)
+      })
+      void campo.acostar({ delCuerpoALaEscena, caja: deLoRecortado, decubito: taller.current.decubito ?? 'supino', pano: delCaso.pano }).then(async (acostado) => {
+        if (!vivo) return
+        if (!acostado) {
+          // No se pudo montar —faltó un archivo— o se pidió otra cosa mientras llegaba. Quien espera tiene que saberlo.
+          avisarDelCampo()
+          return
+        }
+        // Mientras llegaba pudo cambiar todo: el caso apagó el paño, el residente lo quitó, o el paso pide al paciente
+        // boca abajo. Se mira otra vez lo de ahora, no lo de cuando se pidió.
+        const ahora = ultimas.current.campo
+        if (!ahora || ahora.pano.apagado) {
+          campo.retirar()
+          return
+        }
+        campo.ponerElPano(ahora.pano)
+        campo.mostrarElPano(ultimas.current.panoALaVista)
+        const querido = taller.current.decubito ?? 'supino'
+        if (querido !== campo.decubito() && (await campo.preparar(querido)) && vivo) campo.ponerElDecubito(querido)
+        if (!vivo) return
+        iluminar()
+        avisarDelCampo()
+        pedirDibujo()
+        // El otro decúbito se trae con calma, para que la primera vuelta no tenga que esperarlo.
+        window.setTimeout(() => {
+          if (vivo && campo.decubito()) void campo.preparar(campo.decubito() === 'supino' ? 'prono' : 'supino')
+        }, 2500)
+      })
+    }
+    taller.current.acostarAlPaciente = acostarAlPaciente
+
+    /** Lo más que se aleja de su eje de giro lo que se ve del modelo: lo que el colchón tiene que dejar pasar cuando rueda. */
+    const radioDeGiro = (pivote: THREE.Vector3, eje: THREE.Vector3): number => {
+      const raiz = taller.current.raiz
+      if (!raiz) return 0
+      const caja = new THREE.Box3()
+      raiz.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh && o.visible && !esDeInterfazDelModelo(o)) caja.expandByObject(o)
+      })
+      if (caja.isEmpty()) return 0
+      const esquina = new THREE.Vector3()
+      let radio = 0
+      for (let k = 0; k < 8; k++) {
+        esquina.set(k & 1 ? caja.max.x : caja.min.x, k & 2 ? caja.max.y : caja.min.y, k & 4 ? caja.max.z : caja.min.z).sub(pivote)
+        radio = Math.max(radio, esquina.addScaledVector(eje, -esquina.dot(eje)).length())
+      }
+      return radio
+    }
+    /** La vuelta que se está dando: a qué decúbito va. Otra orden de la cámara la da por terminada. */
+    let vuelta: { hasta: Decubito; controlesActivos: boolean } | null = null
+    const terminarLaVuelta = () => {
+      if (!vuelta) return
+      const { hasta, controlesActivos } = vuelta
+      vuelta = null
+      campo.ponerElDecubito(hasta)
+      if (controlesActivos) controles.enabled = true
+      iluminar()
+      avisarDelCampo()
+      pedirDibujo()
+    }
+    /**
+     * Le da la vuelta al paciente sobre la camilla (P-014 E4).
+     *
+     * En el simulador se mueve la vista y no el modelo (`posicionDelPaciente.ts`): «Prono» lleva la cámara al otro
+     * lado. Con un colchón eso solo ya no vale —quedaría entre la cámara y el paciente—, así que el colchón da la
+     * misma media vuelta que la cámara, alrededor del eje largo del paciente. En la pantalla el colchón no se mueve
+     * y el que rueda es el paciente: lo que se ve en un pabellón. Lo que hay puesto sobre él —separadores, placa,
+     * hilo— no se entera, porque el modelo sigue sin moverse.
+     */
+    taller.current.darLaVuelta = (hasta, destino) => {
+      // Una vuelta a medias se da por hecha antes de mirar nada: lo que sigue parte de dónde iba a quedar.
+      terminarLaVuelta()
+      const desde = campo.decubito()
+      if (!desde || desde === hasta) return false
+      const t = taller.current
+      const turno = (t.turnoDeLaCamara ?? 0) + 1
+      t.turnoDeLaCamara = turno
+      const estaVuelta = { hasta, controlesActivos: controles.enabled }
+      vuelta = estaVuelta
+      // Mientras rueda no se orbita: el arrastre y la vuelta se pelearían por la cámara.
+      controles.enabled = false
+      const llegada = new THREE.Vector3(...destino.centro)
+      void campo.preparar(hasta).then((listo) => {
+        if (!vivo || vuelta !== estaVuelta) return
+        if (t.turnoDeLaCamara !== turno || !listo) {
+          // Otra orden se llevó la cámara, o el otro decúbito no llegó: el colchón va a su sitio sin más.
+          terminarLaVuelta()
+          if (t.turnoDeLaCamara === turno) ponerLaPose(camara, controles, llegada, destino.distancia, destino)
+          return
+        }
+        const salida: VistaDeLaCamara = {
+          centro: controles.target.toArray() as Vec3,
+          ...poseActual(camara, controles),
+          distancia: camara.position.distanceTo(controles.target),
+        }
+        const eje = ejesDelPaciente(ultimas.current.ejeLargo).hueso
+        const ejeEnLaEscena = new THREE.Vector3(...eje)
+        const despeje = despejeParaGirar(radioDeGiro(llegada, ejeEnLaEscena), campo.alturaSobreElColchon(llegada) ?? 0)
+        // Boca abajo se rueda hacia un lado y boca arriba se vuelve por el mismo: nadie da la vuelta entera.
+        const sentido = hasta === 'prono' ? 1 : -1
+        const direccion = new THREE.Vector3()
+        const inicio = performance.now()
+        const cuadro = (ahora: number) => {
+          if (!vivo || vuelta !== estaVuelta) return
+          if (t.turnoDeLaCamara !== turno) {
+            terminarLaVuelta()
+            return
+          }
+          const k = Math.min(1, (ahora - inicio) / DURACION_DE_LA_VUELTA_MS)
+          if (k >= 1) {
+            terminarLaVuelta()
+            ponerLaPose(camara, controles, llegada, destino.distancia, destino)
+            pedirDibujo()
+            return
+          }
+          campo.enLaVuelta(k, hasta, llegada, ejeEnLaEscena, despeje, sentido)
+          const vista = camaraAlDarLaVuelta(k, salida, destino, destino.centro, eje, sentido)
+          controles.target.set(...vista.centro)
+          camara.up.set(...vista.arriba)
+          camara.position.copy(controles.target).addScaledVector(direccion.set(...vista.direccion), vista.distancia)
+          camara.lookAt(controles.target)
+          sincronizarElArriba(controles, camara)
+          // La lámpara es del pabellón y no del paciente: se queda sobre la camilla mientras él rueda.
+          iluminar()
+          pedirDibujo()
+          requestAnimationFrame(cuadro)
+        }
+        requestAnimationFrame(cuadro)
+      })
+      return true
+    }
+
     cargarElArchivo(
       cargador,
       url,
@@ -3068,6 +3475,7 @@ export function LienzoQuirurgico({
         const caja = new THREE.Box3().setFromObject(raiz)
         const centro = caja.getCenter(new THREE.Vector3())
         raiz.position.sub(centro)
+        corridoAlCentrar = centro.clone()
 
         escena.add(raiz)
         taller.current.raiz = raiz
@@ -3085,7 +3493,10 @@ export function LienzoQuirurgico({
         // Antes de devolver lo de la sesión: las heridas y el vello se rehacen sobre la piel ya vestida.
         const milimetros = ultimas.current.milimetrosPorUnidad || 1000
         vestirElModelo(aspecto.current, raiz, (nombre) => taller.current.rolesAplicados.get(nombre), milimetros)
-        pabellon.colocar(new THREE.Box3().setFromObject(raiz))
+        cajaDelModelo = new THREE.Box3().setFromObject(raiz)
+        iluminar()
+        // El colchón y el paño llegan después, cuando llegan: el modelo se puede mirar y operar mientras tanto.
+        acostarAlPaciente()
         oclusion?.escala(milimetros)
         sincronizarAyudas(taller.current, ultimas.current.fluoroscopia, ultimas.current.ayudas)
 
@@ -3103,7 +3514,10 @@ export function LienzoQuirurgico({
         void restaurarLoGuardado().finally(() => {
           escenaLista = true
         })
-        encuadrarVisible(taller.current)
+        // Con la pose de la posición que la consola acaba de pedir en `alCargar`, si pidió alguna. Antes se abría
+        // siempre de frente: un caso cuyo primer paso declara «Prono» quedaba con el botón marcado y la vista de pie,
+        // y con colchón eso es mirar al paciente a través de él.
+        encuadrarVisible(taller.current, poseDeEncuadre(taller.current, ultimas.current.ejeLargo))
         sucio = true
       },
       (error) => {
@@ -3393,6 +3807,8 @@ export function LienzoQuirurgico({
       pedirDibujo()
     }
 
+    /** Lo que tapó algún rayo del cursor desde que se movió por última vez: de aquí sale el aviso al pinchar (P-014 E5). */
+    let tapadoEnEsteGesto: QueTapa | null = null
     const aCoordenadas = (evento: PointerEvent) => {
       const caja = render.domElement.getBoundingClientRect()
       puntero.set(
@@ -3400,6 +3816,23 @@ export function LienzoQuirurgico({
         -((evento.clientY - caja.top) / caja.height) * 2 + 1,
       )
       rayo.setFromCamera(puntero, camara)
+      tapadoEnEsteGesto = null
+    }
+
+    /**
+     * Lo que el campo quirúrgico deja tocar (P-014 E5): un golpe del rayo del cursor, o nada si entre la cámara y él
+     * están el paño o el colchón. Lo que no se ve no se toca. Por aquí pasan los cuatro rayos con que el cursor
+     * busca el modelo —la superficie, una capa, el hueso, el trozo que se agarra—, y por eso vale para el bisturí,
+     * la broca, los separadores y todo lo demás sin que cada herramienta tenga que saber que hay un paño.
+     *
+     * Solo hace falta preguntar por el primer golpe de cada rayo: lo que tapa al más cercano tapa a los de detrás.
+     */
+    const sinTapar = <G extends THREE.Intersection>(golpe: G | null | undefined): G | null => {
+      if (!golpe) return null
+      const que = campo.queTapa(rayo.ray, golpe.distance)
+      if (!que) return golpe
+      tapadoEnEsteGesto = que
+      return null
     }
 
     /** Primer punto de la superficie visible bajo el cursor. */
@@ -3416,9 +3849,9 @@ export function LienzoQuirurgico({
       const elegido = ultimas.current.musculoObjetivo
       if (elegido?.accion === 'cortar' && ultimas.current.modo === 'trazar') {
         const delMusculo = golpes.find((g) => g.object.name === elegido.nodo)
-        if (delMusculo) return delMusculo
+        if (delMusculo) return sinTapar(delMusculo)
       }
-      return golpes[0] ?? null
+      return sinTapar(golpes[0])
     }
 
     /** La normal de la superficie en un golpe, vuelta hacia quien mira. */
@@ -3444,9 +3877,9 @@ export function LienzoQuirurgico({
      * que pasar de largo por la piel, que es justo lo que `superficieBajoElCursor` (la primera superficie) no hace.
      */
     const golpeEnLaCapa = (roles: readonly string[]): THREE.Intersection | null =>
-      rayo.intersectObjects(mallasConRol(taller.current, ultimas.current.piezas, roles), false).find((g) => g.object.visible) ?? null
+      sinTapar(rayo.intersectObjects(mallasConRol(taller.current, ultimas.current.piezas, roles), false).find((g) => g.object.visible))
     const huesoBajoElCursor = (): THREE.Intersection | null =>
-      rayo.intersectObjects(mallasDeHueso(), false).find((g) => g.object.visible) ?? null
+      sinTapar(rayo.intersectObjects(mallasDeHueso(), false).find((g) => g.object.visible))
     /**
      * El trozo que agarran «Mover» y la pinza de reducción (P-013, pedido 6): lo decide `trozoQueSeAgarra` con lo que tocan
      * el rayo del cursor y ocho rayos a su alrededor. `huesoBajoElCursor`, el primer hueso del rayo, sigue siendo el de la
@@ -3455,7 +3888,7 @@ export function LienzoQuirurgico({
     const trozoBajoElCursor = (): THREE.Intersection | null => {
       const huesos = mallasDeHueso()
       const centro = rayo.intersectObjects(huesos, false).filter((g) => g.object.visible)
-      if (centro.length === 0) return null
+      if (centro.length === 0 || !sinTapar(centro[0])) return null
       const t = taller.current
       const mmPorUnidad = ultimas.current.milimetrosPorUnidad || 1000
       const rolDe = new Map(ultimas.current.piezas.map((p) => [p.nodo, p.rol]))
@@ -3466,7 +3899,8 @@ export function LienzoQuirurgico({
       for (const [dx, dy] of desviosAlrededor()) {
         rayo.setFromCamera(new THREE.Vector2(delCursor.x + (dx / Math.max(1, caja.width)) * 2, delCursor.y - (dy / Math.max(1, caja.height)) * 2), camara)
         const golpe = rayo.intersectObjects(huesos, false).find((g) => g.object.visible)
-        if (golpe) alrededor.push(golpe)
+        // Cada rayo de alrededor pregunta por su cuenta: el cursor puede estar en el borde de la ventana.
+        if (golpe && !campo.queTapa(rayo.ray, golpe.distance)) alrededor.push(golpe)
       }
       // El rayo vuelve a ser el del cursor: lo que venga después (la pinza, el plano del arrastre) lo usa.
       rayo.setFromCamera(delCursor, camara)
@@ -3612,6 +4046,52 @@ export function LienzoQuirurgico({
       if (redirigido && (t.heridas?.get('fascia')?.length ?? 0) > 0) u.alGesto?.(AVISO_DE_LA_FASCIA, 'bien')
     }
 
+    /** Quien pidió al sistema menos movimiento ve la herida ya abierta, sin el rato en que se abre. */
+    const sinMovimiento = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true
+
+    /**
+     * Cuánto cruza el trazo las fibras de un músculo (P-015): de 0, a lo largo de ellas, a 1, a través. Las fibras se
+     * toman por el eje largo de la pieza, el mismo con que se le dibuja el estriado (`aspectoDelPaciente.ts`): es lo
+     * que el atlas sabe de ellas, y vale para un vientre fusiforme, un tendón o un vaso, que son casi todo lo que hay
+     * en una pierna. En un músculo en abanico no vale, y se retrae como uno cortado a medias.
+     */
+    const cuantoCruzaElTrazo = (malla: THREE.Mesh, trazoEnElMundo: THREE.Vector3): number => {
+      const posicion = malla.geometry.getAttribute('position')
+      if (!posicion) return 0
+      malla.updateWorldMatrix(true, false)
+      const enLaMalla = trazoEnElMundo.clone().transformDirection(malla.matrixWorld.clone().invert())
+      return cuantoCruzaLasFibras([enLaMalla.x, enLaMalla.y, enLaMalla.z], ejePrincipal(flotantesDe(posicion)))
+    }
+
+    /**
+     * Abre las heridas recién hechas en un tercio de segundo, de los labios juntos a lo que cada una se retrae (P-015).
+     * Los separadores y las pinzas que haya se posan en cada cuadro: están apoyados en un labio que se mueve.
+     */
+    const retraerAlCortar = (heridas: HeridaEnCapa[]) => {
+      // El reloj empieza en el primer cuadro y no al acabar el corte: el primero con la malla nueva tarda en dibujarse
+      // —normales, abultamiento, sombras—, y contado desde antes, en el caso 4 la piel aparecía ya abierta al 85 %. Con
+      // `performance.now()` y no con la hora que trae el cuadro: esa es la del principio del fotograma, que empezó antes
+      // de que el corte acabara, y con ella la piel aparecía abierta del todo.
+      let inicio = -1
+      const cuadro = () => {
+        const t = taller.current
+        const ahora = performance.now()
+        if (inicio < 0) inicio = ahora
+        const k = Math.min(1, (ahora - inicio) / DURACION_DE_LA_RETRACCION_MS)
+        asentarHeridas(heridas, avanceDeLaRetraccion(k))
+        const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+        for (const s of t.separadores ?? []) posarSeparador(s, unidadesPorMm, t.heridas)
+        if (k < 1) {
+          pedirDibujo()
+          requestAnimationFrame(cuadro)
+          return
+        }
+        // Al final, lo de siempre: las puntadas, el panel y la sesión se enteran de cuánto quedó abierta.
+        reaplicarSeparadores(t, ultimas.current)
+      }
+      requestAnimationFrame(cuadro)
+    }
+
     /**
      * Corta la capa `plano` con el trazo que hay en `puntosDelTrazo`. Es lo que hace el bisturí al soltar, lo
      * que repite la sesión guardada al recargar —en ese caso (`desdeLaSesion`) se corta aunque la capa esté
@@ -3705,7 +4185,16 @@ export function LienzoQuirurgico({
 
       const puntos = puntosDelCorte.map((p) => new THREE.Vector3(p[0], p[1], p[2]))
       const normales = normalesDelCorte.map((n) => new THREE.Vector3(n[0], n[1], n[2]))
-      const parametros = {
+      // Lo que mide la incisión entera, que es lo que decide cuánto se abre sola (P-015): al alargarla, la unida.
+      let largoDelCorteMm = 0
+      for (let i = 1; i < puntos.length; i++) largoDelCorteMm += puntos[i].distanceTo(puntos[i - 1]) / unidadesPorMm
+      const deExtremoAExtremo = puntos[puntos.length - 1].clone().sub(puntos[0])
+      // Un plano hondo se aparta paralelo a la piel cortada que tiene encima, no por su propia tangente (P-015): la
+      // hoja de un separador lleva la pared entera, y sobre la cresta de la tibia la fascia, a 30° de la piel, subía
+      // por encima de ella al abrirse.
+      const pieles = plano === 'piel' ? [] : (t.heridas?.get('piel') ?? [])
+      const normalesDeEncima = pieles.length > 0 ? puntos.map((p) => normalDeLaPielEncima(pieles, p, unidadesPorMm)) : undefined
+      const parametrosDe = (malla: THREE.Mesh) => ({
         // La piel es fina; la fascia y los planos profundos empiezan bajo ella y bajo la grasa.
         profundidad: (plano === 'piel' ? 14 : 50) * unidadesPorMm,
         alcance: 30 * unidadesPorMm,
@@ -3714,12 +4203,19 @@ export function LienzoQuirurgico({
         // La piel tiene grosor: dermis y grasa entre sus dos caras (D-331), y el corte levanta la pared que se ve al
         // abrir (D-333). La fascia superficial, que se corta con ella, es una lámina y no la encuentra.
         pared: plano === 'piel' ? GROSOR_MAXIMO_DE_LA_PIEL_MM * unidadesPorMm : undefined,
-      }
+        // El tejido cortado se aparta solo (P-015): cada plano lo suyo, y el músculo según el trazo vaya a lo largo de
+        // sus fibras o las cruce. Las mallas que se cortan juntas en un plano —la piel y su fascia superficial— se
+        // retraen lo mismo, y así el labio de una queda bajo el de la otra.
+        retraccion: retraccionDelLabioMm(plano, largoDelCorteMm, plano === 'musculo' ? cuantoCruzaElTrazo(malla, deExtremoAExtremo) : 0) * unidadesPorMm,
+        // Y la malla se afina alrededor del corte, para que lo que se aparta se doble en curva y no en facetas.
+        afinar: ARISTA_JUNTO_AL_CORTE_MM * unidadesPorMm,
+        normalesDeEncima,
+      })
       const hechas: HeridaEnCapa[] = []
       for (const malla of mallas) {
         // Se corta la piel sin abultar: con el bulto dentro, la herida se cerraría abultada (`abultamientoEnLaEscena.ts`).
         quitarElAbultamiento(malla)
-        const herida = cortarCapa(malla, puntos, normales, parametros)
+        const herida = cortarCapa(malla, puntos, normales, parametrosDe(malla))
         if (herida) hechas.push(herida)
       }
       if (hechas.length === 0) {
@@ -3799,9 +4295,15 @@ export function LienzoQuirurgico({
         t.diseccion.incision = undefined
       }
       actualizarLaProfundidad(t)
+      // La herida de un trazo de ahora no nace abierta: se abre detrás de la hoja (P-015). Va antes de reaplicar los
+      // separadores, que ya la dibujan: así el primer cuadro es el de los labios todavía juntos. Lo que rehace la sesión
+      // o una incisión ya se abrió en su día, y aparece como quedó.
+      const seAbreAhora = !desdeLaSesion && !esRehacer && !sinMovimiento()
+      if (seAbreAhora) for (const h of hechas) h.asentada = 0
       // La herida nueva se abre con lo que le toca —separadores, pinzas y la disección en curso, capa por capa—,
       // y no como la primera que hubiera: la del músculo no se abre con lo que abre la de la piel.
       reaplicarSeparadores(t, ultimas.current)
+      if (seAbreAhora) retraerAlCortar(hechas)
       // «Acompañar el bisturí» (P-003 E3): la pareja de pinzas y la de separadores más cercanas a la punta se corren
       // tras ella. Solo con un corte hecho por el residente: ni al recargar la sesión ni al rehacer ni la disección.
       if (ultimas.current.acompanarAlBisturi && !desdeLaSesion && !esRehacer && !deDiseccion) acompanarAlCorte(t, ultimas.current, plano, id)
@@ -7456,6 +7958,23 @@ export function LienzoQuirurgico({
 
     superficie.addEventListener('pointerdown', alBajar)
     superficie.addEventListener('pointerdown', alBajarParaCoser)
+    /**
+     * Quien pincha algo tapado tiene que saber por qué no pasó nada (P-014 E5). Va el último de los que escuchan el
+     * clic: para entonces cada herramienta ya lanzó sus rayos, y si alguno dio con el paño o con el colchón quedó
+     * apuntado en `tapadoEnEsteGesto`. Orbitando no se dice nada: ahí el clic no iba a tocar el modelo.
+     */
+    let relojDeLoTapado = 0
+    const alBajarSobreLoTapado = (evento: PointerEvent) => {
+      if (evento.button !== 0 || !tapadoEnEsteGesto || ultimas.current.modo === 'orbitar') return
+      const texto = avisoDeLoTapado(tapadoEnEsteGesto)
+      taller.current.decir?.(texto)
+      window.clearTimeout(relojDeLoTapado)
+      // Se quita solo, y solo si sigue siendo este: otra lectura que haya llegado después no es suya para borrarla.
+      relojDeLoTapado = window.setTimeout(() => {
+        if (vivo && lectura.textContent === texto) taller.current.decir?.('')
+      }, 3200)
+    }
+    superficie.addEventListener('pointerdown', alBajarSobreLoTapado)
     superficie.addEventListener('pointerup', alSubirParaCoser)
     superficie.addEventListener('pointerup', alSubirParaSeparar)
     superficie.addEventListener('pointerup', alSubirParaDisecar)
@@ -7725,8 +8244,11 @@ export function LienzoQuirurgico({
       sinCaerse('piel', () => {
         const mm = ultimas.current.milimetrosPorUnidad || 1000
         const t = taller.current
-        const cambio = abultamiento.alDia(mallasConRol(t, ultimas.current.piezas, ['piel']), loQueEmpujaLaPiel(), mm)
+        const pieles = mallasConRol(t, ultimas.current.piezas, ['piel'])
+        const cambio = abultamiento.alDia(pieles, loQueEmpujaLaPiel(), mm)
         t.cajaDeLaPielAbultada = abultamiento.caja
+        // El paño se ciñe al cuerpo del atlas, y la piel abultada ya no lo es: se le cuenta cada vez que cambia (P-014).
+        if (cambio) t.campo?.seguirLaPiel(pieles, abultamiento.caja)
         if (cambio && t.sutura && t.sutura.puntos.length > 0 && t.raiz) reconstruirHilo(t.sutura, mallasVisibles(t.raiz), 1 / mm, abultamiento.caja)
       })
       sinCaerse('vello', () => velloAlDia(aspecto.current, taller.current.heridas.values()))
@@ -7831,6 +8353,8 @@ export function LienzoQuirurgico({
       superficie.removeEventListener('pointercancel', alSoltarParaGirar)
       superficie.removeEventListener('pointerdown', alBajar)
       superficie.removeEventListener('pointerdown', alBajarParaCoser)
+      superficie.removeEventListener('pointerdown', alBajarSobreLoTapado)
+      window.clearTimeout(relojDeLoTapado)
       superficie.removeEventListener('pointerup', alSubirParaCoser)
       superficie.removeEventListener('pointerup', alSubirParaSeparar)
       superficie.removeEventListener('pointerup', alSubirParaDisecar)
@@ -7912,6 +8436,8 @@ export function LienzoQuirurgico({
       soltarElAspecto(aspectoDelMontaje)
       oclusion?.liberar()
       pabellon.liberar()
+      // El campo suelta lo suyo —sus dos telas por decúbito, sus mapas— y sale de la escena antes de que `liberar` la recorra.
+      campo.liberar()
       // Liberar a mano: aquí hay decenas de megabytes en la tarjeta y pasear
       // por la plataforma acabaría tirando la pestaña.
       liberar(escena)
@@ -8147,6 +8673,8 @@ export function gestoTactil(modo: Modo, giroLibre = false): 'pan-y' | 'none' {
 export type Taller = {
   render?: THREE.WebGLRenderer
   posicion?: PosicionDelPaciente
+  campo?: CampoEnLaEscena
+  decubito?: Decubito
   diseccion?: DiseccionActiva
   aplicarElCorte?: (plano: PlanoDeCorte, opciones?: OpcionesDelCorte) => number | undefined
   /** Cuánto se corre la broca de cada orificio oval y lo comprimido hasta ahora (P-004 E10). */
@@ -9043,13 +9571,14 @@ export function estadoDeLasHeridas(taller: Taller, milimetrosPorUnidad: number):
       id: c.id,
       capa: c.plano,
       largoMm: Math.max(...suyas.map((h) => h.largo)) / unidadesPorMm,
-      aperturaMm: Math.max(...suyas.map((h) => h.mas + h.menos)) / unidadesPorMm,
+      // El hueco entero: lo que la apartan y lo que se abre sola (P-015). El panel dice lo que se ve.
+      aperturaMm: Math.max(...suyas.map(aberturaDe)) / unidadesPorMm,
     })
   }
   return {
     capas: [...(taller.heridas?.keys() ?? [])],
     largoMm: Math.max(...todas.map((h) => h.largo)) / unidadesPorMm,
-    aperturaMm: Math.max(...todas.map((h) => h.mas + h.menos)) / unidadesPorMm,
+    aperturaMm: Math.max(...todas.map(aberturaDe)) / unidadesPorMm,
     incisiones,
   }
 }
@@ -9307,9 +9836,8 @@ function reaplicarSeparadores(t: Taller, u: LoUltimo) {
   const pinzas = (t.pellizcos ?? []).map((p) => p.datos)
   const roma = separadorDeLaDiseccion(t.diseccion)
   // Un separador de la fascia o del músculo abre también la piel de encima, en el sitio que tiene sobre ella: se
-  // mide desde donde se apoyó, con los labios en reposo, y vale si queda a la distancia a la que se puede colocar.
+  // mide desde donde se apoyó, contra el trazo de la herida de encima (`posicionBajoLaHerida`).
   const porId = new Map((t.separadores ?? []).map((s) => [s.datos.id, s]))
-  const alcance = LIMITE_PARA_COLOCAR_MM * unidadesPorMm
   aplicarSeparadoresALasHeridas(
     t.heridas ?? new Map(),
     [...(t.separadores ?? []).map((s) => s.datos), ...(roma ? [roma] : [])],
@@ -9317,8 +9845,7 @@ function reaplicarSeparadores(t: Taller, u: LoUltimo) {
     unidadesPorMm,
     (s, h) => {
       const enLaEscena = porId.get(s.id)
-      const cerca = enLaEscena ? cercaDeLaHerida(h, enLaEscena.punto) : null
-      return cerca && cerca.distancia <= alcance ? cerca.t : null
+      return enLaEscena ? posicionBajoLaHerida(h, enLaEscena.punto, unidadesPorMm) : null
     },
   )
   for (const s of t.separadores ?? []) posarSeparador(s, unidadesPorMm, t.heridas)
@@ -9563,7 +10090,7 @@ function cambiarElPlanoDelSeparador(t: Taller, u: LoUltimo, id: number, plano: C
     const haciaDentro = PROFUNDIDAD_DEL_PLANO[plano] > PROFUNDIDAD_DEL_PLANO[s.datos.plano === 'hueso' ? 'musculo' : s.datos.plano]
     const hacia = s.normal.clone().multiplyScalar(haciaDentro ? -1 : 1)
     const origen = s.punto.clone().addScaledVector(s.normal, (haciaDentro ? 1 : -1) * unidadesPorMm)
-    const g = new THREE.Raycaster(origen, hacia, 0, 80 * unidadesPorMm).intersectObjects(mallasConRol(t, u.piezas, [plano]), false)[0]
+    const g = new THREE.Raycaster(origen, hacia, 0, HONDURA_PARA_CAMBIAR_DE_PLANO_MM * unidadesPorMm).intersectObjects(mallasConRol(t, u.piezas, [plano]), false)[0]
     const punto = g ? g.point.clone() : s.punto.clone()
     const normal = g?.face ? g.face.normal.clone().transformDirection(g.object.matrixWorld) : s.normal.clone()
     if (normal.dot(s.normal) < 0) normal.negate()
@@ -9579,6 +10106,21 @@ function cambiarElPlanoDelSeparador(t: Taller, u: LoUltimo, id: number, plano: C
     sitio = { punto, normal, direccion: mejor.direccion.clone(), posicion: mejor.t }
     s.sitios[plano] = sitio
   }
+  // El separador pasa a ser de la incisión del plano nuevo, la de la herida que tiene debajo. Se quedaba con la del
+  // plano de donde venía: en el músculo, `labioDelSeparador` y `aplicarSeparadoresALasHeridas` buscan las heridas de
+  // su incisión, la de la piel no tiene ninguna allí, y el Farabeuf bajado al músculo no sostenía músculo alguno
+  // (P-015; viene de cuando P-003 E4 dio una incisión a cada capa). La piel de encima la abre ahora como prestado.
+  // Se busca cada vez, también con el sitio guardado: la incisión de ese plano pudo rehacerse desde entonces.
+  let incision: number | undefined
+  let masCerca = Infinity
+  for (const h of heridas) {
+    const info = ladoDeLaHerida(h, sitio.punto)
+    if (info && info.cerca < masCerca) {
+      masCerca = info.cerca
+      incision = h.incision
+    }
+  }
+  if (incision !== undefined) s.datos.incision = incision
   s.datos.plano = plano
   apoyarSeparadorEn(s, sitio, s.datos.lado)
   const m = direccionDelMango([sitio.normal.x, sitio.normal.y, sitio.normal.z], [sitio.direccion.x, sitio.direccion.y, sitio.direccion.z], s.datos.lado)
@@ -10430,11 +10972,17 @@ export function refrescarSutura(
                   return { mas: o.mas * factor, menos: o.menos * factor }
                 }
               : undefined,
+            // El hilo cierra también lo que el tejido se había apartado solo (P-015): al 100 %, los labios se tocan.
+            factor,
           )
         }
       }
       if (!hayCierre) taller.aperturaAntesDeCoser = undefined
       alHerir?.(estadoDeLasHeridas(taller, milimetrosPorUnidad))
+    } else {
+      // Sin nada cosido que la cierre, cada herida vuelve a lo que se retrae sola. Hace falta decirlo: un corte nuevo
+      // quita las puntadas y olvida la base de antes, y la herida que estaba cosida se quedaría cerrada sin hilo.
+      for (const h of heridas) if (h.tension !== 1) abrirCapa(h, h.mas, h.menos, h.perfil, 1)
     }
   }
 
@@ -10668,8 +11216,29 @@ function llevarLaCamaraAlEncuadre(
  * sesgo y el eje Y hacia arriba).
  */
 function encuadrarVisible(taller: Taller, pose: PoseDeLaVista = POSE_AL_CARGAR) {
-  const { raiz, camara, controles } = taller
-  if (!raiz || !camara || !controles) return
+  const { camara, controles } = taller
+  const encuadre = encuadreDeLoVisible(taller)
+  if (!encuadre || !camara || !controles) return
+  ponerLaPose(camara, controles, encuadre.centro, encuadre.distancia, pose)
+  taller.pedirDibujo?.()
+}
+
+/**
+ * La pose con que se encuadra: la de la posición elegida con los botones o, sin ninguna, la de siempre. Con el
+ * paciente boca abajo en el colchón «la de siempre» es su espejo —la misma, vista desde la espalda—: de frente se
+ * le miraría a través del colchón.
+ */
+function poseDeEncuadre(taller: Taller, eje: EjeDelHueso): PoseDeLaVista {
+  if (taller.posicion) return poseDeLaPosicion(taller.posicion, eje)
+  if (taller.campo?.decubito() !== 'prono') return POSE_AL_CARGAR
+  const [x, y, z] = POSE_AL_CARGAR.direccion
+  return { direccion: [-x, y, -z], arriba: POSE_AL_CARGAR.arriba }
+}
+
+/** A dónde hay que mirar, y desde qué distancia, para que quepa lo que esté visible del modelo. */
+function encuadreDeLoVisible(taller: Taller): { centro: THREE.Vector3; distancia: number } | null {
+  const { raiz, camara } = taller
+  if (!raiz || !camara) return null
 
   // Las matrices del mundo se ponen al día antes de medir. `expandByObject` solo
   // actualiza la del propio objeto, no la de sus padres, y justo al cargar la
@@ -10684,15 +11253,12 @@ function encuadrarVisible(taller: Taller, pose: PoseDeLaVista = POSE_AL_CARGAR) 
   raiz.traverse((objeto) => {
     if ((objeto as THREE.Mesh).isMesh && objeto.visible) caja.expandByObject(objeto)
   })
-  if (caja.isEmpty()) return
+  if (caja.isEmpty()) return null
 
   const centro = caja.getCenter(new THREE.Vector3())
   const tamano = caja.getSize(new THREE.Vector3())
   const radio = Math.max(tamano.x, tamano.y, tamano.z) / 2 || 0.1
-  const distanciaCamara = (radio / Math.tan((camara.fov * Math.PI) / 360)) * 1.7
-
-  ponerLaPose(camara, controles, centro, distanciaCamara, pose)
-  taller.pedirDibujo?.()
+  return { centro, distancia: (radio / Math.tan((camara.fov * Math.PI) / 360)) * 1.7 }
 }
 
 /**

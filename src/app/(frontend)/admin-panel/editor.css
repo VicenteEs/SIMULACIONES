@@ -384,7 +384,10 @@
 
 .editor-simulador-pestanas {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Las que haya, en una sola fila y del mismo ancho. Eran tres columnas fijas, y con la cuarta pestaña —«Paño»,
+     P-014— «El caso» caía sola a una segunda fila. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 2px;
   padding: 2px;
   background: var(--c-fondo);
@@ -417,6 +420,17 @@
 .consola-editor-panel .campo-error + *,
 .consola-editor-panel .lista-cabecera { color: var(--c-texto-2); }
 .consola-editor-panel .campo-error { color: var(--c-grave); }
+/* Cinco que se habían quedado con los colores del panel claro, escritos sobre el fondo de la consola. Los sacó
+   el barrido de contraste de P-014 E7: el asterisco de «obligatorio» daba 2:1, la leyenda de un grupo de campos
+   2:1, «Plegar todo» 2,2:1, el rótulo de cada fila de una lista 2,5:1, y el valor elegido de un selector —que
+   se enseña en su marcador mientras se busca otro— salía en la tinta del panel, marino sobre marino. */
+.consola-editor-panel .campo-obligatorio { color: var(--c-grave); }
+.consola-editor-panel .campo-grupo legend { color: var(--c-texto-2); }
+.consola-editor-panel .lista-boton-texto,
+.consola-editor-panel .lista-fila-numero { color: var(--c-rotulo); }
+.consola-editor-panel .lista-boton-texto:hover:not(:disabled) { color: var(--c-texto); background: var(--c-panel-2); border-color: var(--c-linea-fuerte); }
+.consola-editor-panel .selector-entrada.con-valor::placeholder { color: var(--c-texto); }
+.consola-editor-panel .selector-entrada.con-valor:focus::placeholder { color: var(--c-rotulo); }
 .consola-editor-panel .campo-control,
 .consola-editor-panel input[type='text'],
 .consola-editor-panel input[type='number'],

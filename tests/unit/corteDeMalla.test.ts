@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ABANICO_DE_LOS_QUIEBRES,
   abrirHerida,
+  cerrarLasPuntasConTejidoEntero,
   componerCortes,
   cortarMalla,
   proyectar,
@@ -307,6 +309,196 @@ describe('abrirHerida', () => {
   })
 })
 
+describe('un trazo que sube un escalón por la pared de la herida (P-015)', () => {
+  // Como el bisturí hondo del caso 4: el trazo corre por el fondo de la herida y trepa 11 mm por su pared. Al final del
+  // trazo eso se recorta (ver «los saltos del cursor en las puntas»), pero en medio se queda: aquí el trazo sigue por
+  // arriba 9 mm más. Bajo el fondo, a 10 mm, una lámina de músculo que sigue más allá del escalón.
+  const lamina = rejilla(61, 60, -10)
+  const trazo: IncisionSobreLaMalla = { puntos: [], normales: [] }
+  for (let x = 5; x <= 30 + 1e-9; x += 0.5) {
+    trazo.puntos.push([x, 30.3, 0])
+    trazo.normales.push([0, 0, 1])
+  }
+  for (let x = 31; x <= 40 + 1e-9; x += 0.5) {
+    trazo.puntos.push([x, 30.3, 11])
+    trazo.normales.push([0, 0, 1])
+  }
+  const HONDO = { profundidad: 14, alcance: 6, holgura: 4 }
+  const corte = cortarMalla(lamina, trazo, HONDO)!
+  const xDe = (i: number) => corte.posiciones[3 * i]
+  // Lo que llega el abanico a 10 mm de hondura: 10 · tan 30°. Escrito aparte, y no con la constante, para que la prueba
+  // falle si el abanico se abre.
+  const hastaElAbanico = 30 + 10 * Math.tan(Math.PI / 6)
+
+  it('proyectar dice cuánto se sale el punto a lo largo: nada bajo el trazo, todo pasado el quiebre', () => {
+    const curva = prepararIncision(trazo, 0.01)!
+    expect(proyectar(curva, [20, 30.3, -10]).aLoLargo).toBeCloseTo(0, 6)
+    const pasado = proyectar(curva, [42, 30.3, -10])
+    // El punto más cercano del trazo es el quiebre, en x = 30: lo «dentro» no lo descarta.
+    expect(pasado.dentro).toBe(true)
+    expect(pasado.aLoLargo).toBeCloseTo(12, 1)
+  })
+
+  it('la lámina se corta bajo el trazo y no más allá del abanico del quiebre', () => {
+    expect(corte).not.toBeNull()
+    const labios = [...corte.labios.mas, ...corte.labios.menos]
+    expect(Math.min(...labios.map(xDe))).toBeLessThan(6)
+    // A 10 mm de hondura, el abanico llega a 5,8 mm del quiebre. Sin él, el corte seguía hasta el borde de la caja que
+    // se mira, a 18 mm.
+    expect(Math.max(...labios.map(xDe))).toBeLessThan(hastaElAbanico + 1)
+    expect(ABANICO_DE_LOS_QUIEBRES).toBeCloseTo(Math.tan(Math.PI / 6), 9)
+    expect(Math.max(...labios.map(xDe))).toBeGreaterThan(30)
+  })
+
+  it('al abrir, el músculo entero que sigue más allá del quiebre no se estira', () => {
+    const abierta = abrirHerida(corte, 3, 3)
+    let lejos = 0
+    let enMedio = 0
+    for (let i = 0; i < corte.lado.length; i++) {
+      const movido = Math.hypot(abierta[3 * i] - corte.posiciones[3 * i], abierta[3 * i + 1] - corte.posiciones[3 * i + 1], abierta[3 * i + 2] - corte.posiciones[3 * i + 2])
+      if (xDe(i) > hastaElAbanico + HONDO.alcance) lejos = Math.max(lejos, movido)
+      if (Math.abs(xDe(i) - 17) < 1) enMedio = Math.max(enMedio, movido)
+    }
+    // Lo cortado se aparta (a un cuarto del trazo, la mitad de los 3 mm: el afilado de las puntas).
+    expect(enMedio).toBeGreaterThan(1)
+    expect(lejos).toBe(0)
+  })
+})
+
+describe('un plano hondo se aparta paralelo a la piel de encima (P-015)', () => {
+  // Sobre la cresta de la tibia del caso 4 la fascia crural va a 30° de la piel y casi pegada a ella: apartada por su
+  // propia tangente, su labio abierto 12 mm subía 6 por encima de la piel y asomaba como una solapa.
+  const inclinacion = Math.PI / 6
+  const lamina = (): MallaPlana => {
+    const m = rejilla(21, 20)
+    for (let i = 0; i < m.posiciones.length; i += 3) m.posiciones[i + 2] = m.posiciones[i] * Math.tan(inclinacion)
+    return m
+  }
+  const normal: Vec3 = [-Math.sin(inclinacion), 0, Math.cos(inclinacion)]
+  const trazo = (encima?: (Vec3 | null)[]): IncisionSobreLaMalla => {
+    const puntos: Vec3[] = []
+    for (let y = 2; y <= 18 + 1e-9; y += 0.5) puntos.push([10.3, y, 10.3 * Math.tan(inclinacion)])
+    return { puntos, normales: puntos.map(() => normal), normalesDeEncima: encima ?? undefined }
+  }
+  const lasQueSeMueven = (c: NonNullable<ReturnType<typeof cortarMalla>>) =>
+    Array.from({ length: c.pesoLateral.length }, (_, i) => i).filter((i) => c.pesoLateral[i] > 0)
+
+  it('con la normal de la piel encima, lo que se aparta no sube ni baja respecto de ella', () => {
+    const piel: Vec3 = [0, 0, 1]
+    const c = cortarMalla(lamina(), trazo(trazo().puntos.map(() => piel)), OPCIONES)!
+    const movidos = lasQueSeMueven(c)
+    expect(movidos.length).toBeGreaterThan(20)
+    for (const i of movidos) expect(Math.abs(c.direccion[3 * i + 2])).toBeLessThan(0.02)
+  })
+
+  it('sin ella, por su tangente, como la piel: sube lo que la lámina sube', () => {
+    for (const c of [cortarMalla(lamina(), trazo(), OPCIONES)!, cortarMalla(lamina(), trazo(trazo().puntos.map(() => null)), OPCIONES)!]) {
+      for (const i of lasQueSeMueven(c)) expect(Math.abs(c.direccion[3 * i + 2])).toBeCloseTo(Math.sin(inclinacion), 2)
+    }
+  })
+
+  it('por dónde se parte no cambia: eso lo dice la normal de la malla', () => {
+    const sin = cortarMalla(lamina(), trazo(), OPCIONES)!
+    const con = cortarMalla(lamina(), trazo(trazo().puntos.map(() => [0, 0, 1] as Vec3)), OPCIONES)!
+    expect(Array.from(con.indices)).toEqual(Array.from(sin.indices))
+    expect(Array.from(con.lado)).toEqual(Array.from(sin.lado))
+  })
+})
+
+describe('una punta que llega al borde de la malla con la malla entera más allá (P-015)', () => {
+  // El sóleo del caso 4: partido de 0,06 a 0,20 del trazo hasta su borde, y bajo el resto del trazo, entero. Un
+  // triángulo con un vértice de cada labio, sin partir, del todo más allá de la grieta, es ese tejido.
+  const grieta = () => ({ desde: 0.06, hasta: 0.2, cerradaAlInicio: true, cerradaAlFinal: false })
+  const lado = Int8Array.from([1, -1, 1, 1])
+  const arrastrados = Float32Array.from([1, 1, 1, 1])
+
+  it('se cierra: los separadores no la estiran a los dos lados', () => {
+    const g = grieta()
+    cerrarLasPuntasConTejidoEntero(g, [0, 1, 2], lado, arrastrados, Float32Array.from([0.45, 0.46, 0.47, 0]))
+    expect(g.cerradaAlFinal).toBe(true)
+    expect(g.cerradaAlInicio).toBe(true)
+  })
+
+  it('sigue abierta si lo que hay más allá es de un solo labio, o no se arrastra, o toca la grieta', () => {
+    const g = grieta()
+    const t = Float32Array.from([0.45, 0.46, 0.47, 0.48])
+    cerrarLasPuntasConTejidoEntero(g, [0, 2, 3], lado, arrastrados, t)
+    expect(g.cerradaAlFinal).toBe(false)
+    cerrarLasPuntasConTejidoEntero(g, [0, 1, 2], lado, Float32Array.from([1, 0, 1, 1]), t)
+    expect(g.cerradaAlFinal).toBe(false)
+    // El del vaso cortado de lado a lado: lo que queda entero está junto a su grieta, no más allá.
+    cerrarLasPuntasConTejidoEntero(g, [0, 1, 2], lado, arrastrados, Float32Array.from([0.19, 0.21, 0.2, 0]))
+    expect(g.cerradaAlFinal).toBe(false)
+  })
+})
+
+describe('los saltos del cursor en las puntas del trazo (P-015)', () => {
+  // El bisturí hondo trazado de borde a borde de la herida: el primer clic en la piel, 6 mm por encima del fondo; el
+  // último, 11 mm. Lo que va por la pared no es corte.
+  const trazo: IncisionSobreLaMalla = { puntos: [[5, 30.3, 6], [5.6, 30.3, 6]], normales: [[0, 0, 1], [0, 0, 1]] }
+  for (let x = 6; x <= 30 + 1e-9; x += 0.5) {
+    trazo.puntos.push([x, 30.3, 0])
+    trazo.normales.push([0, 0, 1])
+  }
+  trazo.puntos.push([31, 30.3, 11])
+  trazo.normales.push([0, 0, 1])
+
+  it('con curva de apertura, el trazo empieza y acaba en el fondo', () => {
+    const curva = prepararIncision(trazo, 0.01, 2)!
+    const ultimo = curva.tramos.at(-1)!
+    const fin = [0, 1, 2].map((k) => ultimo.a[k] + ultimo.d[k] * ultimo.largo)
+    expect(curva.tramos[0].a).toEqual([6, 30.3, 0])
+    expect(fin[0]).toBeCloseTo(30, 6)
+    expect(fin[2]).toBeCloseTo(0, 6)
+    expect(curva.largoTotal).toBeCloseTo(24, 6)
+  })
+
+  it('sin ella, el trazo se mide entero, como siempre', () => {
+    expect(prepararIncision(trazo, 0.01)!.largoTotal).toBeGreaterThan(24 + 6 + 11)
+  })
+
+  it('un trazo sobre una piel curva no pierde nada, aunque la piel se doble', () => {
+    // Un arco de 90° sobre un cilindro de radio 10: cada tramo va por la superficie, con su normal.
+    const arco: IncisionSobreLaMalla = { puntos: [], normales: [] }
+    for (let k = 0; k <= 30; k++) {
+      const a = (k / 30) * (Math.PI / 2)
+      arco.puntos.push([0, 10 * Math.sin(a), 10 * Math.cos(a)])
+      arco.normales.push([0, Math.sin(a), Math.cos(a)])
+    }
+    expect(prepararIncision(arco, 0.01, 2)!.tramos.length).toBe(30)
+  })
+})
+
+describe('lo que se arrastra en hondo no salta de un vértice al vecino (P-015)', () => {
+  // Un trazo recto con la normal cabeceando 20° a cada lado de un nodo al siguiente, como la de los clics del bisturí
+  // hondo sobre el fondo de la herida, y una lámina 20 mm por debajo. Con el lateral medido al trazo crudo, el peso de
+  // dos vértices a 1 mm uno de otro difería 0,24: a 12 mm de separador, 3 mm de diferencia en un milímetro.
+  const trazo: IncisionSobreLaMalla = { puntos: [], normales: [] }
+  for (let k = 0; k <= 50; k++) {
+    const a = ((k % 2 ? 1 : -1) * 20 * Math.PI) / 180
+    trazo.puntos.push([5 + k, 30.3, 0])
+    trazo.normales.push([0, Math.sin(a), Math.cos(a)])
+  }
+  const corte = cortarMalla(rejilla(61, 60, -20), trazo, { profundidad: 30, alcance: 30, holgura: 4 })!
+
+  it('el peso de dos vecinos casi no cambia, y al abrir 12 mm ningún triángulo se da la vuelta', () => {
+    let salto = 0
+    for (let j = 0; j < 61; j++) {
+      if (Math.abs(j - 30.3) < 6) continue
+      for (let i = 10; i < 50; i++) salto = Math.max(salto, Math.abs(corte.pesoLateral[j * 61 + i] - corte.pesoLateral[j * 61 + i + 1]))
+    }
+    expect(salto).toBeLessThan(0.02)
+    const abierta = abrirHerida(corte, 12, 12)
+    let vueltos = 0
+    for (let t = 0; t < corte.indices.length; t += 3) {
+      const [a, b, c] = [corte.indices[t], corte.indices[t + 1], corte.indices[t + 2]]
+      const giro = (p: Float32Array) => (p[3 * b] - p[3 * a]) * (p[3 * c + 1] - p[3 * a + 1]) - (p[3 * b + 1] - p[3 * a + 1]) * (p[3 * c] - p[3 * a])
+      if (giro(corte.posiciones) * giro(abierta) < 0) vueltos++
+    }
+    expect(vueltos).toBe(0)
+  })
+})
+
 describe('un tubo cerrado, como una pierna', () => {
   /** Un cilindro de radio 10 y 40 de largo; la incisión va por arriba (y = +radio). */
   function tubo(): MallaPlana {
@@ -408,14 +600,16 @@ describe('componerCortes: una malla cortada varias veces (P-003 E4)', () => {
     const a2 = abrirHerida(c2, 2, 2)
     for (let i = 0; i < n1; i++) {
       for (let k = 0; k < 3; k++) {
-        // base + desplazamiento del primero + desplazamiento del segundo.
+        // base + desplazamiento del primero + desplazamiento del segundo. A cinco decimales y no a seis: lo esperado
+        // se arma aquí con restas de posiciones en simple precisión, y a esta distancia del origen el último bit
+        // de un número de esos ya vale una millonésima.
         const esperado = a1[3 * i + k] + (a2[3 * i + k] - c2.posiciones[3 * i + k])
-        expect(juntas[3 * i + k]).toBeCloseTo(esperado, 6)
+        expect(juntas[3 * i + k]).toBeCloseTo(esperado, 5)
       }
     }
   })
 
-  it('un vértice nuevo del segundo corte dentro de la zona del primero hereda el arrastre de su arista', () => {
+  it('un vértice nuevo del segundo corte dentro de la zona del primero va adonde lo lleva su arista (P-015)', () => {
     // A 3 mm del primero: dentro de su alcance (6), así que algunos vértices nuevos del segundo caen en su zona.
     const { c1, c2 } = dosCortes(9)
     const juntas = componerCortes([
@@ -424,14 +618,27 @@ describe('componerCortes: una malla cortada varias veces (P-003 E4)', () => {
     ])
     const n1 = c1.lado.length
     const a1 = abrirHerida(c1, 2, 2)
+    // Lo que el primer corte arrastra a cada vértice del segundo: a los que ya estaban, lo suyo; a los nuevos, lo de
+    // los dos vértices de que salen, cada uno en su parte. Hasta P-015 era lo de uno solo de los dos (`origen`), y
+    // dos vecinos que heredaban de extremos distintos podían cruzarse.
+    const arrastre: number[][] = []
+    for (let v = 0; v < n1; v++) arrastre.push([0, 1, 2].map((k) => a1[3 * v + k] - c1.posiciones[3 * v + k]))
+    const { desde, de, peso } = c2.mezcla
+    expect(desde).toBe(n1)
     let comprobados = 0
+    let entreDos = 0
     for (let v = n1; v < c2.lado.length; v++) {
-      const origen = c2.origen[v]
-      const esperado = [0, 1, 2].map((k) => c2.posiciones[3 * v + k] + (a1[3 * origen + k] - c1.posiciones[3 * origen + k]))
-      for (let k = 0; k < 3; k++) expect(juntas[3 * v + k]).toBeCloseTo(esperado[k], 6)
-      if (c1.peso[origen] > 0) comprobados++
+      const j = v - desde
+      const a = arrastre[de[2 * j]]
+      const b = arrastre[de[2 * j + 1]]
+      arrastre.push([0, 1, 2].map((k) => a[k] + (b[k] - a[k]) * peso[j]))
+      for (let k = 0; k < 3; k++) expect(juntas[3 * v + k]).toBeCloseTo(c2.posiciones[3 * v + k] + arrastre[v][k], 5)
+      if (Math.hypot(...arrastre[v]) > 0) comprobados++
+      // Y no es lo de un extremo: está de verdad entre los dos.
+      if (Math.hypot(...arrastre[v].map((x, k) => x - a[k])) > 1e-3 && Math.hypot(...arrastre[v].map((x, k) => x - b[k])) > 1e-3) entreDos++
     }
     expect(comprobados).toBeGreaterThan(0)
+    expect(entreDos).toBeGreaterThan(0)
   })
 
   it('no deja ningún número roto ni ningún triángulo vuelto del revés al abrir las dos', () => {

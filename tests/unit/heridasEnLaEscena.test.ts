@@ -337,13 +337,13 @@ describe('la cinta se tiende por el trazo, no por los vértices de los labios', 
   })
 
   it('con una malla de triángulos largos, la cinta sigue entera donde los vértices de los labios están lejos', () => {
-    // Pocas filas y columnas: los vértices de los labios quedan a 10 unidades unos de otros, pero la cinta no se
-    // parte porque sus nodos son los del trazo (a 0,5 unidades).
+    // Pocas filas y columnas, y afinada como la afina el lienzo: los vértices de los labios quedan lejos unos de otros,
+    // pero la cinta no se parte porque sus nodos son los del trazo (a 0,5 unidades).
     const g = new THREE.PlaneGeometry(20, 20, 2, 2)
     const malla = new THREE.Mesh(g, new THREE.MeshStandardMaterial())
     malla.updateMatrixWorld(true)
     const { puntos, normales } = incision(0.3)
-    const herida = cortarCapa(malla, puntos, normales, { profundidad: 4, alcance: 6, unidadesPorMm: 1 })!
+    const herida = cortarCapa(malla, puntos, normales, { profundidad: 4, alcance: 6, unidadesPorMm: 1, afinar: 2 })!
     expect(herida).not.toBeNull()
     const nodos = herida.corte.curva.tramos.length + 1
     expect(nodos).toBeGreaterThan(herida.corte.labios.mas.length)
@@ -353,6 +353,22 @@ describe('la cinta se tiende por el trazo, no por los vértices de los labios', 
       mayorSalto = Math.max(mayorSalto, Math.abs(cinta.getX(2 * k) - cinta.getX(2 * k - 2)))
     }
     expect(mayorSalto).toBeLessThan(1.5)
+    expect(herida.cinta.visible).toBe(true)
+  })
+
+  it('cubre solo lo que la malla se partió: sin afinar, la grieta de los triángulos largos es corta y la cinta también (P-015)', () => {
+    // El trazo va de x = −5 a 5, pero en una malla de cuadros de 10 sin afinar solo cruza dos aristas: la vertical de
+    // x = 0 y la diagonal que sale de (0, 0), donde el cruce, que no se acerca a un vértice más del 5 % de la arista, cae
+    // en x = 0,5.
+    const g = new THREE.PlaneGeometry(20, 20, 2, 2)
+    const malla = new THREE.Mesh(g, new THREE.MeshStandardMaterial())
+    malla.updateMatrixWorld(true)
+    const { puntos, normales } = incision(0.3)
+    const herida = cortarCapa(malla, puntos, normales, { profundidad: 4, alcance: 6, unidadesPorMm: 1 })!
+    const cinta = herida.cinta.geometry.getAttribute('position') as THREE.BufferAttribute
+    const xs = Array.from({ length: cinta.count }, (_, i) => cinta.getX(i))
+    expect(Math.min(...xs)).toBeGreaterThan(-0.05)
+    expect(Math.max(...xs)).toBeLessThan(0.55)
   })
 
   it('al abrir con perfil, la cinta se ensancha donde abre el separador y no en el otro extremo', () => {

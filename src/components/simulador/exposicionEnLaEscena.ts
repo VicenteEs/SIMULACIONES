@@ -16,11 +16,14 @@ import {
   deLaIncision,
   direccionDelMango,
   perfilDeLaCapa,
+  puntasDeLaGrieta,
   type CapaDeLaHerida,
   type Pellizco,
   type SeparadorColocado,
 } from '@/lib/exposicion'
-import { abrirCapa, largoEnMm, type HeridaEnCapa } from './heridas'
+import { LIMITE_PARA_COLOCAR_MM, HONDURA_PARA_CAMBIAR_DE_PLANO_MM } from '@/lib/abordajePorPlanos'
+import { bajoElTrazo } from '@/lib/corteDeMalla'
+import { abrirCapa, largoEnMm, verticeEnReposo, type HeridaEnCapa } from './heridas'
 
 /**
  * Las pinzas y los separadores puestos en el campo, dentro de la escena.
@@ -149,6 +152,10 @@ export interface SeparadorEnEscena {
 /** Un punto del borde de una herida, en el mundo: donde está ahora, con la herida como esté, y donde estaba en reposo. */
 export interface PuntoDelLabio {
   ahora: THREE.Vector3
+  /**
+   * Donde el labio descansa cuando nada lo sostiene: cerrado, más lo que se retrae solo (P-015). Lo que va de aquí a
+   * `ahora` es lo que lo ha apartado la hoja.
+   */
   reposo: THREE.Vector3
 }
 
@@ -175,7 +182,7 @@ export function labioEnLaPosicion(h: HeridaEnCapa, lado: 1 | -1, t: number): Pun
   const f = tDe(b) > tDe(a) ? Math.min(1, Math.max(0, (t - tDe(a)) / (tDe(b) - tDe(a)))) : 0
   const m = h.malla.matrixWorld
   const ahora = (v: number) => new THREE.Vector3().fromBufferAttribute(posiciones, v)
-  const antes = (v: number) => new THREE.Vector3(reposo[3 * v], reposo[3 * v + 1], reposo[3 * v + 2])
+  const antes = (v: number) => verticeEnReposo(h, v)
   return { ahora: ahora(a).lerp(ahora(b), f).applyMatrix4(m), reposo: antes(a).lerp(antes(b), f).applyMatrix4(m) }
 }
 
@@ -195,6 +202,48 @@ export function cercaDeLaHerida(h: HeridaEnCapa, punto: THREE.Vector3): { t: num
     }
   }
   return mejor
+}
+
+/**
+ * A qué fracción del largo de una herida cae un separador de un plano más hondo que está **debajo** de ella, o `null` si
+ * no lo está: lo que `aplicarSeparadoresALasHeridas` pide como `posicionEn`. Debajo es a no más del límite de colocar
+ * de lado (`LIMITE_PARA_COLOCAR_MM`) y a no más de lo que un separador baja al cambiar de plano
+ * (`HONDURA_PARA_CAMBIAR_DE_PLANO_MM`), medidos con el trazo de la herida (`bajoElTrazo`).
+ *
+ * Antes era `cercaDeLaHerida` contra el mismo límite de 30 mm, y esa distancia lleva la hondura dentro: un Farabeuf
+ * bajado al músculo del caso 4 quedaba a 36,8 mm de los labios de la piel y no la habría abierto, y a 30,1 y 29,7 de
+ * los de la fascia, que sostenía de un lado y no del otro (P-015). La piel se abría solo porque el separador seguía
+ * con el número de incisión de la piel después de bajar, que es lo que dejaba sin abrir el músculo
+ * (`cambiarElPlanoDelSeparador`).
+ */
+export function posicionBajoLaHerida(h: HeridaEnCapa, punto: THREE.Vector3, unidadesPorMm: number): number | null {
+  return bajoLaHerida(h, punto, unidadesPorMm)?.t ?? null
+}
+
+/** Lo de `posicionBajoLaHerida`, con lo que se aparta de lado en milímetros y la normal de la herida ahí, en el mundo. */
+function bajoLaHerida(h: HeridaEnCapa, punto: THREE.Vector3, unidadesPorMm: number): { t: number; deLadoMm: number; normal: THREE.Vector3 } | null {
+  const local = punto.clone().applyMatrix4(h.malla.matrixWorld.clone().invert())
+  const bajo = bajoElTrazo(h.corte.curva, [local.x, local.y, local.z])
+  if (!bajo) return null
+  const deLadoMm = (bajo.deLado * h.escala) / unidadesPorMm
+  const altura = (bajo.altura * h.escala) / unidadesPorMm
+  // Por encima de la herida no hay nada que un plano más hondo abra; se deja el margen del límite por la curvatura.
+  if (deLadoMm > LIMITE_PARA_COLOCAR_MM || altura < -HONDURA_PARA_CAMBIAR_DE_PLANO_MM || altura > LIMITE_PARA_COLOCAR_MM) return null
+  return { t: bajo.t, deLadoMm, normal: new THREE.Vector3(...bajo.normal).transformDirection(h.malla.matrixWorld) }
+}
+
+/**
+ * La normal de la piel cortada que queda encima de un punto de un plano hondo, en el mundo, o `null` si no hay ninguna
+ * encima: con ella se aparta ese plano (`ParametrosDeCorte.normalesDeEncima`, P-015). Encima es lo mismo que para un
+ * separador hondo (`posicionBajoLaHerida`), y de dos incisiones de la piel vale la que queda menos de lado.
+ */
+export function normalDeLaPielEncima(pieles: readonly HeridaEnCapa[], punto: THREE.Vector3, unidadesPorMm: number): THREE.Vector3 | null {
+  let mejor: { deLadoMm: number; normal: THREE.Vector3 } | null = null
+  for (const h of pieles) {
+    const bajo = bajoLaHerida(h, punto, unidadesPorMm)
+    if (bajo && (!mejor || bajo.deLadoMm < mejor.deLadoMm)) mejor = bajo
+  }
+  return mejor?.normal ?? null
 }
 
 /**
@@ -232,6 +281,21 @@ export function labioDelSeparador(
   const menos = labioEnLaPosicion(herida, -1, t)
   if (!mas || !menos) return null
   return { ahora: mas.ahora.lerp(menos.ahora, 0.5), reposo: mas.reposo.lerp(menos.reposo, 0.5), herida }
+}
+
+/**
+ * La mitad de lo que separa a los dos labios en reposo en el sitio de un autoestático, en unidades del mundo: lo que
+ * la herida de su plano se abre sola por cada lado. Cero sin herida debajo.
+ */
+function mitadDeLoQueDescansaAbierta(
+  s: Pick<SeparadorEnEscena, 'datos' | 'punto'>,
+  heridasPorCapa: ReadonlyMap<CapaDeLaHerida, HeridaEnCapa[]> | undefined,
+): number {
+  const labio = labioDelSeparador(s, heridasPorCapa)
+  if (!labio) return 0
+  const mas = labioEnLaPosicion(labio.herida, 1, s.datos.posicion)
+  const menos = labioEnLaPosicion(labio.herida, -1, s.datos.posicion)
+  return mas && menos ? mas.reposo.distanceTo(menos.reposo) / 2 : 0
 }
 
 /** Lleva el separador a un sitio ya calculado de otro plano. */
@@ -321,7 +385,10 @@ export function posarSeparador(
   heridasPorCapa?: ReadonlyMap<CapaDeLaHerida, HeridaEnCapa[]>,
 ) {
   const h = s.instrumento.herramienta
-  if (h) aplicarPose(h, s.ajustes, articulacionesParaLaApertura(h, s.ajustes, s.datos.aperturaMm, s.datos.maximoMm, s.datos.brazoMm))
+  // Las ramas de un autoestático se abren hasta donde están los labios, y los labios descansan ya apartados lo que la
+  // herida se retrae sola (P-015): con lo del panel a secas, cada rastrillo quedaba ese poco corto, en el aire.
+  const descanso = s.datos.lado === 0 ? mitadDeLoQueDescansaAbierta(s, heridasPorCapa) / unidadesPorMm : 0
+  if (h) aplicarPose(h, s.ajustes, articulacionesParaLaApertura(h, s.ajustes, s.datos.aperturaMm + descanso, s.datos.maximoMm, s.datos.brazoMm))
   const encima = s.punto.clone().addScaledVector(s.normal, 0.4 * unidadesPorMm)
   const n = s.normal.clone().normalize()
   // Hacia dónde se aparta el labio, sobre el plano de la piel (P-009). La dirección sale de cómo se mueve el labio en su
@@ -412,23 +479,26 @@ export function aplicarSeparadoresALasHeridas(
       for (const h of deEsta) h.sostenida = sostenida
       // Lo que abre cada hoja se reparte con el largo de la herida en milímetros: la hoja mide lo mismo en una
       // incisión corta que en una larga (P-008 E2). Las heridas de una misma incisión comparten trazo y largo.
-      const enMm = perfilDeLaCapa(capa, suyos, suyas, largoEnMm(deEsta[0]))
-      let mas = 0
-      let menos = 0
-      for (let i = 0; i <= 80; i++) {
-        const a = enMm(i / 80)
-        mas = Math.max(mas, a.mas)
-        menos = Math.max(menos, a.menos)
+      // Pero no puntas: el labio de cada malla se cierra donde se cierra su grieta (`puntasDeLaGrieta`, P-015).
+      for (const h of deEsta) {
+        const enMm = perfilDeLaCapa(capa, suyos, suyas, largoEnMm(h), puntasDeLaGrieta(h.corte.grieta))
+        let mas = 0
+        let menos = 0
+        for (let i = 0; i <= 80; i++) {
+          const a = enMm(i / 80)
+          mas = Math.max(mas, a.mas)
+          menos = Math.max(menos, a.menos)
+        }
+        if (mas === 0 && menos === 0) {
+          abrirCapa(h, 0, 0)
+          continue
+        }
+        const perfil = (t: number) => {
+          const a = enMm(t)
+          return { mas: a.mas * unidadesPorMm, menos: a.menos * unidadesPorMm }
+        }
+        abrirCapa(h, mas * unidadesPorMm, menos * unidadesPorMm, perfil)
       }
-      if (mas === 0 && menos === 0) {
-        for (const h of deEsta) abrirCapa(h, 0, 0)
-        continue
-      }
-      const perfil = (t: number) => {
-        const a = enMm(t)
-        return { mas: a.mas * unidadesPorMm, menos: a.menos * unidadesPorMm }
-      }
-      for (const h of deEsta) abrirCapa(h, mas * unidadesPorMm, menos * unidadesPorMm, perfil)
     }
   }
 }

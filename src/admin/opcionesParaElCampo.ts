@@ -13,6 +13,11 @@ export interface OpcionRelacion {
   tipo?: string
   /** La carpeta de un modelo 3D (P-004 E1): `herramienta` o `cuerpo`. */
   clase?: string
+  /**
+   * De un modelo 3D exportado del atlas: dónde estaba en el cuerpo, en metros (P-014). Con ello el editor del caso
+   * puede acostar al paciente en el colchón aunque el archivo sea de antes de llevar ese dato dentro.
+   */
+  centroEnElCuerpo?: [number, number, number]
 }
 
 export type Relaciones = Record<string, OpcionRelacion[]>
