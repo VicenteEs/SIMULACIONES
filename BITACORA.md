@@ -17403,6 +17403,19 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
      - `www` hacia `traumahub.cl`;
      - HTTPS siempre;
      - ~~el comodín `*.traumahub.cl`, con su regla en el túnel~~: a E5, con el código que atiende los subdominios (D-381).
+
+     *Hecho el 2026-11-15, salvo los dos ajustes del panel:*
+     - el dueño creó el túnel `contabo` y escribió su token en `~/tunel/.env`. `cloudflared` 2026.11.0 registró 4 conexiones (Chicago y St. Louis);
+     - el dueño borró el A de la raíz y el CNAME de `www`, y publicó `traumahub.cl` y `www.traumahub.cl` hacia `http://traumahub:3000`;
+     - Contabo pasó a `4111080`, con el aviso de D-382, y a `NEXT_PUBLIC_SERVER_URL=https://traumahub.cl`;
+     - Caddy se bajó con `docker compose down` en `~/caddy`, que conserva sus volúmenes, y el cortafuegos quedó solo con el 22. Desde fuera, `195.26.240.163:80` y `195-26-240-163.sslip.io` ya no responden;
+     - comprobado desde fuera:
+       - salud, portada, `/entrar` y `www` con 200, y las 28 imágenes de la portada bien;
+       - `/privacidad` nombra a Cloudflare, con la versión del 15 de noviembre;
+       - un archivo de `medios` sin sesión da 403 con `cf-cache-status: BYPASS`, y lo de `_next/static` sale de la caché (`HIT`);
+     - **la IP que ve el freno de intentos.** Se capturó una sola petición marcada entre el túnel y la aplicación, y la captura se borró. `X-Forwarded-For` llega con la IP real del visitante como último valor, también cuando el visitante manda uno falso (`9.9.9.9,<la real>`). Next.js solo la pone si no viene (`base-server.js`). `direccionDeQuienLlama` acierta.
+
+     Faltan en el panel de Cloudflare «Always Use HTTPS» y la redirección de `www`: hoy `http://traumahub.cl` y `https://www.traumahub.cl` contestan 200 sin redirigir.
   4. **La copia:** la base y los archivos de ved pasan a Contabo.
   5. **El aviso de privacidad:** versión nueva que nombra a Cloudflare, y su acuerdo de datos guardado fuera de los servidores. *El texto, escrito el 2026-11-15 (D-382): versión del 2026-11-15. Se despliega con el túnel. Falta el acuerdo de Cloudflare.* Comprobado antes de subir:
      - `typecheck` limpio, y `lint` sin errores, con los 15 avisos de siempre;
