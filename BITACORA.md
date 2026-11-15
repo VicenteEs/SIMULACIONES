@@ -16792,7 +16792,7 @@ Hechas el 2026-11-06, contra la base desechable de 55432:
 - O-096 y O-097.
 - Puntuar la sutura (D-351): antes hay que acordar con Cristóbal qué es un buen cierre.
 
-### P-014 · 2026-11-14 · hecha en local (E0 a E8), sin subir ni desplegar
+### P-014 · 2026-11-14 · hecha, en `main` y desplegada en ved el 2026-11-15
 **El campo quirúrgico. El paciente del simulador pasa a estar acostado sobre el colchón de una camilla y tapado con un paño que conserva el bulto del cuerpo entero y deja descubierta solo la zona que el médico elija. «De pie», «Supino» y «Prono» lo dan vuelta sobre el colchón. Y tres paletas «clínicas» que se eligen desde el taller.**
 
 #### De dónde sale
@@ -16899,7 +16899,18 @@ Leído el 2026-11-14, antes de escribir una línea.
     - Como editor, la pestaña «Paño».
     - Un antebrazo derecho exportado del atlas, boca arriba, boca abajo y «De pie». El campo sirve igual; lo que salió es del exportador (O-102).
   - **Escrito.** `scripts/pabellon/LEEME.md`, una nota en el `README`, y el paño, la vuelta, la paleta y la herida en `docs/MANUAL-DE-USO.md`. **Los tres manuales en Word de `docs/` no se tocaron**: siguen sin el paño.
-- [ ] **E9 · Subir y desplegar**, cuando el dueño lo diga.
+- [x] **E9 · Subir y desplegar**, cuando el dueño lo diga. Lo dijo el 2026-11-15: «realiza el comint y actualiza ved». Un solo commit con P-015, `5d512fb`, en `main` el mismo día, y desplegado en ved a continuación.
+
+*En ved*, desplegado con `5d512fb` el 2026-11-15, lanzado a las 08:20 de allí con `TUNEL=local ./scripts/actualizar.sh`. Tardó unos 100 s. Trajo dos commits desde `765cbe8`: `54870cc` y `5d512fb`.
+- El respaldo previo salió en claro, con su aviso, como desde P-011: ved aún no tiene la llave.
+- La imagen se reconstruyó con los 8 avisos de siempre del build. La aplicación respondió y alcanzó la base al primer segundo.
+- La migración `20261115_004640_campo_quirurgico_y_tema` se aplicó al arrancar, sola en el lote 23, en 7 ms. El contenedor está sano y sin reinicios, y su registro no tiene errores.
+- `Ajustes.tema` quedó en `oscura-fria`: ved se ve desde ahora con «Oscura fría», la paleta de fábrica (D-360). Para volver a los colores de antes, «Original» en el selector del taller.
+- Los dos casos publicados de ved quedan con paño azul y ventana automática.
+  - El 11, sobre `p.glb`, lleva colchón y paño: sus notas dicen dónde estaba en el cuerpo.
+  - El 10, sobre la tibia de prueba, abre como antes, sin campo.
+- Por fuera, `/traumahub/api/salud` da 200 con la base bien, y `/traumahub/pabellon/manifiesto.json` también da 200. Por dentro responden el colchón, la tela, el relieve y las texturas.
+- No se miró en el navegador, porque allí hace falta entrar con una cuenta real. Se miró en desarrollo, en E8.
 
 Cada etapa deja su decisión, desde D-354.
 
@@ -16935,7 +16946,7 @@ Visto en el navegador al hacer E3 a E6 y dejado así, porque ninguno estorba par
 - Más de una zona descubierta en el mismo caso.
 - Que el residente coloque el paño él mismo, como un paso.
 
-### P-015 · 2026-11-15 · hecha en local (E0 a E5), sin subir ni desplegar
+### P-015 · 2026-11-15 · hecha, en `main` y desplegada en ved el 2026-11-15, con P-014
 **Los cortes. Que la piel, la fascia y el músculo se abran y se retraigan al cortarlos, como en un paciente, en vez de quedar «como cristal».**
 
 #### De dónde sale
@@ -16975,6 +16986,8 @@ Capturas en el borrador de la sesión (`corte-1-*`, `corte-3-*`), enseñadas al 
 En el caso 4, con el mismo recorrido de E0: la piel recién cortada es un ojal de 7 mm de puntas agudas, con su pared; con dos Farabeuf a 9 mm, piel y grasa opacas, y la fascia debajo con su propio corte; con los dos bajados al músculo a 14 mm, piel, fascia y músculo apartados en escalera, y la tibia al fondo. Ni cinta roja ni cristal. Las capturas de antes y después se le enseñaron al dueño en el chat.
 
 Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que anotan O-099 y O-100.
+
+Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
 ---
 
