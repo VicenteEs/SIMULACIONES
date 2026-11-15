@@ -17444,7 +17444,12 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
      *Hechas el 2026-11-15, después de la copia:*
      - la web, el inicio de sesión y la IP: ver los pasos 3 y 4. El dueño entró con su cuenta de ved, ya sobre la base copiada;
      - el correo: el dueño pulsó «Enviarme un correo de prueba» en Sistema → Correo saliente, y en Gmail llegó con SPF, DKIM y DMARC en «PASS». Es el botón del panel y no el correo de clave nueva, pero los dos salen por el mismo transporte y con el mismo remitente, `contacto@traumahub.cl`;
-     - sin sesión, un archivo de `medios` da 403 con `cf-cache-status: BYPASS` (paso 4).
+     - sin sesión, un archivo de `medios` da 403 con `cf-cache-status: BYPASS` (paso 4), y un modelo 3D da 403 con `DYNAMIC`;
+     - con la sesión del dueño, abierta por él en el navegador integrado, se pidió dos veces cada archivo privado:
+       - un modelo 3D (`ejemplo-vicente-1.glb`) llega con 200, entero (287 184 bytes, cabecera `glTF`) y `cf-cache-status: DYNAMIC` las dos veces: Cloudflare no guarda en caché los `.glb`;
+       - una imagen de `medios` llega con 200 y `BYPASS` las dos veces. Cloudflare sí guardaría un `.jpeg`, pero respeta el `Cache-Control: private` de `cacheDeArchivos.ts`. Un archivo privado no le queda servido a otro visitante;
+     - el PDF de la ficha 1707 de la biblioteca: 200, `application/pdf`, una página con sus 2 imágenes, en 14,7 s. Esas imágenes las trae el servidor por dentro (`destinoDePeticion`), y salen bien con `serverURL` en `https://traumahub.cl`, sin prefijo. Los 14,7 s se miden en E4;
+     - el simulador, caso 10: el modelo baja con 200 y la tibia se dibuja en el lienzo. No se eligió práctica ni evaluación, para no dejar un avance en la cuenta del dueño: la tarjeta de la elección se ocultó un momento en la pantalla para mirar el lienzo, y se volvió a mostrar.
   7. **ved pasa a pruebas:** cuentas inventadas (paso 12 de E8 de P-011).
 - [ ] **E3 · Proteger lo que ya existe**, antes de abrir a instituciones:
   - los casos, con versión de formato y con el ensayo antes de cada despliegue (D-373);
