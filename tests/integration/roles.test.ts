@@ -158,7 +158,7 @@ const escribeModulo = (a: Actor, modulo: string) =>
 // ------------------------------------------------------------- las políticas
 
 /**
- * Las cinco clases de colección que distingue la plataforma.
+ * Las clases de colección que distingue la plataforma.
  *
  *  - `modulo`: los cinco módulos. Borradores, lectura por módulo visible y
  *    escritura por módulo editable.
@@ -180,6 +180,9 @@ const escribeModulo = (a: Actor, modulo: string) =>
  *  - `propias`: filas que pertenecen a una cuenta —comentarios y actividad—.
  *  - `vitrina`: lo que toda cuenta activa lee y solo el administrador escribe: el equipo de la pestaña «Equipo» del
  *    inicio. No es `apoyo` (ahí escribe el editor) ni `administracion` (ahí tampoco lee nadie más).
+ *  - `referencia`: las resoluciones de referencia de los casos (D-373). Las cuatro
+ *    operaciones, de quien edita el módulo 04: el recorrido es la solución del
+ *    caso paso a paso, y el residente no la lee ni por la API.
  *  - `buzon`: el buzón de requisitos del módulo anunciado (D-163). Lo leen y lo
  *    crean editor y administrador; lo modifica el administrador y, mientras estén
  *    «propuestos», sus autores (eso lo prueba el bloque «el buzón de requisitos»);
@@ -195,6 +198,7 @@ type Clase =
   | 'propias'
   | 'buzon'
   | 'vitrina'
+  | 'referencia'
 
 const CLASE_DE: Record<string, Clase> = {
   usuarios: 'cuentas',
@@ -215,6 +219,8 @@ const CLASE_DE: Record<string, Clase> = {
   maniobras: 'modulo',
   'casos-ao': 'modulo',
   cirugias: 'modulo',
+  // La solución grabada de cada caso del simulador (D-373).
+  'resoluciones-de-referencia': 'referencia',
   'estudios-ia': 'modulo',
   comentarios: 'propias',
   actividad: 'propias',
@@ -265,6 +271,10 @@ function politica(slug: string, clase: Clase): Record<string, Esperado> {
         editar: (a) => escribeModulo(a, 'cirugias'),
         borrar: (a) => escribeModulo(a, 'cirugias'),
       }
+    case 'referencia': {
+      const delSimulador: Esperado = (a) => escribeModulo(a, 'cirugias')
+      return { leer: delSimulador, crear: delSimulador, editar: delSimulador, borrar: delSimulador }
+    }
     case 'apoyo':
       return { leer: esActivo, crear: escribeContenido, editar: escribeContenido, borrar: escribeContenido }
     case 'estructuras':
@@ -432,6 +442,12 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
   },
   'casos-ao': { titulo: 'titulo', fabricar: (titulo) => ({ data: { titulo } }) },
   cirugias: { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre } }) },
+  // Sin caso: la relación es única, y la matriz fabrica varias filas por colección. La acción que graba de verdad la
+  // pone siempre (ver `ResolucionesDeReferencia.ts`).
+  'resoluciones-de-referencia': {
+    titulo: 'nombre',
+    fabricar: (nombre) => ({ data: { nombre, recorrido: { v: 1, pasos: [] }, puntaje: 0, puntajeMaximo: 0 } }),
+  },
   'estudios-ia': { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre } }) },
   comentarios: {
     titulo: 'texto',

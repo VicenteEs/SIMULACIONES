@@ -246,6 +246,7 @@ import { Visor3D } from '@/components/VisoresPerezosos'
 import { encuadreVigente, type Encuadre } from '@/lib/aritmeticaDelEncuadre'
 import { CATEGORIAS_DE_INSTRUMENTAL, ETIQUETA_DE_CATEGORIA } from '@/lib/instrumental'
 import { leerFichaParaElSimulador, type FichaParaElSimulador } from '@/app/(frontend)/acciones/fichaDelSimulador'
+import { GrabarReferencia } from './GrabarReferencia'
 import { VentanaDeEstructura } from '@/app/(frontend)/admin-panel/estructuras/VentanaDeEstructura'
 import { familiaDeSistema } from '@/lib/estructuras'
 import { instrumentosParaActuar } from '@/lib/abordajeDelMusculo'
@@ -874,7 +875,13 @@ export function ConsolaQuirurgica({
   editor,
   mandoRef,
   cirujano = '',
+  puedeGrabarLaReferencia = false,
 }: {
+  /**
+   * Si quien juega puede guardar este recorrido como la resolución de referencia del caso (D-373): quien edita el
+   * simulador, con su rol real y fuera de la vista previa. Lo decide la página; la acción lo vuelve a comprobar.
+   */
+  puedeGrabarLaReferencia?: boolean
   /** El nombre de quien opera, de su cuenta, para precargar «Dr. ____» en la radiografía postoperatoria (P-004 E11). */
   cirujano?: string
   caso: CasoDeConsola
@@ -7615,6 +7622,21 @@ instrumentoElegido ? (
             {/* Terminar no puede ser un callejón: hasta aquí lo único que
                 quedaba era la miga de arriba del todo, fuera de la vista
                 después de seiscientos píxeles de consola. */}
+            {/* Para quien edita el simulador (D-373): este recorrido, como la forma de resolver el caso que el ensayo vuelve a
+                calificar antes de cada despliegue. Con la partida, como lo manda `guardarRecorrido`: sin ella, los pasos
+                sin nada que reducir contarían distinto en el ensayo que aquí. */}
+            {puedeGrabarLaReferencia && !editor ? (
+              <GrabarReferencia
+                documentoId={documentoId}
+                notaCompleta={puntaje >= maximo}
+                recorrido={() => ({
+                  ...recorridoDeLaNota.current,
+                  ...(partidaDeLaReduccion !== undefined
+                    ? { partida: partidaDeLaReduccion ? medidaParaLaNota(partidaDeLaReduccion) : null }
+                    : {}),
+                })}
+              />
+            ) : null}
             <div className="consola-fin-acciones">
               <button type="button" className="consola-aplicar" onClick={() => void reiniciar()}>
                 <RotateCcw size={16} aria-hidden /> Repetir el caso

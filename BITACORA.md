@@ -11416,6 +11416,49 @@ Comprobado antes de subir:
   - `autoria`, por la carga: sola pasa;
   - las tres de `respaldoEnWindows`, también solas. Una es el desfase de 4 horas ya visto. Las otras dos reciben una marca BOM delante del volcado, que parece venir del PowerShell 7.7 de este equipo. Ningún `.ps1` cambió.
 
+### D-386 · 2026-11-16 · vigente · P-016 E3 · sigue a D-373
+**La resolución de referencia de cada caso vive en su propia colección, y el ensayo antes de desplegar solo para el despliegue por lo que cambia el código.**
+
+- **La referencia** es un recorrido que el editor hace entero en el simulador y guarda con «Guardar como resolución de referencia», al final del caso. Es lo mismo que el servidor recibe con cada resultado para rehacer la nota (D-310): los gestos medidos de cada paso, no una grabación de la pantalla. Se guarda con la nota que da el servidor, la versión de formato del caso y la fecha en que el caso se guardó.
+  - Va en la colección `resoluciones-de-referencia`, una por caso con índice único, y no en un campo de `cirugias`. Guardarla en el caso sería un `update` de un documento con borradores, que crea una versión y puede publicar el borrador que el editor tenga a medias. Tampoco es contenido: el residente no la lee, ni se revisa ni se firma.
+  - La leen y la escriben solo quienes editan el simulador, también por la API, porque es la solución del caso paso a paso. La matriz de roles tiene para ella una clase nueva, `referencia`.
+  - El botón sale a quien edita el simulador con su rol real, y no en la vista previa. La acción `grabarResolucionDeReferencia` lo vuelve a comprobar con `exigirEdicionDe('cirugias')`. Grabar otra vez reemplaza la de antes.
+  - Con menos de la nota máxima, se avisa antes de pulsar, pero se puede grabar: el ensayo comprueba que la nota no cambie, no que el caso se pueda resolver entero.
+  - Al borrar un caso se borra su referencia, con un `beforeDelete`. Se escribió primero como `afterDelete`, y la prueba de integración lo pilló: para entonces la base ya ha puesto a nulo la columna del caso, y la fila se quedaba.
+- **El ensayo** (`scripts/ensayar-casos.sh`) lo lanza `deploy.sh` después de construir la imagen y antes de cambiar el contenedor:
+  - copia la base a otra temporal del mismo PostgreSQL, sin los datos de las colecciones de personas (cuentas, actividad, comentarios, registro, revisiones, cotizaciones, equipo…). La lista vive en `ensayoDeLosCasos.ts`, y una prueba obliga a clasificar cada colección nueva y a dejar fuera toda la que apunte a una cuenta. Ninguna tabla de contenido apunta a esas colecciones, así que la copia queda entera;
+  - le aplica las migraciones del código nuevo. Así las migraciones también se ensayan, antes de tocar la base de verdad;
+  - abre cada caso con `casoParaLaConsola`, mira el archivo de su modelo y vuelve a calificar su referencia (`scripts/ensayar-casos.ts`);
+  - borra la base temporal al salir, también si algo falla. Nada sale del servidor.
+- **Qué para el despliegue y qué no.** Para solo lo que cambia el código:
+  - un caso que ya no se lee;
+  - una referencia que ya no se acepta;
+  - una nota distinta con el caso sin tocar desde que se grabó.
+
+  Lo demás es contenido y sale como aviso: un caso publicado sin referencia o sin modelo, un archivo de modelo que falta o no se lee, una pieza que el archivo no trae, una nota distinta en un caso editado después de grabarla. No depende de lo que se despliega, y un ensayo que parara por eso pararía siempre y se acabaría saltando.
+- `SIN_ENSAYO=1` lo salta, para desplegar sabiendo lo que se rompe, y lo dice en ámbar.
+- La etapa `ensayo` del `Dockerfile` sale de `deps` y no de `builder`. Aquella se compila con el `BASE_PATH` de cada servidor, y pedirla sin el mismo argumento rehace `next build` entero.
+
+*Consecuencias.*
+- (+) Un cambio del motor que deja un caso sin solución, una conversión de formato que falta o una migración que falla se ven antes de llegar a los residentes, con la versión anterior sirviendo.
+- (+) La copia no lleva cuentas, actividad, comentarios ni el registro de acciones (D-295).
+- (−) Cada despliegue tarda además lo que tarde copiar la base y abrir los casos.
+- (−) Sin referencias grabadas, el ensayo solo comprueba que los casos se lean. Cada caso publicado sin la suya sale como aviso, y grabarlas es trabajo del equipo.
+- (−) Los nombres de las piezas del archivo se sacan imitando a `GLTFLoader`, sin cargar la escena. Por eso una pieza que falta solo puede ser aviso.
+
+*Probado en este equipo.* `ensayar-casos.sh` necesita Docker, que aquí no hay, así que se probó por partes contra la base desechable, con un caso publicado y su referencia:
+- la copia sin las tablas de personas: en la temporal, 0 cuentas y 0 comentarios, cuando la original tenía 2 y 1;
+- la copia sin la migración del formato: el ensayo con `NODE_ENV=production` la aplicó, y el caso quedó con la versión 1;
+- la referencia dio otra vez 15/20, con un aviso por el caso sin modelo, y salida 0;
+- con la nota grabada cambiada a 20/20, dio el error y salida 1. Sin `DATABASE_URI`, o con una base que no responde, sale con 2;
+- `docker build --target ensayo` y el `docker run` no se pudieron probar aquí: se prueban en el primer despliegue en ved.
+
+Comprobado antes de subir:
+- `typecheck` limpio, y `lint` sin errores, con los 15 avisos de siempre;
+- `test:integration`, 277 de 277;
+- `build` con `/traumahub`, bien;
+- la suite, 6587 bien y una omitida, con cobertura de 87,6 % de sentencias, 79,5 % de ramas, 88,2 % de funciones y 89 % de líneas, contra el 58 % del umbral. Fallan 3 que no tocan nada de esto: las dos de `directorioDeRespaldos` y una de `respaldoEnWindows`, las de siempre en Windows. La cifra sale con `--coverage.reportOnFailure`, porque con pruebas que fallan vitest no mira el umbral.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17522,7 +17565,11 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - el campo no se edita en el panel, y está en la lista de excepciones de `esquema.test.ts`;
       - pruebas: `formatoDelCaso.test.ts` (unitaria) y `tests/integration/formatoDelCaso.test.ts` (borrador, publicado, versiones y la migración tal cual);
       - **cómo se cambia el formato desde ahora:** se sube la versión, se añade la conversión al final de `CONVERSIONES` y se escribe una migración que la aplique a `cirugias` y a `_cirugias_v`;
-    - *pendiente:* la resolución de referencia de cada caso y el ensayo antes de desplegar;
+    - *la resolución de referencia y el ensayo antes de desplegar, hechos el 2026-11-16 (D-386):*
+      - la colección `resoluciones-de-referencia`, una por caso, con su migración `20261115_225931_resoluciones_de_referencia`, la acción `grabarResolucionDeReferencia` y el botón al final del caso para quien edita el simulador;
+      - `scripts/ensayar-casos.sh` en `deploy.sh`, entre construir y levantar, con `SIN_ENSAYO=1` para saltarlo;
+      - pruebas: `ensayoDeLosCasos.test.ts`, `ensayoEnElDespliegue.test.ts`, `resolucionDeReferencia.test.ts`, `botonDeLaReferencia.test.ts` y `tests/integration/resolucionDeReferencia.test.ts`;
+      - *pendiente:* el primer despliegue con el ensayo en ved, y grabar la referencia de cada caso publicado (trabajo del equipo; el ensayo avisa de los que no la tienen);
   - los modelos: uno en uso no se borra, y se reemplaza con «Reemplazar por…» (D-372). Además, borrar una preparación se lleva los modelos que exportó y nadie usa, cada archivo lleva un nombre único, y se limpian una vez los modelos sobrantes de ved, con el OK del dueño;
   - las sesiones: una por cuenta, con alertas de entradas imposibles (D-374).
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.

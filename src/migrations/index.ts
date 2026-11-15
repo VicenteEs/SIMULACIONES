@@ -51,6 +51,7 @@ import * as migration_20261105_222046_manguito_y_tiempos from './20261105_222046
 import * as migration_20261115_004640_campo_quirurgico_y_tema from './20261115_004640_campo_quirurgico_y_tema';
 import * as migration_20261115_130004_datos_sin_prefijo from './20261115_130004_datos_sin_prefijo';
 import * as migration_20261115_224829_formato_de_los_casos from './20261115_224829_formato_de_los_casos';
+import * as migration_20261115_225931_resoluciones_de_referencia from './20261115_225931_resoluciones_de_referencia';
 
 export const migrations = [
   {
@@ -317,5 +318,10 @@ export const migrations = [
     up: migration_20261115_224829_formato_de_los_casos.up,
     down: migration_20261115_224829_formato_de_los_casos.down,
     name: '20261115_224829_formato_de_los_casos',
+  },
+  {
+    up: migration_20261115_225931_resoluciones_de_referencia.up,
+    down: migration_20261115_225931_resoluciones_de_referencia.down,
+    name: '20261115_225931_resoluciones_de_referencia',
   },
 ];

@@ -13,6 +13,21 @@ COPY package.json package-lock.json ./
 # sobre linux/amd64, aunque esos paquetes jamas se usen aqui.
 RUN npm install --no-audit --no-fund
 
+# --- ensayo de los casos (D-373) ---
+# Las dependencias y el codigo, sin compilar: lo que scripts/ensayar-casos.sh
+# necesita para abrir los casos con tsx antes de desplegar. Ninguna etapa copia
+# de esta, asi que no pesa en la imagen de la aplicacion, que sigue siendo la
+# ultima etapa y la que construye compose.
+#
+# Sale de `deps` y no de `builder`: aquella se compila con el BASE_PATH de cada
+# servidor, y pedirla sin el mismo argumento rehace `next build` entero, varios
+# minutos mas por despliegue. Asi, tras construir la aplicacion, esta es copiar
+# el codigo encima de una capa que ya esta en cache.
+FROM base AS ensayo
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+
 # --- compilacion ---
 FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules

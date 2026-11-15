@@ -24,6 +24,7 @@ import { Revisiones } from './Revisiones'
 import { SesionesDeRevision } from './SesionesDeRevision'
 import { RegistroDeAcciones } from './RegistroDeAcciones'
 import { TiempoActivo } from './TiempoActivo'
+import { ResolucionesDeReferencia } from './ResolucionesDeReferencia'
 import { conRegistro } from './hooks/registrarAccion'
 import {
   CATALOGOS_DEL_SIMULADOR,
@@ -61,6 +62,7 @@ const DECLARADAS: CollectionConfig[] = [
   Maniobras,
   CasosAO,
   Cirugias,
+  ResolucionesDeReferencia,
   EstudiosIA,
   Comentarios,
   Actividad,

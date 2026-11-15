@@ -109,6 +109,24 @@ fi
 paso "Construyendo la imagen"
 dc build app
 
+paso "Ensayando los casos del simulador"
+# Antes de cambiar el contenedor (D-373): el codigo nuevo abre cada caso de una
+# copia de la base, con sus migraciones ya aplicadas, y vuelve a calificar sus
+# resoluciones de referencia. Si rompe alguno, se para aqui con la version
+# anterior sirviendo, y la etiqueta de la imagen vuelve a ella para que nada
+# arranque mas tarde con la que no paso.
+#
+# SIN_ENSAYO=1 lo salta, para el dia en que haya que desplegar sabiendo lo que
+# se rompe (un arreglo urgente de otra cosa, por ejemplo). Se dice en ambar y
+# no en silencio: quien lo lea en el registro tiene que saber que no se ensayo.
+if [ "${SIN_ENSAYO:-0}" = "1" ]; then
+  ambar "    omitido con SIN_ENSAYO=1: los casos no se abrieron con el codigo nuevo"
+elif ! ./scripts/ensayar-casos.sh; then
+  [ "$HAY_ANTERIOR" -eq 1 ] && docker tag "$ANTERIOR" "$IMAGEN"
+  morir "El ensayo de los casos fallo: no se cambio nada y sigue la version anterior.
+    Para desplegar de todos modos, sabiendo lo que se rompe:  SIN_ENSAYO=1 ./scripts/deploy.sh"
+fi
+
 paso "Levantando los servicios"
 dc up -d --remove-orphans
 

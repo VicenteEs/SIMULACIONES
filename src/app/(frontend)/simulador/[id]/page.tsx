@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
+import { puedeEditar } from '@/lib/guardias'
 import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { SinAcceso, ModuloNoDisponible, SinAccesoAlModulo, Miga } from '@/components/Estados'
@@ -26,7 +27,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function CirugiaSimulada({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { activo, usuarioEfectivo } = await obtenerSesion()
+  const { activo, usuarioEfectivo, usuario, rolReal, simulando } = await obtenerSesion()
   if (!activo) return <SinAcceso titulo="Simulador quirúrgico" />
 
   // Antes del `findByID`, y con el usuario efectivo que va a él: su `.catch`
@@ -106,6 +107,12 @@ export default async function CirugiaSimulada({ params }: { params: Promise<{ id
         cirujano={typeof (usuarioEfectivo as { nombre?: unknown } | null)?.nombre === 'string' ? (usuarioEfectivo as { nombre: string }).nombre : ''}
         recorridoGuardado={recorridoGuardado(registroDeLectura)}
         avanceGuardado={avanceDeLaFila(registroDeLectura, caso.pasos.length)}
+        // Guardar la resolución de referencia (D-373): quien edita el simulador, con el rol real y no en la vista
+        // previa, que tiene que enseñar lo que ve el residente y nada más. Las mismas preguntas que la guardia de la
+        // acción (`exigirEdicionDe('cirugias')`), para que el botón no se ofrezca a quien lo va a ver fallar.
+        puedeGrabarLaReferencia={
+          !simulando && !!usuario && (rolReal === 'admin' || rolReal === 'editor') && puedeEditar(usuario, 'cirugias')
+        }
       >
         {/* El título y el resumen van dentro para que la casilla de «leída»
             se siente a su lado, en la cabecera del caso. */}

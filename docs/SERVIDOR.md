@@ -133,6 +133,17 @@ versión nueva no arranca, vuelve sola a la anterior** —imagen y código— y
 muestra el registro. Un despliegue que deja la plataforma caída y se marcha es
 peor que uno que falla.
 
+Entre reconstruir y cambiar el contenedor **ensaya los casos del simulador**
+(D-373, D-386): copia el contenido de la base, sin cuentas ni actividad, a una
+base temporal, le aplica las migraciones nuevas y abre en ella cada caso con el
+código nuevo. Si alguno deja de leerse, o su resolución de referencia cambia de
+nota sin que el caso cambiara, el despliegue se para sin haber tocado nada. Para
+desplegar igual, sabiendo lo que se rompe:
+
+```bash
+SIN_ENSAYO=1 ./scripts/actualizar.sh
+```
+
 ---
 
 ## 4. Respaldos

@@ -343,6 +343,16 @@ La imagen trae Chromium: con él el servidor imprime el PDF de «Guardar PDF»
 Edge), y `NAVEGADOR_PDF` apunta a otro si hace falta. Sin navegador, todo
 funciona menos ese botón, que lo dice.
 
+Antes de cambiar el contenedor, `deploy.sh` ensaya los casos del simulador
+(D-373): `scripts/ensayar-casos.sh` copia el contenido de la base —sin cuentas
+ni actividad— a una base temporal, le aplica las migraciones nuevas y abre en
+ella cada caso con el código nuevo, volviendo a calificar su resolución de
+referencia (la que el editor guarda con el botón del final del caso). Si un
+caso deja de leerse o una referencia cambia de nota sin que su caso cambiara,
+el despliegue se para con la versión anterior sirviendo. `SIN_ENSAYO=1` lo
+salta, y lo dice. Los avisos —un caso sin referencia, un modelo sin su
+archivo— se informan y no paran nada.
+
 Guía completa: [docs/SERVIDOR.md](docs/SERVIDOR.md).
 
 ## Documentación

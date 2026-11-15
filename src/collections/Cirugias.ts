@@ -2,6 +2,7 @@ import type { CollectionConfig } from 'payload'
 import { avisarAlPublicar } from './hooks/avisarAlPublicar'
 import { avisarDeInstrumentosPropuestos } from './hooks/instrumentosPropuestos'
 import { escribirLaVersionDelFormato } from './hooks/formatoDelCaso'
+import { borrarSuResolucionDeReferencia } from './hooks/resolucionDeReferencia'
 import { lecturaDeBorradores, lecturaDeModulo, escrituraDeModulo } from '@/access/payload'
 import { editorClinico, pilaDeBloques } from '@/blocks'
 // La única vez que una colección importa del esquema del panel, y va contra la
@@ -181,6 +182,7 @@ export const Cirugias: CollectionConfig = {
   hooks: {
     beforeChange: [escribirLaVersionDelFormato],
     afterChange: [avisarAlPublicar, avisarDeInstrumentosPropuestos],
+    beforeDelete: [borrarSuResolucionDeReferencia],
   },
   fields: [
     { name: 'nombre', type: 'text', required: true, label: 'Nombre del caso' },

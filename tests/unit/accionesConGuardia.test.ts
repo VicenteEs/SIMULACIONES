@@ -286,6 +286,12 @@ const GUARDIAS: Record<string, Clasificacion> = {
     modulo: 'cirugias',
     argumentos: () => ['tecnicas-quirurgicas', { nombre: 'Fijación de prueba' }],
   },
+  // La resolución de referencia de un caso (D-373): la solución del caso, que solo fija quien edita el simulador.
+  'resolucionDeReferencia.ts:grabarResolucionDeReferencia': {
+    guardia: 'edicionDeModulo',
+    modulo: 'cirugias',
+    argumentos: () => ['5', { v: 1, pasos: [{ paso: 'paso-1', intentos: [] }] }],
+  },
   'contenido.ts:guardarDocumento': {
     guardia: 'edicionDeModulo',
     modulo: 'argumento',

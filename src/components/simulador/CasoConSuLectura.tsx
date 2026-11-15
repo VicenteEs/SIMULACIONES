@@ -44,8 +44,11 @@ export function CasoConSuLectura({
   avanceGuardado = null,
   completadoInicial,
   cirujano,
+  puedeGrabarLaReferencia = false,
   children,
 }: {
+  /** Si se ofrece guardar el recorrido como resolución de referencia del caso (D-373): ver `ConsolaQuirurgica`. */
+  puedeGrabarLaReferencia?: boolean
   /** El nombre de la cuenta, que la consola precarga como cirujano de la radiografía postoperatoria. */
   cirujano?: string
   caso: CasoDeConsola
@@ -92,6 +95,7 @@ export function CasoConSuLectura({
         avanceGuardado={avanceGuardado}
         alMarcarComoLeido={alMarcarComoLeido}
         cirujano={cirujano}
+        puedeGrabarLaReferencia={puedeGrabarLaReferencia}
       />
     </>
   )

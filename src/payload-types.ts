@@ -83,6 +83,7 @@ export interface Config {
     maniobras: Maniobra;
     'casos-ao': CasosAo;
     cirugias: Cirugia;
+    'resoluciones-de-referencia': ResolucionesDeReferencia;
     'estudios-ia': EstudiosIa;
     comentarios: Comentario;
     actividad: Actividad;
@@ -120,6 +121,7 @@ export interface Config {
     maniobras: ManiobrasSelect<false> | ManiobrasSelect<true>;
     'casos-ao': CasosAoSelect<false> | CasosAoSelect<true>;
     cirugias: CirugiasSelect<false> | CirugiasSelect<true>;
+    'resoluciones-de-referencia': ResolucionesDeReferenciaSelect<false> | ResolucionesDeReferenciaSelect<true>;
     'estudios-ia': EstudiosIaSelect<false> | EstudiosIaSelect<true>;
     comentarios: ComentariosSelect<false> | ComentariosSelect<true>;
     actividad: ActividadSelect<false> | ActividadSelect<true>;
@@ -1616,6 +1618,7 @@ export interface CasosAo {
 export interface Cirugia {
   id: number;
   nombre: string;
+  versionDelFormato?: number | null;
   hueso?: (number | null) | HuesosAo;
   clasificacion?: (number | null) | ClasificacionesAo;
   tecnica?: (number | null) | TecnicasQuirurgica;
@@ -1926,6 +1929,30 @@ export interface Cirugia {
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "resoluciones-de-referencia".
+ */
+export interface ResolucionesDeReferencia {
+  id: number;
+  nombre: string;
+  cirugia?: (number | null) | Cirugia;
+  recorrido:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  puntaje: number;
+  puntajeMaximo: number;
+  versionDelFormato?: number | null;
+  casoGuardadoEn?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * Casos precargados. No hay modelo de inferencia: los resultados están escritos.
@@ -2592,6 +2619,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'cirugias';
         value: number | Cirugia;
+      } | null)
+    | ({
+        relationTo: 'resoluciones-de-referencia';
+        value: number | ResolucionesDeReferencia;
       } | null)
     | ({
         relationTo: 'estudios-ia';
@@ -3789,6 +3820,7 @@ export interface CasosAoSelect<T extends boolean = true> {
  */
 export interface CirugiasSelect<T extends boolean = true> {
   nombre?: T;
+  versionDelFormato?: T;
   hueso?: T;
   clasificacion?: T;
   tecnica?: T;
@@ -4007,6 +4039,21 @@ export interface CirugiasSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "resoluciones-de-referencia_select".
+ */
+export interface ResolucionesDeReferenciaSelect<T extends boolean = true> {
+  nombre?: T;
+  cirugia?: T;
+  recorrido?: T;
+  puntaje?: T;
+  puntajeMaximo?: T;
+  versionDelFormato?: T;
+  casoGuardadoEn?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
