@@ -11039,7 +11039,7 @@ El trazo hondo se apoya en lo que el ratón encuentra —un músculo, un vaso, e
   - `traumahub.cl` es alias de `chesscore.cl` desde el 2026-11-05, con el buzón `contacto@`, los reenvíos `privacidad@` y `dmarc@`, Email Routing en «Local» y el DKIM de cPanel.
   - Cuando el DNS pase a Cloudflare, sus registros se copian allá en modo «solo DNS»: el MX, `mail`, el SPF sin `+a`, el DKIM y el DMARC.
 - **ved** sigue en `https://ved.tailc2094f.ts.net:10000/traumahub/`, compilado con prefijo, como servidor de pruebas.
-  - Desde la copia de ved a Contabo (E2 de P-016) tiene el mismo contenido que producción, pero cuentas inventadas.
+  - Desde la copia de ved a Contabo (E2 de P-016) tiene el mismo contenido que producción, ~~pero cuentas inventadas~~ y las mismas cuentas del equipo, mientras no haya otras (D-384).
   - Las fichas, los casos y los modelos se copian cuando haga falta; las cuentas, la actividad y el registro no (D-295).
 
 *Por qué Cloudflare.* Con una institución por subdominio, el comodín `*.traumahub.cl` sale con su certificado gratis, y crear una institución no toca nada en el servidor (D-371). Además frena ataques y bots, y deja Contabo sin puertos web abiertos: aunque alguien conozca la IP, a la plataforma solo se llega por el túnel.
@@ -11356,6 +11356,27 @@ Lo pidió el dueño el mismo día, al cerrar el plan.
 - (+) Los dos servidores vuelven a tener la copia exacta de la plantilla, y la comprobación de `salud.sh` sigue valiendo para los dos.
 - (−) En ved, la próxima actualización hará que `salud.sh` pida copiar la plantilla nueva, porque la de su carpeta es la de antes. Copiarla es seguro: sin `BASE_PATH` en su `.env`, sigue en `/traumahub`.
 - (−) El prefijo vive en dos sitios de cada servidor: `BASE_PATH`, para compilar, y la ruta de `NEXT_PUBLIC_SERVER_URL`, para los enlaces de los correos. Nada comprueba que digan lo mismo, y un enlace mal enviado ya no se corrige.
+
+### D-384 · 2026-11-15 · vigente · P-016 E2 · cambia las cuentas inventadas de D-369 y el paso 12 de E8 de P-011
+**ved pasa a pruebas con las cuentas del equipo tal como están. No hay usuarios reales, y no se borra nada de ellos.**
+
+- **Lo que dijo el dueño** al dar el OK al paso 7, el 2026-11-15: en ved no se borra nada de los usuarios actuales, porque son ellos los que están creando el contenido y no hay usuarios reales. Las 5 cuentas, 3 de administración y 2 de edición, son del equipo.
+- **Lo que cambia.** El paso 7 de E2 pedía cuentas inventadas. El paso 12 de E8 de P-011 pedía tirar la base de ved, rehacerla con datos de prueba y borrar sus respaldos propios. Las dos cosas protegían a personas ajenas al equipo, y hoy no hay ninguna. Hacerlas le quitaría al equipo sus cuentas en el servidor de pruebas sin proteger a nadie. ved se queda como está:
+  - las cuentas y su actividad;
+  - sus respaldos en claro;
+  - las copias de Contabo de antes del cifrado, que vencen solas a los 30 días.
+- **Lo que no cambia.** Producción es `traumahub.cl` desde el 2026-11-15 a las 18:53, y el contenido se crea allí. Lo que se escriba en ved se queda en ved. Hasta las 19:25 de ese día no había cambiado ninguna fila de ved después de la copia.
+- **Cuándo se vuelve a mirar.** Con la primera cuenta en `traumahub.cl` que no sea del equipo, sea un residente o una institución en piloto. Desde entonces D-295 vale entero:
+  - los datos de Contabo no se vuelven a copiar a ved;
+  - si alguna vez se copian, ved pasa a cuentas inventadas y sus respaldos se borran.
+
+*Consecuencias.*
+- (+) El equipo sigue entrando en ved con sus cuentas para probar, sin claves nuevas.
+- (+) No se borró nada que no se pudiera recuperar.
+- (−) ved guarda en claro los datos de las personas del equipo, en la base y en sus respaldos. Son las mismas personas que deciden guardarlos así.
+- (−) Las mismas cuentas viven en dos servidores. Cambiar una clave en uno no la cambia en el otro, y una clave robada abre los dos.
+- (−) Nada en la pantalla de ved dice que es el servidor de pruebas. Con las mismas cuentas y el mismo contenido, es fácil crear una ficha allí por costumbre y perderla para producción.
+- (−) La regla depende de que alguien la recuerde cuando entre la primera cuenta ajena. Queda escrita aquí y en el paso 12 de E8 de P-011.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -16620,7 +16641,7 @@ Pedido del dueño, 2026-11-05, con una propuesta que hizo suya («quiero que te 
   9. [x] **Los dos espacios en blanco del aviso**, por ahora: Chesscore SpA y `contacto@chesscore.cl` (D-297). Cuando el dueño los cambie, juntos y con `VERSION_DEL_AVISO_DE_PRIVACIDAD` al día del cambio. Desde el despliegue en ved, el 2026-11-05, todas las cuentas aceptan el aviso al entrar (D-292).
   10. [ ] **El contrato con Contabo.** Confirmar que su acuerdo de tratamiento de datos cubre la cuenta de la plataforma, porque el aviso apoya en él la transferencia (D-294), y guardar una copia fuera de los servidores.
   11. [ ] **El registro de solicitudes** (D-296): abrirlo fuera de los servidores, antes del 1 de diciembre de 2026, y confirmar ahí mismo los plazos de la ley.
-  12. [ ] **En el cambio definitivo**, cuando Contabo pase a producción y ved a pruebas: en ved, tirar la base y rehacerla con datos de prueba, y borrar sus respaldos propios. ved conserva solo las copias cifradas de Contabo, que no puede abrir. Desde ahí rige la regla de D-295.
+  12. [ ] **En el cambio definitivo**, cuando Contabo pase a producción y ved a pruebas: en ved, tirar la base y rehacerla con datos de prueba, y borrar sus respaldos propios. ved conserva solo las copias cifradas de Contabo, que no puede abrir. Desde ahí rige la regla de D-295. *Aplazado el 2026-11-15 por el dueño (D-384): el cambio se hizo, pero en ved solo están las cuentas del equipo, y se quedan. Se hace con la primera cuenta de `traumahub.cl` que no sea del equipo, o si los datos de Contabo vuelven a copiarse a ved.*
   13. [ ] **Las otras bases.** Mirar si alguna base de desarrollo o de pruebas viene de un respaldo de producción, la del equipo del dueño incluida. Si es así, rehacerla con datos de prueba y borrar sus respaldos, porque los de `scripts/*.ps1` no van cifrados.
 
 #### Cómo se comprobó
@@ -17334,7 +17355,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1 hecha, E2 empezada
+### P-016 · 2026-11-15 · en curso: E1 y E2 hechas
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -17383,7 +17404,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - `test:integration`: 266 de 266, con las 5 nuevas de `datosSinPrefijo`;
   - `build` como el de Docker, con `/traumahub`: compila, con los 8 avisos de siempre.
   - De paso, `esquema.test.ts` aprendió a no entrar en `url` ni en `sizes`. Siguen siendo campos de Payload, aunque ahora se declaren para el gancho.
-- [ ] **E2 · Contabo igual a ved, en `traumahub.cl` (D-369).** Un paso a la vez en los servidores, con una explicación breve y el OK del dueño antes de cada uno:
+- [x] **E2 · Contabo igual a ved, en `traumahub.cl` (D-369).** *Terminada el 2026-11-15: `traumahub.cl` es la producción desde las 18:53.* Un paso a la vez en los servidores, con una explicación breve y el OK del dueño antes de cada uno:
   1. **Cloudflare:** la cuenta y la zona `traumahub.cl`, los servidores de nombre en nic.cl, y los registros del correo copiados como «solo DNS». *Hecho el 2026-11-15 (D-380): NIC ya delega en Cloudflare, los registros responden igual que en Freehost, y el correo llega y sale. Queda vigilar el certificado del correo en enero (O-103).*
   2. **Contabo al día:** a `main` y sin prefijo, con `BASE_PATH` vacío en su `docker-compose.override.yml`. El `.env` nuevo lleva:
      - ~~`NEXT_PUBLIC_SERVER_URL=https://traumahub.cl`~~: pasa al paso 3, con el túnel (D-381). Aquí queda `https://195-26-240-163.sslip.io`, sin prefijo;
@@ -17450,7 +17471,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
        - una imagen de `medios` llega con 200 y `BYPASS` las dos veces. Cloudflare sí guardaría un `.jpeg`, pero respeta el `Cache-Control: private` de `cacheDeArchivos.ts`. Un archivo privado no le queda servido a otro visitante;
      - el PDF de la ficha 1707 de la biblioteca: 200, `application/pdf`, una página con sus 2 imágenes, en 14,7 s. Esas imágenes las trae el servidor por dentro (`destinoDePeticion`), y salen bien con `serverURL` en `https://traumahub.cl`, sin prefijo. Los 14,7 s se miden en E4;
      - el simulador, caso 10: el modelo baja con 200 y la tibia se dibuja en el lienzo. No se eligió práctica ni evaluación, para no dejar un avance en la cuenta del dueño: la tarjeta de la elección se ocultó un momento en la pantalla para mirar el lienzo, y se volvió a mostrar.
-  7. **ved pasa a pruebas:** cuentas inventadas (paso 12 de E8 de P-011).
+  7. **ved pasa a pruebas:** ~~cuentas inventadas (paso 12 de E8 de P-011)~~. *Hecho el 2026-11-15, con las cuentas del equipo tal como están (D-384):* ved queda como servidor de pruebas, sin borrar nada, porque las 5 cuentas son del equipo y no hay usuarios reales. Desde las 18:53 la producción es `traumahub.cl`, y hasta las 19:25 no había cambiado ninguna fila de ved después de la copia. El aviso del 15 de noviembre, que nombra a Cloudflare, puede llegar a ved con la próxima actualización: a ved no se entra por Cloudflare, pero en el servidor de pruebas solo está el equipo.
 - [ ] **E3 · Proteger lo que ya existe**, antes de abrir a instituciones:
   - los casos, con versión de formato y con el ensayo antes de cada despliegue (D-373);
   - los modelos: uno en uso no se borra, y se reemplaza con «Reemplazar por…» (D-372). Además, borrar una preparación se lleva los modelos que exportó y nadie usa, cada archivo lleva un nombre único, y se limpian una vez los modelos sobrantes de ved, con el OK del dueño;
