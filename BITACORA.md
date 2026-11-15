@@ -17284,7 +17284,12 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 
 #### Etapas
 
-- [ ] **E1 · Los datos sin prefijo (D-370).** La migración, y lo que desde entonces se guarda sin prefijo. Se despliega en ved y se comprueba que los modelos, las imágenes y la planilla siguen bien en `ved.tailc2094f.ts.net:10000/traumahub/`. *Hecha en local el 2026-11-15 (D-379); falta desplegarla en ved.* Comprobado antes de subir:
+- [x] **E1 · Los datos sin prefijo (D-370).** La migración, y lo que desde entonces se guarda sin prefijo. Se despliega en ved y se comprueba que los modelos, las imágenes y la planilla siguen bien en `ved.tailc2094f.ts.net:10000/traumahub/`. *Hecha el 2026-11-15 (D-379) y desplegada en ved ese día (`0127743`):*
+  - la migración corrió en el lote 24 y quitó el prefijo a 80 modelos, 1 medio con su miniatura y las 60 filas de tiempo activo, justo lo medido. No queda ninguna fila con `/traumahub`;
+  - la salud por fuera responde 200, y la portada pública carga sus 20 imágenes, la del equipo servida por la API incluida, sin ninguna petición con error;
+  - los modelos de un caso no se pudieron mirar sin una sesión en ved. Los cubre la prueba de integración: Payload rehace la dirección al leer.
+
+  Comprobado antes de subir:
   - `typecheck` limpio, y `lint` sin errores, con los 15 avisos de `<img>` de siempre;
   - la suite entera: 6519 pruebas bien. Fallan las 3 de respaldos que fallan siempre en Windows. Cobertura del 88 %, sobre un umbral de 58;
   - `test:integration`: 266 de 266, con las 5 nuevas de `datosSinPrefijo`;
