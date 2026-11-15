@@ -11285,6 +11285,26 @@ Lo pidió el dueño el mismo día, al cerrar el plan.
 - (−) Depende de que Payload siga fundiendo los campos con `deepmerge`. Si un día los reemplazara, su gancho de `url` desaparecería y la columna quedaría vacía al subir: la misma prueba lo diría.
 - (−) Un prefijo que no sea ninguno de los tres seguiría en la «Última página» de una base vieja. Es solo un texto de la planilla.
 
+### D-380 · 2026-11-15 · vigente · P-016 E2
+**El DNS de traumahub.cl pasa de Freehost a Cloudflare con los mismos registros, en gris, y sin DNSSEC por ahora.**
+
+- **Lo que se hizo** (paso 1 de E2):
+  - el dueño creó la cuenta y la zona, y Cloudflare importó los registros de Freehost;
+  - se compararon uno a uno con lo que respondían los servidores de Freehost: el A de la raíz y el de `mail`, el CNAME de `www`, el MX, el SPF, el DMARC y el DKIM, este con sus 411 caracteres iguales;
+  - `traumahub.cl`, `www` y `mail` quedaron en gris («DNS only»). La raíz y `www` pasan a naranja en el paso 3, con el túnel. `mail` queda gris para siempre: Cloudflare no atiende correo, y en naranja el MX apuntaría a sus IP;
+  - en nic.cl, los servidores de Freehost (`dns1`, `dns2`, `dns10` y `dns11.freehost.cl`) se reemplazaron por `chloe` y `ethan.ns.cloudflare.com`.
+- **Comprobado el mismo día.**
+  - NIC delega en Cloudflare. 1.1.1.1, 8.8.8.8, 9.9.9.9 y OpenDNS devuelven ya esos servidores y los mismos registros.
+  - El dueño mandó un correo a `contacto@traumahub.cl` desde fuera y lo respondió desde ahí: llegó y salió.
+- **DNSSEC sigue apagado.** Con Freehost tampoco estaba. Encenderlo exige poner el DS en nic.cl, y hacerlo en plena mudanza, con dos zonas respondiendo, es la forma conocida de dejar un dominio sin resolver. Se enciende aparte, con su OK, cuando el túnel funcione.
+- **«Solo IP de Cloudflare en el origen», que Cloudflare sugiere, no se hizo.** El paso 3 cierra los puertos 80 y 443 de Contabo y deja entrar solo por el túnel, que es más que filtrar IP.
+
+*Consecuencias.*
+- (+) La zona ya está donde la necesitan el túnel y el comodín `*.traumahub.cl` (D-371), y el correo no se tocó.
+- (−) El DNS de traumahub.cl ya no se edita en el cPanel de Freehost. Su editor de zona sigue mostrando la zona vieja y no avisa: un cambio hecho ahí no se ve en ninguna parte. El de chesscore.cl sí sigue allí.
+- (−) El certificado del servidor de correo dependía de esa zona para renovarse (O-103).
+- `https://traumahub.cl` sigue sin abrir: el TLS falla porque Caddy, en Contabo, solo tiene el certificado de `195-26-240-163.sslip.io`. Ya era así antes del cambio, y lo arregla el paso 3.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -12767,6 +12787,18 @@ La prueba de `leerEquipo` fabricaba una ficha «de ayer» con el `hoy` fijo de l
 *Dónde se vio.* En E8 de P-014, con un antebrazo derecho del atlas, del codo a la muñeca. Junto al antebrazo corre una tira suelta de piel, del codo a la muñeca, sin nada debajo. Con el paño se ve más, porque cae dentro de la ventana; sin paño ya estaba.
 *Por qué pasa.* `recortarLaPiel` corta la piel con la caja de lo exportado, ampliada 5 cm por lado (`MARGEN_DE_LA_PIEL`). El atlas trae los brazos junto al tronco, y la caja de un antebrazo alcanza el costado.
 *Qué hacer, sin aplicar.* Quedarse con la piel conexa a lo exportado, o recortar por cercanía a las piezas y no por caja. En la tibia del caso 4 no se vio.
+
+### O-103 · 2026-11-15 · media · abierta
+**El certificado del correo de Freehost puede renovarse en enero sin los nombres de traumahub.cl.**
+*Qué hay.* El servidor de correo (`mail.traumahub.cl`, 201.148.104.29) presenta en IMAP (993) y SMTP (465) un comodín de Let's Encrypt. Cubre `*.chesscore.cl`, `chesscore.cl`, `*.traumahub.cl` y `traumahub.cl`, y vence el 2027-02-03. Un comodín solo se valida por DNS, y cPanel lo hizo escribiendo `_acme-challenge` en su propia zona.
+*Por qué importa.* Desde D-380 esa zona ya no es la que vale para traumahub.cl. En la renovación automática, en las semanas antes del vencimiento, cPanel no podrá validar esos nombres. Lo esperable es que los deje fuera:
+- el correo seguiría llegando;
+- pero un programa de correo configurado con `mail.traumahub.cl` avisaría de un certificado que no es suyo.
+
+La plataforma no lo nota: manda por `mail.chesscore.cl` (`SMTP_HOST`).
+*Qué hacer, sin aplicar.* Mirar el certificado la primera semana de enero de 2027 (`openssl s_client -connect mail.traumahub.cl:993`). Si perdió los nombres, hay dos salidas:
+- configurar los programas de correo con `mail.chesscore.cl`, que es el mismo servidor;
+- o pedir a Freehost que lo valide de otra forma.
 
 ---
 
@@ -17246,7 +17278,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · plan decidido, sin empezar
+### P-016 · 2026-11-15 · en curso: E1 hecha, E2 empezada
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -17296,7 +17328,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - `build` como el de Docker, con `/traumahub`: compila, con los 8 avisos de siempre.
   - De paso, `esquema.test.ts` aprendió a no entrar en `url` ni en `sizes`. Siguen siendo campos de Payload, aunque ahora se declaren para el gancho.
 - [ ] **E2 · Contabo igual a ved, en `traumahub.cl` (D-369).** Un paso a la vez en los servidores, con una explicación breve y el OK del dueño antes de cada uno:
-  1. **Cloudflare:** la cuenta y la zona `traumahub.cl`, los servidores de nombre en nic.cl, y los registros del correo copiados como «solo DNS».
+  1. **Cloudflare:** la cuenta y la zona `traumahub.cl`, los servidores de nombre en nic.cl, y los registros del correo copiados como «solo DNS». *Hecho el 2026-11-15 (D-380): NIC ya delega en Cloudflare, los registros responden igual que en Freehost, y el correo llega y sale. Queda vigilar el certificado del correo en enero (O-103).*
   2. **Contabo al día:** a `main` y sin prefijo, con `BASE_PATH` vacío en su `docker-compose.override.yml`. El `.env` nuevo lleva:
      - `NEXT_PUBLIC_SERVER_URL=https://traumahub.cl`;
      - el correo `contacto@traumahub.cl`, cuya clave escribe el dueño;
