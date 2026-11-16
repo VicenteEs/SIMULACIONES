@@ -18333,7 +18333,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1, E2, E3 y E9 hechas; E5 desplegada a falta del comodín; E6 hecha en local
+### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6 y E9 hechas y desplegadas; faltan E7, E8 y repetir la carga de E4
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -18495,7 +18495,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - *comprobado el 2026-11-16 (nota en D-376):* Cloudflare ya guarda lo estático sin regla;
   - *desplegados en Contabo el 2026-11-16, a las 05:56 en Chile (`487fa73`), con el OK del dueño en cada paso:* D-393, D-394 y D-395. Ver la nota al final de las etapas;
   - *pendiente, en el orden de D-392:* repetir la prueba con fichas publicadas y con el PDF, y con ella decidir la caché del contenido publicado (D-395). Espera a que haya fichas publicadas en producción y a que el dueño cree otra cuenta de prueba.
-- [ ] **E5 · Las instituciones (D-371).** Cómo se lleva al código, en D-396. Por pasos:
+- [x] **E5 · Las instituciones (D-371).** Cómo se lleva al código, en D-396. Por pasos:
   - E5.1 · la colección `instituciones`, con sus nombres reservados, y la marca en las filas; `procedencia` para el texto libre de hoy. *Hecho en local el 2026-11-16:*
     - la colección, solo del administrador central (`puedeAdministrarInstituciones`), con el subdominio validado en `lib/instituciones.ts` y el piloto que vence a los 15 días si no se da fecha;
     - la marca en las 15 colecciones de D-396, con su gancho (`marcaDeInstitucion.ts`). Una prueba exige que toda colección con una cuenta esté en la lista o en la de excepciones, con su porqué: hoy, requisitos y difusiones;
@@ -18550,8 +18550,8 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - el administrador de TraumaHub entra en el subdominio de una institución abierta y trabaja como su administrador, con una franja que lo dice;
     - no aparece en sus listas, su registro ni sus estadísticas, y el registro de TraumaHub anota su entrada, su salida y lo que hace;
     - en ved, el selector anota la entrada;
-  - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño. *Los enlaces a una institución en ved, hechos en local el 2026-11-16 (D-405). E5 desplegada en ved y en Contabo ese día (`cb7207e`, abajo); falta el comodín.*
-- [x] **E6 · Las difusiones (D-375).** *Hecha en local el 2026-11-16, con los detalles en D-406:*
+  - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño. *Los enlaces a una institución en ved, hechos en local el 2026-11-16 (D-405). E5 desplegada en ved y en Contabo ese día (`cb7207e`, abajo). El dueño puso el comodín en Cloudflare esa misma mañana: a las 11:35 en Chile, `comodin-de-prueba.traumahub.cl` ya respondía «Esta institución no existe».*
+- [x] **E6 · Las difusiones (D-375).** *Hecha el 2026-11-16, con los detalles en D-406, y desplegada ese día en ved y en Contabo (`875906a`, abajo):*
   - los lugares (todos, o TraumaHub y las instituciones marcadas) junto al rol, con la misma regla en la cola, la campana y el formulario;
   - el canal: correo, aviso o los dos, y el aviso sin correo cuando no hay servidor;
   - la campana de la barra, que abre sola los avisos nuevos, y «Retirar el aviso»;
@@ -18587,7 +18587,12 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 *Desplegado en ved y en Contabo el 2026-11-16 (`cb7207e`), con el OK del dueño («en ved y contabo»):* E5 entera (D-396 a D-405).
 - ved: las cinco migraciones de E5 en el lote 29, el rol `traumahub_app` con sus 80 políticas, ninguna institución todavía, los 4 procesos, la salud por fuera da 200 y el ensayo, bien. El respaldo del despliegue sale en claro, como se espera allí (D-384);
 - Contabo, a las 10:32 en Chile: antes, un respaldo cifrado y verificado (`base-` y `medios-20261116-102230`), y el override, igual a la plantilla. `actualizar.sh` pasó de `487fa73` a `cb7207e`: las cinco migraciones en el lote 27, el rol y las 80 políticas, 0 instituciones y los 4 procesos. Por fuera, la salud, la portada, `/entrar` y `/biblioteca` dan 200, y `/lugar/x`, 404, porque esa ruta solo existe en ved;
-- falta el comodín: en Cloudflare, el nombre público `*` del túnel `contabo` hacia `http://traumahub:3000`, y el registro `*` hacia el túnel. Lo pone el dueño. Hasta entonces `algo.traumahub.cl` no existe en el DNS.
+- falta el comodín: en Cloudflare, el nombre público `*` del túnel `contabo` hacia `http://traumahub:3000`, y el registro `*` hacia el túnel. Lo pone el dueño. Hasta entonces `algo.traumahub.cl` no existe en el DNS. *Puesto esa misma mañana (arriba, E5.10).*
+
+*Desplegado en ved y en Contabo el 2026-11-16 (`875906a`), con el OK del dueño («Sí, en los dos»):* E6 (D-406).
+- ved, a las 11:21 en Chile: la migración `20261116_190000_avisos_y_lugares_de_difusion` en el lote 30. `lecturas_de_avisos` con su barrera y sus 4 políticas, 84 políticas en total, y ninguna tabla con columna de institución sin ellas. La salud por fuera da 200;
+- Contabo, a las 11:34 en Chile: antes, un respaldo cifrado y verificado (`base-` y `medios-20261116-112220`), y el override, igual a la plantilla. `actualizar.sh` pasó de `cb7207e` a `875906a`: la migración en el lote 28, la misma barrera, los 4 procesos y el ensayo con 0 errores. Por fuera, la salud, la portada, `/entrar` y `/biblioteca` dan 200, y el registro no trae errores en los primeros minutos;
+- en ninguno de los dos hay todavía difusiones: el primer aviso de verdad lo manda el dueño.
 
 E2 va después de E1, para copiar una base ya limpia. E5 necesita el comodín de E2 y las protecciones de E3. E4 puede ir en paralelo a E3. E9 no depende de nada y puede salir con el despliegue de E1.
 
