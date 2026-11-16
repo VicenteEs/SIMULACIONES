@@ -11868,7 +11868,7 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
   - Una llamada local que no diga nada queda en la central. Así, un guion que se olvide deja fuera a la cuenta de una institución, y no dentro de otra.
   - El rechazo se dice como una contraseña mala: «esta cuenta es de otra institución» contaría de qué institución es cada correo.
 - **La sesión.** `cuentaEnSuLugar` (`sesion.ts`) es lo que pregunta toda lectura de la sesión: `obtenerSesion`, la ruta del PDF y las cinco rutas de API que llamaban a `payload.auth` a secas. `payload.auth` cree cualquier testigo firmado, venga de donde venga. Solo `salir` la sigue llamando directo, porque cerrar la sesión vale en cualquier parte.
-- **Los enlaces de los correos** (la clave nueva, la invitación, «su cuenta ya está activa») van al subdominio de la cuenta, con `direccionPublica(subdominio)`. En ved no, porque allí la institución se elige con el selector. Pedir una clave nueva desde otro lugar no emite testigo y contesta lo mismo de siempre: cada testigo invalida el anterior, y desde otro subdominio no se debe poder dejar muerto el enlace de nadie.
+- **Los enlaces de los correos** (la clave nueva, la invitación, «su cuenta ya está activa») van al subdominio de la cuenta, con `direccionPublica(subdominio)`. En ved no, porque allí la institución se elige con el selector. *(Superado por D-405: en ved van por `/lugar/<subdominio>`, que la elige, y la función es `direccionDelLugar`.)* Pedir una clave nueva desde otro lugar no emite testigo y contesta lo mismo de siempre: cada testigo invalida el anterior, y desde otro subdominio no se debe poder dejar muerto el enlace de nadie.
 - **«Esta institución no existe»** la pinta la plantilla en lugar de la página, sin barra ni sesión. Sale con estado 200, porque `notFound()` desde la plantilla raíz no tiene dónde caer.
 - **Los archivos.** La `url` se lee sin el origen (`leerSinOrigen`) y con el prefijo puesto, y el navegador la pide al anfitrión en el que está. El taller de instrumental le ponía `ruta()` al modelo para descargarlo, y con la dirección relativa doblaba el prefijo: se quitó.
 - **La lista CSRF.** `OrigenesDeConfianza` es un `Array` cuyo `includes` acepta además un subdominio de un solo nivel del dominio, con el esquema y el puerto de la dirección pública. Con ella, una institución nueva funciona sin reiniciar nada. Payload conserva la instancia al sanear la configuración (`config.csrf ?? []`), y una prueba de integración falla el día que la copie.
@@ -12081,7 +12081,7 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
   - Con el cupo lleno, el mensaje dice cuánto lleva y qué hacer: «Hospital X llenó su cupo: 30 de 30 cuentas activas. Desactive una cuenta para liberar su lugar, o pida a TraumaHub que amplíe el cupo.»
   - La API REST de Payload contesta 403 a toda escritura (`(payload)/api/[...slug]/route.ts`), así que no hay otra puerta por la que activar.
 - **Lo que no se hizo.**
-  - En ved no hay subdominios (D-371): allí el enlace sale a la central, que no mira el código. Que valga en ved es parte del selector de institución de E5.10.
+  - En ved no hay subdominios (D-371): allí el enlace sale a la central, que no mira el código. Que valga en ved es parte del selector de institución de E5.10. *(Hecho en D-405.)*
   - Ningún aviso al administrador cuando el cupo se llena. Lo ve en la tarjeta, y al aprobar.
 
 *Comprobado.*
@@ -12235,6 +12235,52 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) Dos agujeros más en la barrera, acotados a la cuenta del soporte.
 - (−) Cada archivo que pide una cuenta de TraumaHub desde un subdominio pregunta por la institución, aunque sea a la memoria del proceso.
 - (−) Si el acto del soporte se deshace, su línea del registro queda.
+
+### D-405 · 2026-11-16 · vigente · P-016 E5.10 · los enlaces a una institución en ved
+**ved no tiene subdominios, y los enlaces a un lugar llevaban allí a la central: la invitación, la clave nueva y los avisos al equipo. Ahora pasan por `/lugar/<subdominio>/…`. Esa ruta fija la institución como el selector y sigue a la ruta pedida. En Contabo no cambia nada.**
+
+- **El problema.** En ved la institución la dice la cookie del selector (D-396), y un enlace no puede llevar una cookie. `direccionPublica(subdominio)` daba en ved la central a secas:
+  - el enlace de invitación de una institución abría `/registro` en la central, que no mira el código, y la cuenta nacía en TraumaHub. D-402 lo dejó para aquí;
+  - la clave nueva, «su cuenta ya está activa» y los avisos a los administradores de una institución abrían donde estuviera la cookie de quien los seguía. Una cuenta de institución, fuera de la suya, no vale.
+- **La ruta.** `lugar/[subdominio]/[[...resto]]/route.ts` existe solo en el servidor de pruebas; fuera de él contesta 404.
+  - Escribe la cookie del selector y redirige (303) a la ruta que sigue, con su consulta.
+  - `traumahub` es la central, y borra la cookie. Es un nombre reservado: ninguna institución puede tenerlo.
+  - Una institución que no existe se fija igual, y se ve «Esta institución no existe», como en un subdominio mal escrito de Contabo.
+  - Lo que sigue a `/lugar` no sale de la plataforma: los tramos vacíos, `.` y `..` se descartan (`destinoDelLugar`). Sin eso, `/lugar/x//otro.sitio` llevaba a otro servidor.
+  - El administrador de TraumaHub que sigue el enlace de una institución entra como su soporte, y queda anotado igual que con el selector (D-404).
+  - Lo que comparte con el selector está en `institucionDePruebaServidor.ts`: la cookie, escrita igual, y la anotación.
+- **Las direcciones.** `direccionDelLugar(subdominio)` da la dirección de los enlaces a un lugar.
+  - En Contabo es el subdominio, o la central con `''`.
+  - En ved es `/lugar/<subdominio>`, o `/lugar/traumahub`.
+  - La usan:
+    - la invitación y la clave nueva;
+    - «su cuenta ya está activa»;
+    - la solicitud y su aviso a los administradores, y la alerta de entrada;
+    - la dirección de cada institución en el panel;
+    - los enlaces a TraumaHub de una institución bloqueada, de una que no existe y de la franja del soporte.
+  - `direccionPublica()` ya no recibe subdominio. Queda para lo que no lleva a un lugar: el logotipo de los correos y la pregunta de si hay dirección.
+  - Los avisos que van solo a TraumaHub —comentarios, requisitos, cotizaciones, el bloqueo— siguen con la central a secas. En ved abren en la institución que tenga elegida quien los sigue. En Contabo no hay diferencia.
+- **De paso,** el registro de una institución sin enlace válido decía «Pídele el enlace vigente». La plataforma trata de usted: ahora dice «Pídale».
+
+*Comprobado.*
+- `tests/unit/enlacesDeUnLugar.test.ts`: las direcciones en Contabo, en ved y sin dirección pública, y que lo que sigue a `/lugar` no sale de la plataforma.
+- `tests/integration/fantasma.test.ts`, contra PostgreSQL:
+  - fuera de ved, la ruta da 404;
+  - en ved, fija la institución y sigue a `/registro` con el código;
+  - la central borra la cookie;
+  - anota la entrada del soporte, y no la del editor ni la de una bloqueada.
+- La suite entera: 7194 pasan; fallan las 13 del entorno Windows de siempre (las que leen el código en CRLF, la zona horaria, `directorioDeRespaldos` y las que vencen bajo carga, que pasan solas).
+- En el servidor compilado, con `SERVIDOR_DE_PRUEBAS` puesta:
+  - el enlace de invitación de `hprueba` contesta 303 con la cookie, y `/registro` sale ya en la institución («Mirando como Hospital de Prueba»);
+  - `/lugar/traumahub/entrar` borra la cookie;
+  - `/lugar/hprueba//otro.sitio/x` acaba en `/otro.sitio/x` de la propia plataforma;
+  - una institución que no existe enseña «Esta institución no existe», con su enlace a `/lugar/traumahub`.
+
+*Consecuencias.*
+- (+) En ved se prueba el enlace de invitación entero, como lo vería un alumno.
+- (+) Un enlace de ved a TraumaHub saca de la institución elegida.
+- (−) Seguir un enlace en ved cambia, sin preguntar, la institución que se estaba mirando. La franja lo dice.
+- (−) Una ruta más que existe solo en ved.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -18431,7 +18477,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - el administrador de TraumaHub entra en el subdominio de una institución abierta y trabaja como su administrador, con una franja que lo dice;
     - no aparece en sus listas, su registro ni sus estadísticas, y el registro de TraumaHub anota su entrada, su salida y lo que hace;
     - en ved, el selector anota la entrada;
-  - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño.
+  - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño. *Los enlaces a una institución en ved, hechos en local el 2026-11-16 (D-405).*
 - [ ] **E6 · Las difusiones (D-375).**
 - [ ] **E7 · El monitoreo (D-377).**
 - [ ] **E8 · Lo legal, antes del primer piloto.** Todo con el abogado:

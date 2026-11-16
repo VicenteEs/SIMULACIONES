@@ -349,4 +349,50 @@ describe.skipIf(payload === null)('el soporte de TraumaHub dentro de una institu
       delete process.env.SERVIDOR_DE_PRUEBAS
     }
   })
+
+  it('en ved, un enlace /lugar fija el lugar, sigue a la ruta y anota la entrada como el selector (D-405)', async () => {
+    const { GET } = await import('@/app/(frontend)/lugar/[subdominio]/[[...resto]]/route')
+    const { NextRequest } = await import('next/server')
+    const { COOKIE_DE_LA_INSTITUCION_DE_PRUEBA } = await import('@/lib/anfitrion')
+    const seguir = (subdominio: string, resto: string[], consulta: string, testigo?: string) =>
+      GET(
+        new NextRequest(`https://traumahub.prueba.invalid/lugar/${subdominio}/${resto.join('/')}${consulta}`, {
+          headers: cabecerasDe('central', testigo),
+        }),
+        { params: Promise.resolve({ subdominio, resto }) },
+      )
+    const galleta = (respuesta: Response) => respuesta.headers.get('set-cookie') ?? ''
+
+    // Fuera de ved la ruta no existe: el proxy no miraría la cookie.
+    expect((await seguir(lugares.abierta.subdominio, ['entrar'], '')).status).toBe(404)
+
+    process.env.SERVIDOR_DE_PRUEBAS = 'https://traumahub.prueba.invalid'
+    try {
+      const desde = new Date().toISOString()
+      const delSoporte = await testigoDe(correos.soporte, 'central')
+      const alRegistro = await seguir(lugares.abierta.subdominio, ['registro'], '?invitacion=abc', delSoporte)
+      expect(alRegistro.status).toBe(303)
+      expect(alRegistro.headers.get('location')).toMatch(/\/registro\?invitacion=abc$/)
+      expect(galleta(alRegistro)).toContain(`${COOKIE_DE_LA_INSTITUCION_DE_PRUEBA}=${lugares.abierta.subdominio}`)
+
+      // La central borra la cookie.
+      const aLaCentral = await seguir('traumahub', ['entrar'], '', delSoporte)
+      expect(aLaCentral.headers.get('location')).toMatch(/\/entrar$/)
+      expect(galleta(aLaCentral)).toMatch(new RegExp(`${COOKIE_DE_LA_INSTITUCION_DE_PRUEBA}=;.*(Max-Age=0|Expires=Thu, 01 Jan 1970)`, 'i'))
+
+      // Lo que sigue a /lugar no sale de la plataforma.
+      expect((await seguir(lugares.abierta.subdominio, ['', 'otro.sitio'], '')).headers.get('location')).toMatch(/^\/[^/]/)
+
+      // El editor de TraumaHub, y una bloqueada, no anotan nada.
+      const delEditor = await testigoDe(correos.editorCentral, 'central')
+      await seguir(lugares.abierta.subdominio, ['entrar'], '', delEditor)
+      await seguir(lugares.cerrada.subdominio, ['entrar'], '', delSoporte)
+      const entradas = await delRegistro({
+        and: [{ accion: { equals: 'entrada-como-soporte' } }, { fecha: { greater_than_equal: desde } }, { usuario: { in: [ids.soporte, ids.editorCentral] } }],
+      })
+      expect(entradas.map((e) => [e.usuario, e.soporteEn])).toEqual([[ids.soporte, nombreDelSoporte('abierta')]])
+    } finally {
+      delete process.env.SERVIDOR_DE_PRUEBAS
+    }
+  })
 })

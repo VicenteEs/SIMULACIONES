@@ -1,6 +1,6 @@
 import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
-import { direccionPublica } from '@/collections/Usuarios'
+import { direccionDelLugar } from '@/collections/Usuarios'
 import { hayCorreo } from '@/correo/enviar'
 import { idDeInstitucion } from '@/access/payload'
 import { dominioDeInstituciones } from '@/lib/anfitrion'
@@ -96,7 +96,7 @@ export default async function PaginaDeInstituciones() {
       id: String(fila.id),
       nombre: fila.nombre,
       subdominio: fila.subdominio,
-      direccion: direccionPublica(fila.subdominio),
+      direccion: direccionDelLugar(fila.subdominio),
       modalidad: fila.modalidad as Modalidad,
       inicio: fila.inicio ? diaEnChile(fila.inicio) : '',
       vence: fila.vence ? diaEnChile(fila.vence) : '',

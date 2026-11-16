@@ -17,6 +17,7 @@ import { getPayload, LockedAuth } from 'payload'
 import config from '@payload-config'
 import {
   CuentaDesactivada,
+  direccionDelLugar,
   direccionPublica,
   enlaceDeClave,
   InstitucionBloqueadaAlEntrar,
@@ -756,7 +757,7 @@ async function registrarSolicitud(
   },
 ): Promise<null> {
   // La dirección del lugar donde se pidió: la cuenta nace allí, y allí entra.
-  const base = direccionPublica(lugar.subdominio)
+  const base = direccionDelLugar(lugar.subdominio)
   // Con SMTP y sin dirección pública, el aviso al titular hablaría de «/clave»
   // sin botón y el de los administradores llegaría sin «Revisar la solicitud»,
   // todo sin rastro. `pedirEnlaceDeClave` anota el mismo fallo de
@@ -793,7 +794,7 @@ async function registrarSolicitud(
     // Pendiente o no: una solicitud sin revisar en otro lugar tampoco deja
     // pedir otra con el mismo correo.
     const suLugar = idDeInstitucion(cuenta.institucion)
-    const suBase = direccionPublica(await subdominioDeLaCuenta(payload, cuenta.institucion))
+    const suBase = direccionDelLugar(await subdominioDeLaCuenta(payload, cuenta.institucion))
     if (suBase) {
       enviarSinEsperar(
         payload,
@@ -926,7 +927,7 @@ async function registrarSolicitud(
               institucion,
               etapa: etiquetaDeEtapa(etapaDeFormacion),
               motivo,
-              enlacePanel: `${direccionPublica(lugar.subdominio)}/admin-panel/usuarios`,
+              enlacePanel: `${direccionDelLugar(lugar.subdominio)}/admin-panel/usuarios`,
             }),
           },
           'aviso de nueva solicitud a los administradores',

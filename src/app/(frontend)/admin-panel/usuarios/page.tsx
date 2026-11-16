@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
-import { direccionPublica } from '@/collections/Usuarios'
+import { direccionDelLugar, direccionPublica } from '@/collections/Usuarios'
 import { hayCorreo } from '@/correo/enviar'
 import { clientePayload } from '../datos'
 import { TablaUsuarios, type UsuarioDelPanel } from './TablaUsuarios'
@@ -55,7 +55,7 @@ const TOPE_DE_SOLICITUDES = 100
 async function invitacionDelLugar(payload: Payload, lugar: string) {
   const [estado, codigo] = await Promise.all([estadoDelCupo(payload, lugar), codigoDeLaInstitucion(payload, lugar)])
   if (!estado) return null
-  const base = direccionPublica(estado.subdominio)
+  const base = direccionDelLugar(estado.subdominio)
   return { enlace: base && codigo ? `${base}${rutaDeInvitacion(codigo)}` : null, cupo: estado.cupo, activas: estado.activas }
 }
 

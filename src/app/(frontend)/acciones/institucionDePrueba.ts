@@ -8,10 +8,7 @@ import { COOKIE_DE_LA_INSTITUCION_DE_PRUEBA, normalizarSubdominioPedido } from '
 import { institucionPorSubdominio } from '@/lib/institucionesServidor'
 import { PATH_DE_LAS_COOKIES } from '@/lib/pathDeLasCookies'
 import { servidorDePruebas } from '@/lib/servidorDePruebas'
-import { comoValeEnElLugar } from '@/access/reglas'
-import { idDeInstitucion } from '@/access/payload'
-import { estaBloqueada } from '@/lib/instituciones'
-import { registrarAccion } from '@/lib/registroServidor'
+import { anotarLaEntradaDelSoporteEnPruebas, opcionesDeLaCookieDePrueba } from '@/lib/institucionDePruebaServidor'
 
 /**
  * El selector de institución de ved (D-371, D-396).
@@ -30,6 +27,9 @@ import { registrarAccion } from '@/lib/registroServidor'
  * como su soporte (el fantasma, D-404). En Contabo eso pide entrar en el
  * subdominio, y la entrada queda en el registro; aquí basta con elegirla, así
  * que es aquí donde se anota.
+ *
+ * Los enlaces `/lugar/<subdominio>/…` eligen lo mismo sin pasar por aquí
+ * (D-405); lo que comparten está en `institucionDePruebaServidor.ts`.
  */
 export async function elegirInstitucionDePrueba(subdominio: unknown): Promise<Respuesta> {
   return accion(async () => {
@@ -47,25 +47,8 @@ export async function elegirInstitucionDePrueba(subdominio: unknown): Promise<Re
     const payload = await getPayload({ config })
     const institucion = await institucionPorSubdominio(payload, elegido)
     if (!institucion) throw new Error(`No hay ninguna institución con el subdominio «${elegido}».`)
-    almacen.set(COOKIE_DE_LA_INSTITUCION_DE_PRUEBA, elegido, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: PATH_DE_LAS_COOKIES,
-      maxAge: 30 * 24 * 60 * 60,
-    })
-    // La cuenta tal cual, sin mirar el lugar: la petición todavía llega desde
-    // el anterior.
-    const { user } = await payload.auth({ headers: await headers() })
-    const cuenta = user as { rol?: unknown; activo?: unknown; institucion?: unknown } | null
-    if (
-      cuenta?.activo === true &&
-      !estaBloqueada(institucion.vence) &&
-      comoValeEnElLugar(cuenta.rol, idDeInstitucion(cuenta.institucion), institucion.id) === 'soporte'
-    ) {
-      const soporteEn = `${institucion.nombre} (${institucion.subdominio})`
-      await registrarAccion(payload, { accion: 'entrada-como-soporte', usuario: cuenta, titulo: soporteEn, soporteEn })
-    }
+    almacen.set(COOKIE_DE_LA_INSTITUCION_DE_PRUEBA, elegido, opcionesDeLaCookieDePrueba())
+    await anotarLaEntradaDelSoporteEnPruebas(payload, institucion, await headers())
     return null
   })
 }

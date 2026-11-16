@@ -16,7 +16,7 @@
 import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import type { Payload, PayloadRequest } from 'payload'
-import { direccionPublica, enlaceDeClave } from '@/collections/Usuarios'
+import { direccionDelLugar, direccionPublica, enlaceDeClave } from '@/collections/Usuarios'
 import { enviarCorreo, enviarSinEsperar, hayCorreo } from '@/correo/enviar'
 import {
   mensajeDeBienvenida,
@@ -752,7 +752,7 @@ function avisarDeCuentaActivada(payload: Payload, cuenta: Record<string, unknown
         para: correo,
         correo: mensajeDeCuentaActivada({
           nombre: typeof cuenta.nombre === 'string' ? cuenta.nombre : '',
-          enlaceEntrar: `${direccionPublica(subdominio)}/entrar`,
+          enlaceEntrar: `${direccionDelLugar(subdominio)}/entrar`,
         }),
       },
       `aviso de cuenta activada a ${correo}`,
@@ -1098,7 +1098,7 @@ export async function regenerarCodigoDeInvitacion(): Promise<Respuesta<{ enlace:
     revalidatePath(RUTA_USUARIOS)
     // Sin dirección pública el código cambia igual —el viejo deja de servir,
     // que es lo urgente—, y la tarjeta dice por qué no hay enlace que copiar.
-    const base = direccionPublica(String((fila as { subdominio?: unknown }).subdominio ?? ''))
+    const base = direccionDelLugar(String((fila as { subdominio?: unknown }).subdominio ?? ''))
     return { enlace: base ? `${base}${rutaDeInvitacion(codigo)}` : null }
   })
 }

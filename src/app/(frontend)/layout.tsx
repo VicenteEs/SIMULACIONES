@@ -22,7 +22,7 @@ import { InstitucionBloqueada } from '@/components/InstitucionBloqueada'
 import { AvisoDeSoporte } from '@/components/AvisoDeSoporte'
 import { esFantasma } from '@/access/payload'
 import { estaBloqueada } from '@/lib/instituciones'
-import { direccionPublica } from '@/collections/Usuarios'
+import { direccionDelLugar } from '@/collections/Usuarios'
 
 const TITULO = 'Plataforma docente de traumatología'
 
@@ -104,7 +104,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
             saber por qué. */}
         {sesion.cierre === 'otra-entrada' ? <AvisoDeSesionCerrada /> : null}
         {fantasma && lugar?.institucion ? (
-          <AvisoDeSoporte institucion={lugar.institucion.nombre} central={direccionPublica()} />
+          <AvisoDeSoporte institucion={lugar.institucion.nombre} central={direccionDelLugar('')} />
         ) : null}
         {dentro ? (
           <Navegacion
@@ -124,9 +124,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
             el panel: los dos se montan dentro de este mismo layout. */}
         <ProveedoresDeUI>
           {noExiste ? (
-            <InstitucionQueNoExiste subdominio={lugar?.subdominio ?? ''} central={direccionPublica()} />
+            <InstitucionQueNoExiste subdominio={lugar?.subdominio ?? ''} central={direccionDelLugar('')} />
           ) : bloqueada ? (
-            <InstitucionBloqueada nombre={bloqueada.nombre} central={direccionPublica()} />
+            <InstitucionBloqueada nombre={bloqueada.nombre} central={direccionDelLugar('')} />
           ) : pideElAviso ? (
             <PantallaDelAviso nombre={sesion.usuario?.nombre as string | undefined} />
           ) : (

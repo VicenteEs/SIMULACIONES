@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import type { Payload, PayloadRequest } from 'payload'
-import { direccionPublica } from '@/collections/Usuarios'
+import { direccionDelLugar } from '@/collections/Usuarios'
 import { idDeInstitucion } from '@/access/payload'
 import { filtroDelLugar } from '@/access/reglas'
 import { subdominioDeLaCuenta } from '@/lib/institucionesServidor'
@@ -329,7 +329,7 @@ async function alertar(
         correo: String(usuario.email ?? ''),
         motivos,
         entradas,
-        enlacePanel: `${direccionPublica(await subdominioDeLaCuenta(payload, usuario.institucion))}/admin-panel/usuarios`,
+        enlacePanel: `${direccionDelLugar(await subdominioDeLaCuenta(payload, usuario.institucion))}/admin-panel/usuarios`,
       }),
     },
     'alerta de entrada sospechosa a los administradores',

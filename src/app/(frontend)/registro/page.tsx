@@ -81,7 +81,7 @@ export default async function PaginaRegistro({
               <p className="ac-bajada">
                 {invitacion ? 'Este enlace de invitación ya no vale: puede que lo hayan cambiado. ' : ''}
                 En {lugar.institucion?.nombre ?? 'esta institución'} la cuenta se pide con el enlace de invitación que
-                reparte quien administra TraumaHub allí. Pídele el enlace vigente.
+                reparte quien administra TraumaHub allí. Pídale el enlace vigente.
               </p>
             </section>
           )}

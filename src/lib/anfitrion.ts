@@ -26,6 +26,29 @@ export const CABECERA_DEL_SUBDOMINIO = 'x-traumahub-subdominio'
 export const COOKIE_DE_LA_INSTITUCION_DE_PRUEBA = 'traumahub-institucion-de-prueba'
 
 /**
+ * Cómo se nombra a TraumaHub en los enlaces de ved (`/lugar/traumahub/…`,
+ * D-405). Es un nombre reservado (`NOMBRES_RESERVADOS`): ninguna institución
+ * puede llamarse así, y el enlace no se confunde con el de una.
+ */
+export const LUGAR_DE_LA_CENTRAL = 'traumahub'
+
+/**
+ * A dónde sigue un enlace de ved después de fijar el lugar (D-405): la ruta
+ * que trae detrás de `/lugar/<subdominio>`, con su consulta, y sin el prefijo,
+ * que lo pone quien redirige.
+ *
+ * Los tramos vacíos, `.` y `..` se descartan. Un tramo vacío al principio
+ * daría `//otro.sitio`, que el navegador lee como otro servidor; y `..`, con
+ * el prefijo delante, saldría de la plataforma a otra página del mismo
+ * dominio.
+ */
+export function destinoDelLugar(resto: readonly string[] | undefined, consulta: string): string {
+  const tramos = (resto ?? []).filter((tramo) => tramo !== '' && tramo !== '.' && tramo !== '..')
+  const busqueda = consulta && consulta !== '?' ? (consulta.startsWith('?') ? consulta : `?${consulta}`) : ''
+  return `/${tramos.map(encodeURIComponent).join('/')}${busqueda}`
+}
+
+/**
  * Un nombre que sea posible como subdominio, sin mirar si está reservado: eso
  * es de la colección. Sirve para no pasarle a la base cualquier cosa que llegue
  * en una cookie.

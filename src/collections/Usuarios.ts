@@ -3,7 +3,7 @@ import { administracionDeUsuarios, accesoAlPanel, idDeInstitucion } from '@/acce
 import { comoValeEnElLugar } from '@/access/reglas'
 import { lugarDeLaPeticion } from '@/lib/institucionesServidor'
 import { estaBloqueada } from '@/lib/instituciones'
-import { direccionDeLaInstitucion } from '@/lib/anfitrion'
+import { direccionDeLaInstitucion, LUGAR_DE_LA_CENTRAL } from '@/lib/anfitrion'
 import { servidorDePruebas } from '@/lib/servidorDePruebas'
 import { ajustarPrimerUsuario } from './hooks/primerUsuario'
 import { impedirAutobloqueo, impedirBorradoDelUltimoAdmin } from './hooks/autobloqueo'
@@ -41,13 +41,34 @@ export const MINUTOS_DE_BLOQUEO = 10
  * recorte de la barra volvería a estar escrito dos veces, que es exactamente lo
  * que produjo la barra doble de abajo.
  */
-export function direccionPublica(subdominio = ''): string {
-  const central = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
-  // Una cuenta de institución entra solo desde su subdominio (D-396), así que
-  // sus enlaces llevan a él. En el servidor de pruebas no: ved no tiene
-  // subdominios y la institución se elige con el selector de la franja.
-  if (!subdominio || !central || servidorDePruebas(process.env.SERVIDOR_DE_PRUEBAS)) return central
-  return direccionDeLaInstitucion(subdominio, central)
+export function direccionPublica(): string {
+  return (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
+}
+
+/**
+ * La dirección de un lugar, para los enlaces que llevan a él: la de la
+ * institución con ese subdominio, o la de TraumaHub con `''`. Sin dirección
+ * pública, `''`, como `direccionPublica`.
+ *
+ * Una cuenta de institución entra solo desde su subdominio (D-396), así que
+ * sus enlaces llevan a él: `https://uchile.traumahub.cl`.
+ *
+ * En ved no hay subdominios (D-371): el lugar lo dice la cookie del selector.
+ * Allí el enlace pasa por `/lugar/<subdominio>`, que fija el lugar y sigue a la
+ * ruta pedida (D-405). Antes llevaba a la central a secas, y el enlace de
+ * invitación de una institución pedía la cuenta en TraumaHub sin mirar el
+ * código. TraumaHub va también por ahí (`/lugar/traumahub`): un enlace a la
+ * central tiene que sacar de la institución elegida, o el administrador lo
+ * abriría como soporte y cualquier otra cuenta de TraumaHub, sin sesión.
+ *
+ * `direccionPublica` queda para lo que no lleva a un lugar: el logotipo de los
+ * correos y la pregunta de si hay dirección.
+ */
+export function direccionDelLugar(subdominio: string): string {
+  const central = direccionPublica()
+  if (!central) return central
+  if (servidorDePruebas(process.env.SERVIDOR_DE_PRUEBAS)) return `${central}/lugar/${subdominio || LUGAR_DE_LA_CENTRAL}`
+  return subdominio ? direccionDeLaInstitucion(subdominio, central) : central
 }
 
 /**
@@ -79,7 +100,7 @@ export function direccionPublica(subdominio = ''): string {
  * pregunta antes a `direccionPublica()`.
  */
 export function enlaceDeClave(testigo: string, subdominio = ''): string {
-  return `${direccionPublica(subdominio)}/clave/${testigo}`
+  return `${direccionDelLugar(subdominio)}/clave/${testigo}`
 }
 
 /**

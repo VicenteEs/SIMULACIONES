@@ -16,7 +16,7 @@
 import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import type { Payload, PayloadRequest } from 'payload'
-import { direccionPublica, enlaceDeClave } from '@/collections/Usuarios'
+import { direccionDelLugar, direccionPublica, enlaceDeClave } from '@/collections/Usuarios'
 import { enviarCorreo, hayCorreo } from '@/correo/enviar'
 import { mensajeDeInstitucionLista } from '@/correo/mensajes'
 import { accion, exigirAdminCentral, type Respuesta } from '@/lib/guardias'
@@ -104,7 +104,7 @@ async function invitar(
       correo: mensajeDeInstitucionLista({
         nombre: cuenta.nombre,
         institucion: institucion.nombre,
-        direccion: direccionPublica(institucion.subdominio),
+        direccion: direccionDelLugar(institucion.subdominio),
         enlace,
         horas: HORAS_DE_INVITACION,
         vence: diaLegible(institucion.vence),
