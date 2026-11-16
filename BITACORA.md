@@ -11258,6 +11258,8 @@ Lo pidió el dueño el mismo día, al cerrar el plan.
 - (−) El componente deja de servir donde el logo no deba ser enlace, por ejemplo dentro de otro enlace: un `<a>` dentro de otro no es HTML válido. Hoy no pasa en ninguno de los cuatro sitios. Si un día hiciera falta, bastaría una propiedad que lo apague.
 - (−) La imagen tiene `display: block` (`estilos.css`). La caja pasa al `<a>` que la envuelve, que además necesita un anillo de foco visible sobre el marino y sobre el papel.
 
+*Hecho el 2026-11-16 en D-391*, con un `flex-shrink: 0` que aquí no se preveía.
+
 ### D-379 · 2026-11-15 · vigente · P-016 E1
 **Cómo se quita el prefijo de la base (D-370): un gancho detrás del de Payload en cada `url`, el latido corregido en el servidor, y una migración que reconoce cualquier prefijo.**
 
@@ -11646,6 +11648,45 @@ Comprobado después:
   - dejar que las insignias se partan en esta tabla, porque «Se entró en otro equipo», entera, desbordaba la tarjeta a 460 px.
 
 *Desplegado en ved el 2026-11-16 (`6ea9dc6`).* `actualizar.sh` pasó ved de `f72af1a` a `6ea9dc6`, y el ensayo abrió los 2 casos publicados con 0 errores y los 2 avisos de siempre. Después: las 5 cuentas siguen ahí (D-384), `entradas` sigue vacía porque nadie del equipo ha vuelto a entrar desde D-388, la salud por fuera da 200, y `salud.sh` solo marca los respaldos sin cifrar (D-295).
+
+### D-391 · 2026-11-16 · vigente · P-016 E9 · lleva a cabo D-378
+**El logo de ChessCore es un enlace a `https://chesscore.cl` en los cuatro sitios donde sale. Va dentro de `LogoChessCore`, y su anillo de foco lo elige el fondo que declara el componente.**
+
+- **Cómo.** `LogoChessCore` envuelve la imagen en `<a href="https://chesscore.cl" target="_blank" rel="noopener">`. La dirección es la constante `SITIO_DE_CHESSCORE`, sin `ruta()`.
+- **Lo que ve chesscore.cl.** Sin `noreferrer`, como pedía D-378, el navegador manda el `Referer`. La plataforma ya fija `Referrer-Policy: strict-origin-when-cross-origin` (`next.config.mjs`), así que a otro dominio solo llega `https://traumahub.cl/` y no la página desde la que se pulsó: se sabe que la visita viene de TraumaHub, y no qué caso o qué ficha tenía abierta.
+- **El texto alternativo dice adónde lleva:** «ChessCore · De peones a reyes (abre chesscore.cl en otra pestaña)». Va en el `alt` y no en un texto oculto aparte, por dos razones: si la imagen no carga, lo que se ve en su lugar dice lo mismo, y no depende de que `.sr-only` esté en la hoja.
+- **El anillo de foco lo elige `data-sobre`**, el mismo `sobre` que elige el archivo: el azul de la marca sobre el papel, el cian sobre el marino, a 4 px del dibujo.
+  - El cian de `.admin-sidebar :focus-visible` y de `.p-oscuro :focus-visible` depende de la clase del contenedor. Un logo blanco puesto mañana sobre otro fondo marino saldría con el azul, que ahí no se ve.
+  - El selector de atributo pesa más que esas dos reglas, sin depender del orden en que se carguen las hojas.
+- **La caja pasa al `<a>`** (`display: block`, `width: fit-content`). Así el contorno rodea el dibujo y no la línea de texto, y un clic en el hueco junto al logo no abre otro sitio.
+- **`flex-shrink: 0`, que D-378 no preveía.** Al envolverlo, el logo de la barra del panel bajó de 100 × 60 a 95 × 57. Dentro de una fila flexible la imagen no encogía por debajo de su atributo `width`, y el `<a>`, que no lo tiene, sí. Salió al medirlo en el navegador; las pruebas no lo veían.
+- **No hay propiedad para apagar el enlace.** D-378 la dejaba para el día que hiciera falta, y hoy ningún sitio pone el logo dentro de otro enlace.
+- **La prueba** (`tests/unit/logoChessCore.test.ts`) mira:
+  - que el componente pinte el enlace sobre los dos fondos: en otra pestaña, con `noopener`, sin `noreferrer`, y con el texto que lo dice;
+  - que la hoja lleve un anillo para cada fondo;
+  - que los dos dibujos solo se nombren en `LogoChessCore.tsx`: un `<img>` escrito a mano se vería igual y no enlazaría a nada;
+  - que los cuatro sitios de D-378 lo pinten con el componente;
+  - que el pie de las páginas con sesión, el de la portada y «Sobre nosotros», pintados, traigan el enlace y que ninguno quede dentro de otro. La barra del panel no se pinta en la prueba, porque pide la sesión y la guardia; de ella responde la búsqueda en el código.
+
+*Consecuencias.*
+- (+) Un logo nuevo sale enlazado, y uno pintado a mano hace fallar la prueba.
+- (+) El foco se ve en los cuatro sitios, sobre el papel y sobre el marino.
+- (−) Pulsar el logo saca de la plataforma, aunque sea en otra pestaña. En la barra del panel queda al lado de los enlaces del menú, y un clic de más abre chesscore.cl. Es lo que pidió el dueño, y la pestaña de TraumaHub sigue donde estaba.
+- (−) El texto alternativo es largo, y un lector de pantalla lo lee entero en cada página con pie.
+
+*Comprobado antes de subir*, en un worktree aparte con solo este cambio, porque el checkout principal tenía a medio editar los archivos del simulador de otra sesión:
+- `typecheck` limpio, y `lint` sin errores, con los 15 avisos de siempre;
+- `test:integration`, 296 de 296;
+- la suite: 6676 bien y una omitida, con las 11 de `logoChessCore.test.ts`. La cobertura queda en 87,7 % de sentencias, 79,6 % de ramas, 88,4 % de funciones y 89,1 % de líneas. Fallaron 5, ninguna de lo tocado aquí:
+  - las 2 de `directorioDeRespaldos` de siempre en Windows;
+  - 3 de `respaldoEnWindows`. Una compara la hora del respaldo con la de ahora y sale 4 h corrida con la zona horaria de Chile puesta; sin ella pasa. Las otras 2 ven una marca BOM al principio del volcado que recibe `psql`, y solo cuando la suite se lanza desde PowerShell 7: lanzada desde el bash de Git, pasan. `restaurar.ps1` no cambia desde septiembre;
+- `build` con `/traumahub`, bien.
+
+*Mirado en el navegador*, con la compilación de este cambio servida en el puerto 3200 contra la base desechable, y la portada vista desde «Vista previa»:
+- con el tabulador, el foco llega al logo en los cuatro sitios. Sale en azul en el pie de las páginas con sesión y en la tarjeta de «Sobre nosotros», y en cian en la barra del panel y en el pie de la portada;
+- la versión blanca del pie, escondida fuera de la portada, no es parada del tabulador: del logo se pasa directo al correo;
+- el enlace lleva a `https://chesscore.cl`, en otra pestaña y con `rel="noopener"`, y se anuncia con su texto alternativo;
+- a 1280 y a 375 px de ancho, cada logo mide lo mismo que la imagen sin envolver (120 × 72 en el pie, 100 × 60 en la barra, 73 × 44 en la portada y en la tarjeta) y ninguna caja se desborda. Para eso hizo falta el `flex-shrink: 0`: el primer vistazo dio 95 × 57 en la barra.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -17624,7 +17665,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1 y E2 hechas
+### P-016 · 2026-11-15 · en curso: E1, E2 y E9 hechas
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -17794,10 +17835,11 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - que cada institución es responsable de los datos de sus alumnos;
   - el contrato con cada institución (art. 15 bis);
   - los términos de uso.
-- [ ] **E9 · Los logos de ChessCore llevan a chesscore.cl (D-378).**
+- [x] **E9 · Los logos de ChessCore llevan a chesscore.cl (D-378).** *Hecha el 2026-11-16 (D-391):*
   - el enlace, dentro de `LogoChessCore`;
   - una prueba de que los cuatro sitios lo traen;
-  - la comprobación con el teclado, sobre fondo claro y oscuro.
+  - la comprobación con el teclado, sobre fondo claro y oscuro;
+  - además, `flex-shrink: 0` en el enlace, que el logo de la barra del panel encogía al envolverlo.
 
 E2 va después de E1, para copiar una base ya limpia. E5 necesita el comodín de E2 y las protecciones de E3. E4 puede ir en paralelo a E3. E9 no depende de nada y puede salir con el despliegue de E1.
 

@@ -2491,6 +2491,21 @@ dd > div blockquote p:last-child,
 }
 .pie-de-pagina-marca { display: inline-flex; align-items: center; }
 .logo-chesscore { display: block; height: auto; max-width: 100%; }
+/* El logo es un enlace a chesscore.cl (D-378). El `<a>` toma la caja que antes era de la imagen: en línea,
+   el contorno del foco se dibuja alrededor de la línea de texto y no del dibujo. `fit-content` para que,
+   donde el padre no sea flexible, el enlace no ocupe la fila entera: un clic en el hueco junto al logo no debe abrir otro sitio.
+   `flex-shrink: 0` porque, dentro de una fila flexible, la imagen sola no encogía por debajo de su ancho
+   (lo fija el atributo `width`) y el `<a>`, que no lo tiene, sí: en la barra del panel el logo bajó de
+   100 × 60 a 95 × 57 al envolverlo. Donde no quepa, lo sigue frenando el `max-width`.
+
+   El anillo lo elige el fondo que declara el componente (`data-sobre`) y no lo que rodea al logo: el cian
+   de `.admin-sidebar :focus-visible` y de `.p-oscuro :focus-visible` depende de la clase del contenedor,
+   y el logo blanco puesto en otro sitio marino saldría con el azul de la marca, que ahí no se ve. El
+   selector de atributo le da el peso justo para ganar a esas dos reglas, que pesan como una clase y una
+   pseudoclase, sin depender del orden en que se carguen las hojas. */
+.logo-chesscore-enlace { display: block; flex-shrink: 0; width: fit-content; max-width: 100%; border-radius: var(--r-sm); }
+.logo-chesscore-enlace[data-sobre='papel']:focus-visible { outline: 2px solid var(--marca); outline-offset: 4px; }
+.logo-chesscore-enlace[data-sobre='oscuro']:focus-visible { outline: 2px solid var(--cian); outline-offset: 4px; }
 /* Dos archivos, uno por fondo: el original es negro sobre transparente (`LogoChessCore.tsx`). Sobre el
    papel se ve el negro; sobre la portada marina, el blanco. */
 .logo-sobre-oscuro { display: none; }
