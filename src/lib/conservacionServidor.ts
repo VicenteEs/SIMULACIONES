@@ -50,6 +50,8 @@ import {
 import { registrarAccion } from './registroServidor'
 import { filtroDelLugar } from '@/access/reglas'
 import { sinLaPeticion, subdominioDeLaPeticionEnCurso } from './barreraDeInstitucion'
+import { diaEnPalabras } from './instituciones'
+import type { ResultadoDelBloqueo } from './bloqueoDeInstitucionesServidor'
 
 type Peticion = Partial<PayloadRequest> | undefined
 type Registro = Record<string, unknown>
@@ -340,6 +342,8 @@ export interface ResultadoDeLaConservacion {
   entradasVencidas: number
   /** Entradas de cuentas que se borraron sin pasar por el gancho. */
   entradasHuerfanas: number
+  /** Las instituciones bloqueadas que se avisaron, o cuyas cuentas se borraron, en esta pasada (D-403). */
+  bloqueo?: ResultadoDelBloqueo
 }
 
 /**
@@ -483,6 +487,15 @@ export function resumenDeLaConservacion(r: ResultadoDeLaConservacion): string {
     partes.push(`borró ${r.entradasVencidas} entradas a la plataforma de más de ${plazoEnPalabras(MESES_DE_LAS_ENTRADAS)}`)
   }
   if (r.entradasHuerfanas > 0) partes.push(`borró ${r.entradasHuerfanas} entradas a la plataforma de cuentas eliminadas`)
+  for (const { nombre, borradoEl } of r.bloqueo?.avisadas ?? []) {
+    partes.push(`avisó que las cuentas de ${nombre} se borrarán el ${diaEnPalabras(borradoEl)}`)
+  }
+  for (const { nombre, cuentas } of r.bloqueo?.borradas ?? []) {
+    partes.push(`borró ${cuentas === 1 ? 'la única cuenta' : `las ${cuentas} cuentas`} de ${nombre}, bloqueada hace más de un año`)
+  }
+  if (r.bloqueo?.avisosSinEnviar) {
+    partes.push(`no pudo mandar ${r.bloqueo.avisosSinEnviar === 1 ? 'un aviso' : `${r.bloqueo.avisosSinEnviar} avisos`} de borrado`)
+  }
   return partes.join(' · ')
 }
 
@@ -496,8 +509,15 @@ export async function aplicarLaConservacion(
   ahora: Date = new Date(),
 ): Promise<ResultadoDeLaConservacion> {
   const vencido = await borrarLoVencido(payload, ahora)
+  // Antes de anonimizar lo que quede: las cuentas que borra el bloqueo pasan
+  // por sus ganchos, y lo que se les escape lo recoge la vuelta de abajo. Se
+  // importa aquí dentro porque el bloqueo arma enlaces con `direccionPublica`,
+  // de `collections/Usuarios`, y esa colección importa este archivo: arriba
+  // sería un ciclo.
+  const { aplicarElBloqueo } = await import('./bloqueoDeInstitucionesServidor')
+  const bloqueo = await aplicarElBloqueo(payload, ahora)
   const anonimizado = await anonimizarLoDeCuentasBorradas(payload)
-  const resultado: ResultadoDeLaConservacion = { ...vencido, ...anonimizado }
+  const resultado: ResultadoDeLaConservacion = { ...vencido, ...anonimizado, bloqueo }
   const resumen = resumenDeLaConservacion(resultado)
   if (resumen) {
     await registrarAccion(payload, { accion: 'conservacion', origen: 'conservación', detalle: resumen })

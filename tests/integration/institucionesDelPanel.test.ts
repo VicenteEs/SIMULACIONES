@@ -158,4 +158,18 @@ describe.skipIf(payload === null)('la pestaña «Instituciones»', () => {
     const central = await cuentaDe(`central-${marca}@prueba.invalid`)
     expect(central?.institucion ?? null).toBeNull()
   })
+
+  it('ni invita en una institución bloqueada: primero se extiende el plazo (D-403)', async () => {
+    const id = borrarInstituciones[0]
+    await base.update({
+      collection: 'instituciones',
+      id,
+      data: { correoDelAdministrador: correoDelAdmin, vence: new Date(Date.now() - 86_400_000).toISOString() },
+    })
+    estado.enviados.length = 0
+    const r = await acciones.invitarAdministrador(String(id))
+    expect(r.exito).toBe(false)
+    expect(r.mensaje).toMatch(/terminó.*Extienda el plazo/)
+    expect(estado.enviados).toEqual([])
+  })
 })

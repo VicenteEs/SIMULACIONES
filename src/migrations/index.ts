@@ -58,6 +58,7 @@ import * as migration_20261116_033200_estado_compartido from './20261116_033200_
 import * as migration_20261116_091012_instituciones from './20261116_091012_instituciones';
 import * as migration_20261116_150000_barrera_de_instituciones from './20261116_150000_barrera_de_instituciones';
 import * as migration_20261116_160000_codigo_de_invitacion from './20261116_160000_codigo_de_invitacion';
+import * as migration_20261116_170000_bloqueo_de_instituciones from './20261116_170000_bloqueo_de_instituciones';
 
 export const migrations = [
   {
@@ -359,5 +360,10 @@ export const migrations = [
     up: migration_20261116_160000_codigo_de_invitacion.up,
     down: migration_20261116_160000_codigo_de_invitacion.down,
     name: '20261116_160000_codigo_de_invitacion',
+  },
+  {
+    up: migration_20261116_170000_bloqueo_de_instituciones.up,
+    down: migration_20261116_170000_bloqueo_de_instituciones.down,
+    name: '20261116_170000_bloqueo_de_instituciones'
   },
 ];

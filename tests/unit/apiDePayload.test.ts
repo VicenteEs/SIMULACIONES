@@ -24,6 +24,20 @@ vi.mock('@payloadcms/next/routes', () => ({
   REST_GET: () => atendido,
   REST_OPTIONS: () => atendido,
 }))
+// Dos instituciones de mentira para el bloqueo (D-403): una vencida y una
+// abierta. `getPayload` no se llega a usar para nada más que pasárselo.
+vi.mock('payload', async (original) => ({
+  ...(await original<typeof import('payload')>()),
+  getPayload: async () => ({}),
+}))
+vi.mock('@/lib/institucionesServidor', async (original) => ({
+  ...(await original<typeof import('@/lib/institucionesServidor')>()),
+  institucionPorSubdominio: async (_payload: unknown, subdominio: string) =>
+    ({
+      cerrada: { id: '1', nombre: 'Cerrada', subdominio, vence: '2020-01-01T00:00:00.000Z' },
+      abierta: { id: '2', nombre: 'Abierta', subdominio, vence: null },
+    })[subdominio] ?? null,
+}))
 
 import { DELETE, GET, OPTIONS, PATCH, POST, PUT } from '@/app/(payload)/api/[...slug]/route'
 
@@ -46,6 +60,25 @@ describe('el archivo subido sigue saliendo', () => {
     // son `radiografia-400x300.png` en `file/`. Por eso la comprobación mira la
     // forma de la ruta y no el nombre del archivo.
     await GET(peticion, contexto('modelos-3d', 'file', 'femur-400x300.png'))
+    expect(atendido).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('desde una institución bloqueada (D-403)', () => {
+  const desde = (subdominio: string) =>
+    new Request('https://ved.example.net/api/medios/file/radiografia.png', {
+      headers: { 'x-traumahub-subdominio': subdominio },
+    })
+
+  it('no sale ningún archivo, aunque la sesión se abriera antes de vencer', async () => {
+    const respuesta = await GET(desde('cerrada'), contexto('medios', 'file', 'radiografia.png'))
+    expect(respuesta.status).toBe(403)
+    expect(atendido).not.toHaveBeenCalled()
+  })
+
+  it('desde una abierta, sí', async () => {
+    const respuesta = await GET(desde('abierta'), contexto('medios', 'file', 'radiografia.png'))
+    expect(respuesta.status).toBe(200)
     expect(atendido).toHaveBeenCalledTimes(1)
   })
 })

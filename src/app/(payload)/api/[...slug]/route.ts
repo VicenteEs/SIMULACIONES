@@ -1,6 +1,9 @@
 import config from '@payload-config'
+import { getPayload } from 'payload'
 import { REST_GET, REST_OPTIONS } from '@payloadcms/next/routes'
 import { conEtiqueta } from '@/lib/etiquetaDeArchivo'
+import { institucionPorSubdominio, subdominioDeLasCabeceras } from '@/lib/institucionesServidor'
+import { estaBloqueada } from '@/lib/instituciones'
 
 /**
  * De la API REST de Payload solo queda lo que el navegador pide de verdad:
@@ -96,9 +99,29 @@ const cerrada = (): Response =>
     { status: 403 },
   )
 
+/**
+ * ¿Llega desde una institución bloqueada (D-403)? Ahí no se sirve ningún
+ * archivo.
+ *
+ * Payload sirve el archivo a quien traiga un testigo firmado, y no sabe nada
+ * de instituciones: sin esto, la sesión abierta antes de vencer seguiría
+ * bajando imágenes y modelos con la dirección a mano hasta que caducara su
+ * testigo, aunque no pudiera abrir ni una página. Desde la central no se
+ * pregunta nada: su petición no trae subdominio.
+ */
+async function desdeUnaBloqueada(peticion: Request): Promise<boolean> {
+  const subdominio = subdominioDeLasCabeceras(peticion.headers)
+  if (!subdominio) return false
+  const institucion = await institucionPorSubdominio(await getPayload({ config }), subdominio)
+  return institucion !== null && estaBloqueada(institucion.vence)
+}
+
 export async function GET(peticion: Request, contexto: Contexto): Promise<Response> {
   const { slug } = await contexto.params
   if (!esArchivoSubido(slug)) return cerrada()
+  if (await desdeUnaBloqueada(peticion)) {
+    return Response.json({ errors: [{ message: 'El plazo de esta institución terminó.' }] }, { status: 403 })
+  }
   const [coleccion, , nombre] = slug as string[]
   return conEtiqueta(peticion, await listaDeArchivos(peticion, contexto), coleccion, nombre)
 }

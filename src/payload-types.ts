@@ -196,6 +196,8 @@ export interface Institucione {
   cupo: number;
   correoDelAdministrador: string;
   codigoDeInvitacion?: string | null;
+  avisoDeBorradoEn?: string | null;
+  cuentasBorradasEn?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2848,6 +2850,8 @@ export interface InstitucionesSelect<T extends boolean = true> {
   cupo?: T;
   correoDelAdministrador?: T;
   codigoDeInvitacion?: T;
+  avisoDeBorradoEn?: T;
+  cuentasBorradasEn?: T;
   updatedAt?: T;
   createdAt?: T;
 }

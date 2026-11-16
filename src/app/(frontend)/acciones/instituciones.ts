@@ -22,6 +22,7 @@ import { mensajeDeInstitucionLista } from '@/correo/mensajes'
 import { accion, exigirAdminCentral, type Respuesta } from '@/lib/guardias'
 import {
   HORAS_DE_INVITACION,
+  estaBloqueada,
   finDelDiaEnChile,
   leerDatosDeInstitucion,
   type CampoDeInstitucion,
@@ -282,6 +283,10 @@ export async function actualizarInstitucion(
  *
  * No mira el cupo: el cupo lo fija TraumaHub, y su administrador no puede
  * quedar fuera por haberlo llenado sus alumnos.
+ *
+ * Con la institución bloqueada no invita (D-403): el enlace no dejaría entrar,
+ * caducaría en 72 horas sin servir, y la cuenta creada aquí, en una institución
+ * a la que ya se avisó del borrado, se borraría con las demás.
  */
 export async function invitarAdministrador(id: unknown): Promise<Respuesta<Invitacion>> {
   return accion(async () => {
@@ -292,6 +297,11 @@ export async function invitarAdministrador(id: unknown): Promise<Respuesta<Invit
       req.user = usuario as never
       const fila = await payload.findByID({ collection: 'instituciones', id: clave, depth: 0, disableErrors: true, req })
       if (!fila) throw new Error('Esa institución ya no existe. Recargue la lista.')
+      if (estaBloqueada(fila.vence)) {
+        throw new Error(
+          `El plazo de ${fila.nombre} terminó y nadie puede entrar en ella. Extienda el plazo con «Editar» y después envíe la invitación.`,
+        )
+      }
       exigirDireccionPublica()
       const correo = String(fila.correoDelAdministrador).toLowerCase()
       const cuenta = await cuentaConCorreo(payload, correo, req)

@@ -19,7 +19,9 @@ import {
   CuentaDesactivada,
   direccionPublica,
   enlaceDeClave,
+  InstitucionBloqueadaAlEntrar,
   MENSAJE_CUENTA_DESACTIVADA,
+  MENSAJE_INSTITUCION_BLOQUEADA,
   MINUTOS_DE_BLOQUEO,
 } from '@/collections/Usuarios'
 import { enviarSinEsperar, hayCorreo } from '@/correo/enviar'
@@ -52,6 +54,7 @@ import { codigoDeLaInstitucion, codigosIguales } from '@/lib/invitacionesServido
 import { sinLaPeticion } from '@/lib/barreraDeInstitucion'
 import { idDeInstitucion } from '@/access/payload'
 import { cuentaValeEnElLugar, filtroDelLugar } from '@/access/reglas'
+import { estaBloqueada } from '@/lib/instituciones'
 
 /**
  * Opciones de la cookie de sesión, y el cabo que dejó mudarla de `/` al prefijo.
@@ -167,6 +170,10 @@ export async function entrar(
     // la página ya dice que no existe, y la acción se podría llamar igual.
     const lugar = await lugarDeLaPeticion(payload, cabeceras)
     if (lugar.subdominio && !lugar.institucion) throw new Error('Correo o contraseña incorrectos.')
+    // En una institución bloqueada no entra nadie (D-403), y se dice antes de
+    // mirar la contraseña: vale para todas sus cuentas, y no cuenta nada de
+    // ninguna. `beforeLogin` lo vuelve a mirar por si se llega de otro modo.
+    if (lugar.institucion && estaBloqueada(lugar.institucion.vence)) throw new Error(MENSAJE_INSTITUCION_BLOQUEADA)
 
     let resultado: { token?: string; user?: { activo?: unknown; rol?: unknown; bienvenidaVistaEn?: unknown } }
     try {
@@ -214,6 +221,8 @@ export async function entrar(
       if (fallo instanceof CuentaDesactivada) {
         throw new Error(MENSAJE_CUENTA_DESACTIVADA)
       }
+      // La institución que venció entre que se leyó el lugar y se entró.
+      if (fallo instanceof InstitucionBloqueadaAlEntrar) throw new Error(MENSAJE_INSTITUCION_BLOQUEADA)
       // Para el resto, un mensaje único para «no existe» y «contraseña
       // incorrecta»: decir cuál de las dos falla convierte el formulario en un
       // comprobador de correos.
@@ -381,6 +390,9 @@ export async function pedirEnlaceDeClave(correo: unknown): Promise<Respuesta> {
       // correo.
       const lugar = await lugarDeLaPeticion(payload, cabeceras)
       if (lugar.subdominio && !lugar.institucion) return null
+      // Ni en una bloqueada (D-403): el enlace no dejaría entrar, y el correo
+      // sería solo ruido en el buzón de quien no puede hacer nada con él.
+      if (lugar.institucion && estaBloqueada(lugar.institucion.vence)) return null
       const { docs } = await payload.find({
         collection: 'usuarios',
         where: { email: { equals: email } },
@@ -512,6 +524,12 @@ async function exigirInvitacion(
 ): Promise<void> {
   if (!lugar.subdominio) return
   if (!lugar.institucion) throw new Error('Esta institución no existe en TraumaHub.')
+  // Bloqueada (D-403), el enlace no vale aunque sea el vigente: la cuenta no
+  // podría entrar, y la solicitud se quedaría esperando a un administrador que
+  // tampoco puede.
+  if (estaBloqueada(lugar.institucion.vence)) {
+    throw new Error(`El plazo de ${lugar.institucion.nombre} en TraumaHub terminó: por ahora no se pueden pedir cuentas.`)
+  }
   if (!codigosIguales(dado, await codigoDeLaInstitucion(payload, lugar.institucion.id))) {
     throw new Error(ENLACE_DE_INVITACION_INVALIDO)
   }
@@ -951,6 +969,10 @@ export async function fijarClaveNueva(
         // junto con el vencimiento del testigo, de modo que el enlace sigue
         // sirviendo en cuanto activen la cuenta y mientras le quede su hora.
         if (fallo instanceof CuentaDesactivada) throw new Error(MENSAJE_CUENTA_DESACTIVADA)
+        // Lo mismo la institución bloqueada (D-403): el enlace sigue valiendo
+        // cuando se extienda el plazo, y decirle que caducó lo mandaría a pedir
+        // otro que fallaría igual.
+        if (fallo instanceof InstitucionBloqueadaAlEntrar) throw new Error(MENSAJE_INSTITUCION_BLOQUEADA)
         return null
       })
 

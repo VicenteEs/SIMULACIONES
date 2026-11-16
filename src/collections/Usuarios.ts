@@ -2,6 +2,7 @@ import type { CollectionConfig, PayloadRequest } from 'payload'
 import { administracionDeUsuarios, accesoAlPanel, idDeInstitucion } from '@/access/payload'
 import { cuentaValeEnElLugar } from '@/access/reglas'
 import { lugarDeLaPeticion } from '@/lib/institucionesServidor'
+import { estaBloqueada } from '@/lib/instituciones'
 import { direccionDeLaInstitucion } from '@/lib/anfitrion'
 import { servidorDePruebas } from '@/lib/servidorDePruebas'
 import { ajustarPrimerUsuario } from './hooks/primerUsuario'
@@ -176,6 +177,27 @@ export class CuentaDeOtroLugar extends Error {
   constructor() {
     super('La cuenta no es de esta institución.')
     this.name = 'CuentaDeOtroLugar'
+  }
+}
+
+/** Lo que lee quien intenta entrar, o elegir su contraseña, en una institución bloqueada (D-403). */
+export const MENSAJE_INSTITUCION_BLOQUEADA =
+  'El plazo de su institución en TraumaHub terminó, y mientras no se extienda nadie puede entrar. ' +
+  'Pregunte a quien administra la plataforma en su institución.'
+
+/**
+ * La institución del lugar está bloqueada: su plazo venció (D-403). A
+ * diferencia de `CuentaDeOtroLugar` se dice, porque no cuenta nada de la
+ * cuenta: vale lo mismo para todas las de esa institución, y la página ya lo
+ * enseña antes de que nadie escriba su contraseña.
+ */
+export class InstitucionBloqueadaAlEntrar extends Error {
+  readonly status = 403
+  readonly isPublic = true
+
+  constructor() {
+    super(MENSAJE_INSTITUCION_BLOQUEADA)
+    this.name = 'InstitucionBloqueadaAlEntrar'
   }
 }
 
@@ -385,6 +407,23 @@ export const Usuarios: CollectionConfig = {
         }
         if (!cuentaValeEnElLugar(idDeInstitucion((user as { institucion?: unknown }).institucion), delLugar)) {
           throw new CuentaDeOtroLugar()
+        }
+        // Y la institución, abierta (D-403). Se lee aquí y no se fía de quien
+        // llama: `login` y `resetPassword` pasan los dos por este gancho, y así
+        // ninguna de las dos firma un testigo en una institución bloqueada.
+        // Después de mirar el lugar, para que una cuenta de otro siga leyendo
+        // lo de siempre.
+        if (delLugar) {
+          const institucion = await req.payload.findByID({
+            collection: 'instituciones',
+            id: delLugar,
+            depth: 0,
+            overrideAccess: true,
+            disableErrors: true,
+            req,
+          })
+          if (!institucion) throw new CuentaDeOtroLugar()
+          if (estaBloqueada((institucion as { vence?: string | null }).vence)) throw new InstitucionBloqueadaAlEntrar()
         }
         return user
       },

@@ -11985,13 +11985,13 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
   - Después de confirmar, el administrador recibe `mensajeDeInstitucionLista`: la dirección de su institución, el plazo y el enlace para elegir su contraseña, que va a su subdominio y dura 72 horas, como cualquier invitación (`HORAS_DE_INVITACION`, ahora también en `lib/instituciones.ts`).
   - Sin servidor de correo, o si el envío falla, la institución queda creada igual y el enlace aparece en pantalla para entregarlo a mano, como hace «Nueva cuenta».
 - **El plazo.** El panel lo pide como fecha, sin hora, y «el último día» se trabaja entero: vence al terminar ese día en Chile (`finDelDiaEnChile`). Se calcula con la zona `America/Santiago` y no con la del proceso: en el contenedor coinciden, pero en otro equipo no, y el cambio de hora movería el bloqueo una hora.
-  - Una fecha que no se puede leer cuenta como vencida. De esto saldrá el bloqueo (E5.8), y una fila estropeada no puede dejar una institución abierta para siempre.
+  - Una fecha que no se puede leer cuenta como vencida. De esto saldrá el bloqueo (E5.8, *hecho en D-403*), y una fila estropeada no puede dejar una institución abierta para siempre.
   - Se avisa desde cinco días antes (`DIAS_DE_AVISO`), en la tabla.
   - El inicio se guarda a mediodía UTC, que en Chile es el mismo día: es un dato del contrato y no decide nada a una hora.
 - **El cupo cuenta las cuentas activas de cualquier rol**, también la del administrador y las de los docentes.
   - Se pensó en contar solo a los alumnos. No: el rol lo pone el administrador de la institución, y con solo cambiar alumnos a docentes el cupo dejaría de contar.
   - Bajar el cupo por debajo de las activas no desactiva a nadie. Solo impide aprobar más hasta que se liberen lugares, y la pantalla lo avisa al guardar.
-- **Lo que no cambia.** El subdominio va en los enlaces que ya se repartieron, y el inicio, en lo firmado: después de crearla solo cambian el nombre, la modalidad, el último día, el cupo y el correo de contacto. Una institución no se borra desde aquí: eso es el bloqueo con sus doce meses (E5.8).
+- **Lo que no cambia.** El subdominio va en los enlaces que ya se repartieron, y el inicio, en lo firmado: después de crearla solo cambian el nombre, la modalidad, el último día, el cupo y el correo de contacto. Una institución no se borra desde aquí: eso es el bloqueo con sus doce meses (E5.8). *(Hecho en D-403: se borran sus cuentas, no la institución.)*
 - **«Enviar invitación»** devuelve la llave a quien la institución designó: si la cuenta del correo de la ficha ya es de la institución, queda como administrador activo y recibe un enlace nuevo; si no existe, se crea. Si es de otro lugar, no se toca. No mira el cupo: lo fija TraumaHub, y el administrador no puede quedar fuera porque sus alumnos lo llenaron.
 - **La central no ve las cuentas de las instituciones en «Usuarios y permisos»** desde E5.6. Esta pestaña es el único sitio donde ve a sus administradores, con su estado: sin administrador, desactivado o «aún no entra».
 
@@ -12104,6 +12104,71 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) `sinLaPeticion` tiene un segundo uso. Solo lee si el correo existe y dónde, pero es otra puerta en la segunda barrera.
 - (−) Un enlace filtrado deja pedir hasta 200 cuentas por hora en esa institución. Ninguna entra sin aprobación, pero llenan la lista de solicitudes hasta que se cambia el enlace.
 - (−) Quien ya tiene cuenta en la central no puede tener otra en su institución con el mismo correo.
+
+### D-403 · 2026-11-16 · vigente · P-016 E5.8 · el bloqueo, sus doce meses y la exportación
+**Una institución vencida se bloquea: en su subdominio no vale ninguna cuenta, no se entra, no se pide cuenta y no se sirve ningún archivo. Doce meses después, la pasada diaria avisa a la institución y a TraumaHub; treinta días más tarde, borra sus cuentas. Su contenido se queda, y TraumaHub lo puede exportar en un ZIP.**
+
+- **El bloqueo.** Bloqueada es vencida (`estaBloqueada`, con `estadoDelPlazo`), también con una fecha que no se puede leer. Se cierra en cada puerta:
+  - la sesión (`cuentaEnSuLugar`): la que se abrió antes de vencer deja de valer en la petición siguiente, sin esperar a que caduque su testigo;
+  - la plantilla, que pinta `InstitucionBloqueada` en lugar de cualquier página, `/entrar` y `/registro` incluidas. Dice que no se perdió nada, que es lo primero que se teme, y a quién preguntar: a quien administra la plataforma en la institución, que es quien firmó el plazo. El borrado no se menciona ahí: se le avisa a quien puede evitarlo;
+  - `entrar`, que lo dice antes de mirar la contraseña: vale para todas las cuentas de la institución y no cuenta nada de ninguna;
+  - `beforeLogin`, que lee la institución. Así lo cierran también `resetPassword` y cualquier entrada que no pase por `entrar`. `fijarClaveNueva` lo dice tal cual, y no «el enlace caducó»: el enlace sigue valiendo cuando se extienda el plazo;
+  - `pedirEnlaceDeClave` no manda nada, callado como siempre, y `solicitarCuenta` se niega aunque el enlace de invitación sea el vigente;
+  - los archivos de `/api/<colección>/file/<nombre>`. Payload los sirve a cualquier testigo firmado y no sabe de instituciones: sin esto, la sesión de antes seguía bajando imágenes con la dirección a mano;
+  - y desde TraumaHub, «Enviar invitación» se niega hasta extender el plazo: el enlace caducaría sin servir.
+- Lo deshace extender el plazo: en el acto en el proceso que guarda, y en 30 segundos en los otros tres (`institucionesServidor.ts`).
+- **Los doce meses** (`etapaDelBloqueo`, pura): abierta, bloqueada, por avisar a los doce meses de calendario del vencimiento, avisada, por borrar a los treinta días del aviso, y borrada.
+  - Los treinta días se cuentan desde el aviso que salió, no desde el que tocaba: un servidor caído ese día retrasa el aviso y el borrado con él, y nadie pierde su plazo.
+  - Por qué treinta días y no borrar a los doce meses en el acto: el correo puede caer en el correo no deseado o llegar a quien ya no trabaja allí, y hace falta tiempo para extender el plazo o pedir la exportación.
+  - Una fecha que no se puede leer bloquea, pero nunca lleva al borrado: una fila estropeada cierra la puerta y no borra a nadie.
+  - Un plazo nuevo vacía el aviso y el borrado (`cambioElPlazo`, que compara instantes y no textos), y los doce meses se cuentan desde la fecha nueva.
+- **El aviso** (`mensajeDeBorradoProximo`). Dos versiones del mismo correo:
+  - a los administradores activos de la institución y al correo de contacto de su ficha, aunque no tenga cuenta: después de un año, quien firmó suele ser lo único que queda. Dice qué pedir y a quién, porque la institución no puede extender su plazo;
+  - a los administradores de TraumaHub, con el botón a «Instituciones», donde se extiende el plazo o se descarga el contenido.
+  - Sin servidor de correo, o si el envío falla, el aviso se apunta igual y el borrado sigue su curso. Lo dicen la tabla y el registro («no pudo mandar un aviso de borrado»). Borrar es lo que se promete, y un correo caído no puede alargar la conservación de los datos de nadie.
+  - Una institución bloqueada sin cuentas no recibe aviso: no hay nada que borrar.
+- **El borrado.** Cada cuenta con `payload.delete`, como «Eliminar» en el panel: sus ganchos borran la actividad, dejan sin nombre los comentarios y el registro, y quitan su correo de las difusiones (D-291).
+  - Una a una, cada una en su transacción: una que falla no deshace las demás, y la fila no se marca como borrada mientras quede alguna.
+  - Se quedan la institución y su contenido, que no son datos personales; el tiempo activo, ya sin dueño; y las revisiones, sin quién las hizo. Una institución que vuelve después de un año encuentra lo suyo, y «Enviar invitación» le devuelve un administrador.
+- **Dónde corre.** Dentro de la pasada de conservación (D-290), en el primer proceso (D-393), con su resumen en la misma entrada del registro. La pasada lo importa dentro de la función: arma enlaces con `direccionPublica`, de `collections/Usuarios`, y esa colección importa la conservación.
+- **Lo que guarda la fila.** `avisoDeBorradoEn` y `cuentasBorradasEn`, cerradas a la API: solo las escribe la pasada. Migración `20261116_170000_bloqueo_de_instituciones`.
+- **La exportación** (`api/instituciones/[id]/contenido`, con el botón «Exportar» de la tabla). Solo de TraumaHub: el de la institución no la necesita mientras puede entrar, y cuando ya no puede, tampoco podría descargarla.
+  - Lleva un `LEEME.txt`, la ficha de la institución sin su código de invitación, la última versión de cada documento de los cinco módulos con sus borradores, y los medios y modelos con sus archivos.
+  - No lleva las cuentas ni lo que hizo cada persona: son datos personales, y no salen con el contenido.
+  - No es un formato para reimportar, sino para no perder lo escrito.
+  - Los archivos van sin comprimir (`crearZip` aprendió a guardarlos tal cual): imágenes, vídeos y glTF ya vienen comprimidos, y DEFLATE costaría segundos por megabyte sin achicarlos.
+  - Se arma en memoria, con un techo de 200 MB de archivos; lo que no cabe queda nombrado en el `LEEME.txt` con su motivo.
+  - Cada descarga queda en el registro, con la acción nueva `exportacion-de-institucion`. La acción del registro es un campo de texto validado, así que no pide migración.
+- **La tabla de «Instituciones»** cuenta el bloqueo bajo el plazo: cuándo se avisará, cuándo se borrarán las cuentas, o que se borraron.
+- **Lo que no se hizo.**
+  - Qué ve el fantasma (E5.9) en una institución bloqueada: se decide allí.
+  - El administrador de la institución no sabe que su plazo vence hasta que se bloquea: el aviso de los cinco días está solo en la tabla de TraumaHub (D-400).
+  - El aviso de privacidad nuevo (E8) tiene que decir este plazo: doce meses de bloqueo y treinta días.
+
+*Comprobado.*
+- `tests/unit/bloqueoDeInstituciones.test.ts`: las fechas de cada paso, en verano, con el aviso que sale tarde, con una fecha ilegible y con el 29 de febrero; qué es un plazo nuevo; el resumen; las dos versiones del correo; el ZIP sin comprimir; y la exportación con sus archivos, el nombre con «../», el que no está en el disco y el que no cabe.
+- `tests/unit/rutaDeContenidoDeInstitucion.test.ts`: nadie más que el administrador de TraumaHub descarga, ni el de una institución, y cada descarga queda anotada.
+- `tests/unit/apiDePayload.test.ts`: ningún archivo sale desde una institución bloqueada.
+- `tests/integration/bloqueoDeInstituciones.test.ts`, contra PostgreSQL:
+  - nadie entra en una bloqueada, ni por `entrar` ni por el gancho;
+  - la sesión abierta deja de valer al vencer y vuelve al extender;
+  - pedir un enlace de clave no manda nada;
+  - el aviso sale una vez, a quien tiene que salir;
+  - a los 29 días no se borra nada, y a los 31 se borran las cuentas y queda la ficha;
+  - un plazo nuevo vacía el aviso, y la misma fecha escrita de otra forma no;
+  - la exportación lleva lo de la institución, y nada de otra ni su código.
+- La prueba de la sesión falla si se quita la regla de `cuentaEnSuLugar`.
+- `invitaciones.test.ts` y `institucionesDelPanel.test.ts`, con la solicitud y la invitación negadas en una bloqueada.
+- La suite entera: 7174 pasan; fallan las 13 del entorno Windows de siempre (las que leen el código en CRLF, la zona horaria, `directorioDeRespaldos` y las que vencen bajo carga, que pasan solas).
+
+*Consecuencias.*
+- (+) Una institución que no renueva no puede usarse, y no pierde nada mientras se negocia.
+- (+) Los datos personales de una institución que no vuelve no se guardan para siempre: se borran solos, con el plazo del registro.
+- (+) Ninguna sesión sobrevive al vencimiento.
+- (−) Un correo caído el día del aviso no detiene el borrado. Queda en el registro y en la tabla.
+- (−) Cada archivo pedido desde un subdominio pregunta por la institución, aunque sea a la memoria del proceso.
+- (−) La exportación ocupa hasta 400 MB de memoria un momento, en un proceso.
+- (−) El correo de contacto de la ficha recibe el aviso aunque no tenga cuenta. Si es viejo, el aviso le llega a quien ya no está: por eso va también a TraumaHub.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -18292,7 +18357,10 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - `/registro` en una institución, solo con un enlace válido, y frenos propios para que pida cuenta un curso entero;
     - el correo que ya tiene cuenta en otro lugar, avisado al titular con los enlaces de allí;
     - el cupo en las tres acciones que activan, con candado por institución;
-  - E5.8 · el bloqueo, con sus 12 meses, y la exportación;
+  - E5.8 · el bloqueo, con sus 12 meses, y la exportación. *Hecho en local el 2026-11-16, con los detalles en D-403:*
+    - el bloqueo en la sesión, la plantilla, la entrada, la clave, la solicitud y los archivos;
+    - el aviso a los doce meses, a la institución y a TraumaHub, y el borrado de sus cuentas treinta días después, dentro de la pasada de conservación;
+    - la exportación del contenido en un ZIP, con el botón «Exportar» de la tabla;
   - E5.9 · la entrada como fantasma;
   - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño.
 - [ ] **E6 · Las difusiones (D-375).**

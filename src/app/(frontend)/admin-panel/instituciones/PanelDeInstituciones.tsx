@@ -2,13 +2,14 @@
 
 import { useState, useTransition, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Building2, Copy, Mail, Pencil, Plus } from 'lucide-react'
+import { Building2, Copy, Download, Mail, Pencil, Plus } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { Modal } from '@/components/ui/Modal'
 import { useAvisos } from '@/components/ui/Avisos'
 import { useConfirmar } from '@/components/ui/Confirmar'
 import { Vacio } from '@/components/ui/Vacio'
 import { claseDeInsignia, type Tono } from '@/lib/tonosDeEstado'
+import { ruta } from '@/lib/rutas'
 import {
   DIAS_DEL_PILOTO,
   HORAS_DE_INVITACION,
@@ -18,6 +19,7 @@ import {
   vencimientoDelPiloto,
   type CampoDeInstitucion,
   type EstadoDelPlazo,
+  type EtapaDelBloqueo,
   type Modalidad,
   type ProblemasDeInstitucion,
 } from '@/lib/instituciones'
@@ -39,6 +41,14 @@ export interface InstitucionDelPanel {
   vence: string
   plazo: EstadoDelPlazo
   dias: number | null
+  /** En qué punto del bloqueo está (D-403), con sus días como `AAAA-MM-DD`. */
+  bloqueo: {
+    etapa: EtapaDelBloqueo['etapa']
+    avisoEl?: string
+    avisadaEl?: string
+    borradoEl?: string
+    borradaEl?: string
+  }
   cupo: number
   activas: number
   correoDelAdministrador: string
@@ -74,12 +84,40 @@ function insigniaDelPlazo(i: InstitucionDelPanel): { tono: Tono; texto: string }
 }
 
 /**
+ * Qué pasa con una institución bloqueada, en una línea (D-403). Lo primero que
+ * tiene que saber quien mira la tabla es si se van a borrar cuentas y cuándo:
+ * es lo único de aquí que no tiene vuelta atrás.
+ */
+function lineaDelBloqueo(b: InstitucionDelPanel['bloqueo']): { tono: Tono; texto: string } | null {
+  switch (b.etapa) {
+    case 'bloqueada':
+      return b.avisoEl
+        ? { tono: 'atencion', texto: `Nadie entra. Si no se extiende, el ${fechaCorta(b.avisoEl)} se avisa del borrado de sus cuentas.` }
+        : { tono: 'peligro', texto: 'Nadie entra. Su fecha de término no se puede leer: corríjala con «Editar».' }
+    case 'por-avisar':
+      return { tono: 'peligro', texto: 'Nadie entra. El aviso de borrado de sus cuentas sale en la próxima pasada diaria.' }
+    case 'avisada':
+      return {
+        tono: 'peligro',
+        texto: `Avisada el ${fechaCorta(b.avisadaEl ?? '')}: sus cuentas se borran el ${fechaCorta(b.borradoEl ?? '')}. Extender el plazo lo detiene.`,
+      }
+    case 'por-borrar':
+      return { tono: 'peligro', texto: 'Sus cuentas se borran en la próxima pasada diaria. Extender el plazo lo detiene.' }
+    case 'borrada':
+      return { tono: 'neutra', texto: `Sus cuentas se borraron el ${fechaCorta(b.borradaEl ?? '')}. El contenido sigue.` }
+    default:
+      return null
+  }
+}
+
+/**
  * La pestaña «Instituciones» (P-016 E5.5).
  *
  * Crear una pide lo que se contrató —modalidad, fechas, cupo— y a quién la
  * administra, y deja todo listo: la fila, la cuenta de su administrador y la
  * invitación a su subdominio. Después se cambia el plazo, la modalidad y el
- * cupo. No se borra: eso es el bloqueo y sus doce meses (E5.8).
+ * cupo. No se borra: eso es el bloqueo y sus doce meses (E5.8, D-403), que se
+ * cuenta en la columna del plazo, y antes de él se exporta su contenido.
  */
 export function PanelDeInstituciones({
   instituciones,
@@ -222,6 +260,7 @@ export function PanelDeInstituciones({
             <tbody>
               {instituciones.map((i) => {
                 const plazo = insigniaDelPlazo(i)
+                const bloqueo = lineaDelBloqueo(i.bloqueo)
                 const lleno = i.activas >= i.cupo
                 return (
                   <tr key={i.id}>
@@ -242,6 +281,7 @@ export function PanelDeInstituciones({
                         <div className="admin-table-user-email">
                           {i.modalidad === 'piloto' ? 'Piloto' : 'Definitiva'} · desde el {fechaCorta(i.inicio)}
                         </div>
+                        {bloqueo ? <p className={`inst-bloqueo inst-bloqueo-${bloqueo.tono}`}>{bloqueo.texto}</p> : null}
                       </div>
                     </td>
                     <td data-etiqueta="Cuentas activas">
@@ -277,6 +317,17 @@ export function PanelDeInstituciones({
                           <Mail aria-hidden size={14} />
                           Enviar invitación
                         </button>
+                        {/* Un enlace y no un botón: es una descarga, y la ruta
+                            tiene su propia guardia (D-403). */}
+                        <a
+                          className="admin-btn admin-btn-secondary admin-btn-sm"
+                          href={ruta(`/api/instituciones/${i.id}/contenido`)}
+                          download
+                          aria-label={`Exportar el contenido de ${i.nombre}`}
+                        >
+                          <Download aria-hidden size={14} />
+                          Exportar
+                        </a>
                       </div>
                     </td>
                   </tr>

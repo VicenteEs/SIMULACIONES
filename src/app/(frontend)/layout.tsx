@@ -18,6 +18,8 @@ import { AvisoDeServidorDePruebas } from '@/components/AvisoDeServidorDePruebas'
 import { AvisoDeSesionCerrada } from '@/components/AvisoDeSesionCerrada'
 import { PREFIJO_DEL_TITULO, servidorDePruebas } from '@/lib/servidorDePruebas'
 import { InstitucionQueNoExiste } from '@/components/InstitucionQueNoExiste'
+import { InstitucionBloqueada } from '@/components/InstitucionBloqueada'
+import { estaBloqueada } from '@/lib/instituciones'
 import { direccionPublica } from '@/collections/Usuarios'
 
 const TITULO = 'Plataforma docente de traumatología'
@@ -66,6 +68,10 @@ export default async function Layout({ children }: { children: React.ReactNode }
   // página, tampoco `/entrar`: en él no vale ninguna cuenta.
   const lugar = sesion.lugar
   const noExiste = Boolean(lugar?.subdominio) && !lugar?.institucion
+  // Lo mismo una institución bloqueada (D-403): ni `/entrar` ni `/registro`,
+  // porque ninguna de las dos lleva a ninguna parte hasta que se extienda el
+  // plazo, y lo que hay que decir es eso.
+  const bloqueada = lugar?.institucion && estaBloqueada(lugar.institucion.vence) ? lugar.institucion : null
   // La paleta del simulador (P-014 E7), en `<body>` y en ningún otro sitio. La consola aparece en tres lugares
   // —la página del caso, su silueta de carga y el editor del caso, dentro del panel— y de aquí cuelgan los
   // tres. Antes iba en el `<main>` de la página y en el contorno del panel, y la silueta, que no puede preguntar
@@ -108,6 +114,8 @@ export default async function Layout({ children }: { children: React.ReactNode }
         <ProveedoresDeUI>
           {noExiste ? (
             <InstitucionQueNoExiste subdominio={lugar?.subdominio ?? ''} central={direccionPublica()} />
+          ) : bloqueada ? (
+            <InstitucionBloqueada nombre={bloqueada.nombre} central={direccionPublica()} />
           ) : pideElAviso ? (
             <PantallaDelAviso nombre={sesion.usuario?.nombre as string | undefined} />
           ) : (

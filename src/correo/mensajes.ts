@@ -116,6 +116,55 @@ export function mensajeDeInstitucionLista(datos: {
   }
 }
 
+/**
+ * El aviso de que se borrarán las cuentas de una institución que lleva doce
+ * meses bloqueada (D-371, D-403), un mes antes de borrarlas.
+ *
+ * Dos versiones del mismo aviso. La de la institución dice qué pedir y a quién:
+ * ella no puede extender su plazo. La de TraumaHub dice dónde se hace, porque
+ * es quien lo hace. Las dos dicen lo que se conserva, que es lo primero que se
+ * pregunta quien lo lee.
+ */
+export function mensajeDeBorradoProximo(datos: {
+  institucion: string
+  /** El día en que venció, como se lee: «1 de diciembre de 2026». */
+  vencio: string
+  /** El día en que se borran las cuentas, igual. */
+  borrado: string
+  cuentas: number
+  /** El panel de TraumaHub, para su versión; sin él, la de la institución. */
+  enlacePanel?: string
+}): Correo {
+  const cuentas = datos.cuentas === 1 ? 'su única cuenta' : `sus ${datos.cuentas} cuentas`
+  const paraTraumaHub = Boolean(datos.enlacePanel)
+  return {
+    asunto: `TraumaHub · Las cuentas de ${datos.institucion} se borrarán el ${datos.borrado}`,
+    resumen: `${datos.institucion} lleva un año bloqueada. Si no se extiende su plazo, ${cuentas} se borran el ${datos.borrado}.`,
+    titulo: 'Aviso de borrado de cuentas',
+    bloques: [
+      {
+        tipo: 'parrafo',
+        texto: `El plazo de ${datos.institucion} en TraumaHub terminó el ${datos.vencio}, y desde entonces nadie puede entrar en ella. Al cumplir un año así, la plataforma borra los datos personales de quienes la usaban.`,
+        sinEnlaces: true,
+      },
+      {
+        tipo: 'parrafo',
+        texto: `El ${datos.borrado} se borrarán ${cuentas}, con el nombre, el correo y la actividad de cada persona. El contenido que se creó en la institución se conserva.`,
+      },
+      {
+        tipo: 'parrafo',
+        texto: paraTraumaHub
+          ? 'Desde «Instituciones» puede extender el plazo, que detiene el borrado, o descargar su contenido para entregárselo.'
+          : `Para evitarlo, pida a TraumaHub que extienda el plazo antes de esa fecha. Si solo quiere quedarse con el contenido, pídale también su exportación: ${AUTORIA.correo}.`,
+      },
+    ],
+    ...(paraTraumaHub ? { boton: { texto: 'Abrir Instituciones', enlace: datos.enlacePanel! } } : {}),
+    motivoDelEnvio: paraTraumaHub
+      ? 'Recibe este correo porque es administrador de TraumaHub.'
+      : 'Recibe este correo porque administra esta institución en TraumaHub.',
+  }
+}
+
 export function mensajeDeSolicitudRecibida(datos: { nombre: string }): Correo {
   return {
     asunto: 'TraumaHub · Recibimos su solicitud',

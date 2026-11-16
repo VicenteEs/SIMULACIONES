@@ -229,6 +229,25 @@ describe.skipIf(payload === null)('el enlace de invitación y el cupo (D-402)', 
     expect(await cuentaCon(correo)).toBeUndefined()
   })
 
+  it('ni en una institución bloqueada, aunque el enlace sea el vigente (D-403)', async () => {
+    const correo = `bloqueada-${marca}@prueba.invalid`
+    const { vence } = await base.findByID({ collection: 'instituciones', id: instituciones.A.id, depth: 0, overrideAccess: true })
+    await base.update({
+      collection: 'instituciones',
+      id: instituciones.A.id,
+      data: { vence: new Date(Date.now() - 60_000).toISOString() },
+      overrideAccess: true,
+    })
+    try {
+      const r = await en('A', async () => sesion.solicitarCuenta(solicitud(correo, await codigoDe('A'))))
+      expect(r.exito).toBe(false)
+      expect(r.mensaje).toMatch(/terminó: por ahora no se pueden pedir cuentas/)
+      expect(await cuentaCon(correo)).toBeUndefined()
+    } finally {
+      await base.update({ collection: 'instituciones', id: instituciones.A.id, data: { vence }, overrideAccess: true })
+    }
+  })
+
   it('con el enlace, la cuenta nace pendiente en su institución, y un curso entero desde la misma red no choca con el freno', async () => {
     const codigo = await codigoDe('A')
     // Siete desde la misma dirección: en la central, el sexto ya leía

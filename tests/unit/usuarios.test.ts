@@ -3,6 +3,7 @@ import type { Field, FieldAccess } from 'payload'
 import {
   CuentaDeOtroLugar,
   CuentaDesactivada,
+  InstitucionBloqueadaAlEntrar,
   MENSAJE_CUENTA_DESACTIVADA,
   Usuarios,
   correoDeClaveNueva,
@@ -111,15 +112,22 @@ describe('la aceptación del aviso de privacidad la anota la solicitud y nadie m
  * sesión, no el no tener sesión.
  *
  * El gancho se prueba llamándolo a secas, con el lugar ya dicho en el
- * `context` como lo dice `entrar` (D-396): así no toca la base ni la petición.
+ * `context` como lo dice `entrar` (D-396): así no toca las cabeceras. La
+ * institución sí la lee (D-403), y se la da un `findByID` de mentira: la 7
+ * abierta, la 9 vencida y ninguna otra.
  */
+const INSTITUCIONES: Record<string, { id: number; vence: string }> = {
+  '7': { id: 7, vence: '2999-01-01T03:00:00.000Z' },
+  '9': { id: 9, vence: '2020-01-01T03:00:00.000Z' },
+}
 const ganchoDeEntrada = () => {
   const ganchos = Usuarios.hooks?.beforeLogin
   if (!ganchos || ganchos.length !== 1) {
     throw new Error('Usuarios tiene que declarar exactamente un gancho beforeLogin')
   }
+  const req = { payload: { findByID: async ({ id }: { id: string }) => INSTITUCIONES[String(id)] ?? null } }
   return (usuario: unknown, institucionDelLugar: string | null = null) =>
-    ganchos[0]({ user: usuario, context: { institucionDelLugar } } as never)
+    ganchos[0]({ user: usuario, context: { institucionDelLugar }, req } as never)
 }
 
 describe('la cuenta desactivada no obtiene testigo', () => {
@@ -152,6 +160,23 @@ describe('la cuenta desactivada no obtiene testigo', () => {
     await expect(entrar({ id: '4', activo: true }, '7')).rejects.toThrow(CuentaDeOtroLugar)
     // La institución puede llegar poblada.
     await expect(entrar({ ...deLaInstitucion, institucion: { id: 7, subdominio: 'u' } }, '7')).resolves.toBeTruthy()
+  })
+
+  it('y no entra si su institución está bloqueada o ya no existe (D-403)', async () => {
+    await expect(entrar({ id: '6', email: 'r@v.cl', activo: true, institucion: 9 }, '9')).rejects.toThrow(
+      InstitucionBloqueadaAlEntrar,
+    )
+    await expect(entrar({ id: '6', email: 'r@x.cl', activo: true, institucion: 11 }, '11')).rejects.toThrow(
+      CuentaDeOtroLugar,
+    )
+    // Una cuenta de otro lugar sigue leyendo lo de siempre, y no cuenta que la
+    // institución esté bloqueada.
+    await expect(entrar({ id: '6', email: 'r@u.cl', activo: true, institucion: 7 }, '9')).rejects.toThrow(
+      CuentaDeOtroLugar,
+    )
+    const fallo = new InstitucionBloqueadaAlEntrar()
+    expect(fallo.isPublic).toBe(true)
+    expect(fallo.status).toBe(403)
   })
 
   it('el rechazo sale legible por REST y no como un 500 mudo', () => {

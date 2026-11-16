@@ -138,6 +138,10 @@ export function finDelDiaEnChile(fecha: string): Date | null {
   return new Date(instante)
 }
 
+/** «1 de diciembre de 2026», en Chile: el día como se lee en un correo o en el registro. */
+export const diaEnPalabras = (fecha: Date | string): string =>
+  new Date(fecha).toLocaleDateString('es-CL', { day: 'numeric', month: 'long', year: 'numeric', timeZone: ZONA_DE_LAS_FECHAS })
+
 /** El día `AAAA-MM-DD` de un instante, en Chile: lo que muestra un campo de fecha. */
 export function diaEnChile(instante: Date | string): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -175,6 +179,113 @@ export function estadoDelPlazo(
   if (falta <= 0) return { estado: 'vencida', dias: Math.floor(-falta / DIA_MS) }
   const dias = Math.ceil(falta / DIA_MS)
   return { estado: dias <= DIAS_DE_AVISO ? 'por-vencer' : 'vigente', dias }
+}
+
+/**
+ * ¿Está bloqueada? Al vencer, una institución se bloquea (D-371, D-403): en su
+ * subdominio no vale ninguna cuenta, no se entra ni se pide cuenta, y nada se
+ * borra. Lo deshace extender el plazo, que se ve en el acto en el proceso que
+ * lo guarda y en medio minuto en los demás (`institucionesServidor.ts`).
+ */
+export const estaBloqueada = (vence: string | Date | null | undefined, ahora: Date = new Date()): boolean =>
+  estadoDelPlazo(vence, ahora).estado === 'vencida'
+
+/**
+ * Meses de bloqueo antes de avisar que se borrarán sus cuentas (D-371): los
+ * doce del registro de acciones (D-290). Una institución que no vuelve en un
+ * año no tiene para qué seguir guardando los datos personales de sus alumnos.
+ */
+export const MESES_DE_BLOQUEO_ANTES_DEL_AVISO = 12
+
+/**
+ * Días entre el aviso y el borrado (D-403). Los doce meses llevan a un aviso y
+ * no a un borrado en el acto: el correo puede caer en el correo no deseado o
+ * llegar a quien ya no trabaja allí, y treinta días dan tiempo a extender el
+ * plazo o a pedir la exportación del contenido.
+ */
+export const DIAS_ENTRE_EL_AVISO_Y_EL_BORRADO = 30
+
+/** Lo que guarda la fila de una institución sobre su bloqueo. */
+export interface BloqueoGuardado {
+  vence?: string | Date | null
+  avisoDeBorradoEn?: string | Date | null
+  cuentasBorradasEn?: string | Date | null
+}
+
+/** En qué punto del bloqueo está una institución, con las fechas que lo deciden. */
+export type EtapaDelBloqueo =
+  | { etapa: 'abierta' }
+  /** Bloqueada. `avisoEl`, cuándo toca avisar; `null` si la fecha no se puede leer, y entonces nunca. */
+  | { etapa: 'bloqueada'; avisoEl: Date | null }
+  | { etapa: 'por-avisar'; avisoEl: Date }
+  /** Avisada; sus cuentas se borran el `borradoEl`. */
+  | { etapa: 'avisada'; avisadaEl: Date; borradoEl: Date }
+  | { etapa: 'por-borrar'; avisadaEl: Date; borradoEl: Date }
+  | { etapa: 'borrada'; borradaEl: Date }
+
+const instante = (valor: string | Date | null | undefined): Date | null => {
+  if (valor === null || valor === undefined || valor === '') return null
+  const fecha = new Date(valor)
+  return Number.isNaN(fecha.getTime()) ? null : fecha
+}
+
+/**
+ * Suma meses de calendario en UTC: lo mismo que `vencimiento` de
+ * `conservacion.ts`, hacia delante. Un 29 de febrero más doce meses cae el 1 de
+ * marzo: el aviso sale un día después, nunca antes.
+ */
+export function sumarMeses(fecha: Date, meses: number): Date {
+  const resultado = new Date(fecha.getTime())
+  resultado.setUTCMonth(resultado.getUTCMonth() + meses)
+  return resultado
+}
+
+/** Cuándo se borran las cuentas de una institución avisada en `aviso`: lo dice el correo y lo cumple la pasada. */
+export const borradoTrasElAviso = (aviso: Date): Date =>
+  new Date(aviso.getTime() + DIAS_ENTRE_EL_AVISO_Y_EL_BORRADO * DIA_MS)
+
+/**
+ * Qué toca hacer con una institución bloqueada (D-403), de lo que guarda su
+ * fila. Lo lee la pasada diaria, que avisa y borra, y la pestaña
+ * «Instituciones», que lo cuenta.
+ *
+ * Doce meses después del vencimiento se avisa, y treinta días después del
+ * aviso —del que de verdad salió, no del que tocaba— se borran las cuentas. Un
+ * servidor caído el día del aviso lo retrasa, y con él el borrado: nadie pierde
+ * los treinta días.
+ *
+ * Una fecha de término que no se puede leer bloquea (`estadoDelPlazo`), pero
+ * no lleva nunca al borrado: una fila estropeada cierra la puerta y no borra a
+ * nadie.
+ */
+export function etapaDelBloqueo(fila: BloqueoGuardado, ahora: Date = new Date()): EtapaDelBloqueo {
+  if (!estaBloqueada(fila.vence, ahora)) return { etapa: 'abierta' }
+  const borrada = instante(fila.cuentasBorradasEn)
+  if (borrada) return { etapa: 'borrada', borradaEl: borrada }
+  const avisada = instante(fila.avisoDeBorradoEn)
+  if (avisada) {
+    const borradoEl = borradoTrasElAviso(avisada)
+    return { etapa: ahora >= borradoEl ? 'por-borrar' : 'avisada', avisadaEl: avisada, borradoEl }
+  }
+  const vence = instante(fila.vence)
+  if (!vence) return { etapa: 'bloqueada', avisoEl: null }
+  const avisoEl = sumarMeses(vence, MESES_DE_BLOQUEO_ANTES_DEL_AVISO)
+  return ahora >= avisoEl ? { etapa: 'por-avisar', avisoEl } : { etapa: 'bloqueada', avisoEl }
+}
+
+/**
+ * ¿Cambió el plazo? Se comparan instantes y no textos: la base devuelve la
+ * fecha con otro formato que el que se le dio, y un «cambio» que solo es de
+ * formato borraría el aviso cada vez que se guarda la ficha.
+ */
+export function cambioElPlazo(antes: unknown, despues: unknown): boolean {
+  const ms = (v: unknown): number | null =>
+    v === null || v === undefined || v === '' ? null : new Date(v as string).getTime()
+  const a = ms(antes)
+  const b = ms(despues)
+  if (a === null || b === null) return a !== b
+  if (Number.isNaN(a) && Number.isNaN(b)) return false
+  return a !== b
 }
 
 /** El techo del cupo: más que esto es un error de tecleo, no un contrato. */

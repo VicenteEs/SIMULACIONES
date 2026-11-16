@@ -4,7 +4,7 @@ import { direccionPublica } from '@/collections/Usuarios'
 import { hayCorreo } from '@/correo/enviar'
 import { idDeInstitucion } from '@/access/payload'
 import { dominioDeInstituciones } from '@/lib/anfitrion'
-import { diaEnChile, estadoDelPlazo, type Modalidad } from '@/lib/instituciones'
+import { diaEnChile, estadoDelPlazo, etapaDelBloqueo, type EtapaDelBloqueo, type Modalidad } from '@/lib/instituciones'
 import { clientePayloadDeTodas } from '../datos'
 import { PanelDeInstituciones, type InstitucionDelPanel } from './PanelDeInstituciones'
 import './instituciones.css'
@@ -13,6 +13,23 @@ export const dynamic = 'force-dynamic'
 
 /** Más que esto no se lista de una vez. Llegar cerca es otro problema. */
 const TOPE = 1000
+
+/** El bloqueo como lo pinta la tabla: la etapa y sus días en Chile, sin instantes que hidratar. */
+function bloqueoDelPanel(etapa: EtapaDelBloqueo): InstitucionDelPanel['bloqueo'] {
+  const dia = (fecha: Date | null) => (fecha ? diaEnChile(fecha) : undefined)
+  switch (etapa.etapa) {
+    case 'bloqueada':
+    case 'por-avisar':
+      return { etapa: etapa.etapa, avisoEl: dia(etapa.avisoEl) }
+    case 'avisada':
+    case 'por-borrar':
+      return { etapa: etapa.etapa, avisadaEl: dia(etapa.avisadaEl), borradoEl: dia(etapa.borradoEl) }
+    case 'borrada':
+      return { etapa: etapa.etapa, borradaEl: dia(etapa.borradaEl) }
+    default:
+      return { etapa: 'abierta' }
+  }
+}
 
 /**
  * La pestaña «Instituciones» (P-016 E5.5, D-371, D-400): crear una, y cambiar
@@ -85,6 +102,7 @@ export default async function PaginaDeInstituciones() {
       vence: fila.vence ? diaEnChile(fila.vence) : '',
       plazo: plazo.estado,
       dias: plazo.dias,
+      bloqueo: bloqueoDelPanel(etapaDelBloqueo(fila, ahora)),
       cupo: fila.cupo,
       activas: activas[i] ?? 0,
       correoDelAdministrador: fila.correoDelAdministrador,

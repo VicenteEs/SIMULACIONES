@@ -45,6 +45,9 @@ export const ACCIONES_DEL_REGISTRO = [
   // La cuenta entró de una forma que no parece de una sola persona: desde otro
   // país demasiado pronto, o turnándose entre equipos (D-388). El detalle dice cuál.
   { value: 'entrada-sospechosa', label: 'Entró de una forma que no parece de una sola persona' },
+  // El administrador de TraumaHub descargó el contenido de una institución,
+  // para devolvérselo antes de borrar sus cuentas (D-403).
+  { value: 'exportacion-de-institucion', label: 'Exportó el contenido de una institución' },
 ] as const
 
 export type AccionDelRegistro = (typeof ACCIONES_DEL_REGISTRO)[number]['value']

@@ -9,6 +9,7 @@ import { idDeInstitucion } from '@/access/payload'
 import { testigoDeLaPeticion } from '@/lib/cookieDeSesion'
 import { motivoDelCierre } from '@/lib/entradasServidor'
 import { lugarDeLaPeticion, type LugarDeLaPeticion } from '@/lib/institucionesServidor'
+import { estaBloqueada } from '@/lib/instituciones'
 
 export interface Sesion {
   usuario: Record<string, unknown> | null
@@ -39,6 +40,10 @@ export interface Sesion {
  * subdominio sin institución no vale ninguna, la central tampoco, aunque sus
  * dos lados digan «ninguna institución».
  *
+ * En una institución bloqueada (D-403) tampoco vale ninguna: la sesión abierta
+ * antes de vencer deja de servir en la petición siguiente, sin esperar a que
+ * caduque su testigo.
+ *
  * Es lo que tiene que preguntar toda ruta que mire la sesión, en vez de
  * `payload.auth` a secas: `payload.auth` cree cualquier testigo firmado, venga
  * de donde venga. Solo `salir` lo llama directo, porque matar la sesión vale
@@ -54,6 +59,7 @@ export async function cuentaEnSuLugar(
   const vale =
     delTestigo !== null &&
     !enUnSubdominioQueNoExiste &&
+    !(lugar.institucion && estaBloqueada(lugar.institucion.vence)) &&
     cuentaValeEnElLugar(idDeInstitucion(delTestigo.institucion), lugar.institucion?.id ?? null)
   return { user: vale ? delTestigo : null, delTestigo, lugar }
 }

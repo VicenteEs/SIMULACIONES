@@ -4,10 +4,14 @@ import { olvidarInstituciones } from '@/lib/institucionesServidor'
 import { nuevoCodigoDeInvitacion } from '@/lib/invitacionesServidor'
 import {
   MODALIDADES,
+  cambioElPlazo,
   motivoDeSubdominioInvalido,
   normalizarSubdominio,
   vencimientoDelPiloto,
 } from '@/lib/instituciones'
+
+/** Lo que la pasada del bloqueo apunta en la fila (D-403): nadie más lo escribe. */
+const SOLO_DEL_SERVIDOR = { create: () => false, update: () => false }
 
 /**
  * Las instituciones que usan la plataforma, cada una en su subdominio (D-371).
@@ -56,6 +60,19 @@ export const Instituciones: CollectionConfig = {
     beforeChange: [
       ({ data, operation }) => {
         if (operation === 'create' && data && !data.codigoDeInvitacion) data.codigoDeInvitacion = nuevoCodigoDeInvitacion()
+        return data
+      },
+      // Un plazo nuevo empieza el bloqueo de cero (D-403): el aviso de borrado
+      // se dio por el plazo viejo, y con el nuevo los doce meses se cuentan
+      // desde su fecha. Sin esto, extender una institución avisada la dejaba
+      // con el borrado en marcha: abierta hoy, y sin cuentas en un mes si
+      // volvía a vencer. Solo si llega `vence`: la pasada, que apunta el aviso,
+      // no lo manda.
+      ({ data, operation, originalDoc }) => {
+        if (operation === 'update' && data && 'vence' in data && cambioElPlazo(originalDoc?.vence, data.vence)) {
+          data.avisoDeBorradoEn = null
+          data.cuentasBorradasEn = null
+        }
         return data
       },
     ],
@@ -133,6 +150,23 @@ export const Instituciones: CollectionConfig = {
       type: 'text',
       label: 'Código de invitación',
       access: { read: () => false, create: () => false, update: () => false },
+    },
+    {
+      // Cuándo se avisó que se borrarán sus cuentas, doce meses después de
+      // vencer (D-403). Lo escribe la pasada diaria, y se vacía al cambiar el
+      // plazo.
+      name: 'avisoDeBorradoEn',
+      type: 'date',
+      label: 'Aviso de borrado',
+      access: SOLO_DEL_SERVIDOR,
+    },
+    {
+      // Cuándo se borraron sus cuentas, treinta días después del aviso
+      // (D-403). La institución y su contenido siguen: se borran las personas.
+      name: 'cuentasBorradasEn',
+      type: 'date',
+      label: 'Cuentas borradas',
+      access: SOLO_DEL_SERVIDOR,
     },
   ],
 }

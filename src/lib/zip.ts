@@ -16,6 +16,12 @@ import { deflateRawSync } from 'node:zlib'
 export interface ArchivoDelZip {
   nombre: string
   datos: Uint8Array | string
+  /**
+   * `false` lo guarda tal cual (método 0). Para lo que ya viene comprimido
+   * —una imagen, un vídeo, un modelo glTF—, que DEFLATE no achica y en cambio
+   * cuesta segundos de procesador por cada megabyte (D-403).
+   */
+  comprimir?: boolean
 }
 
 /** La tabla del CRC-32 (polinomio 0xEDB88320), calculada una vez. */
@@ -56,14 +62,17 @@ export function crearZip(archivos: readonly ArchivoDelZip[], fecha: Date = new D
   for (const archivo of archivos) {
     const nombre = codificador.encode(archivo.nombre)
     const crudos = typeof archivo.datos === 'string' ? codificador.encode(archivo.datos) : archivo.datos
-    const comprimidos = new Uint8Array(deflateRawSync(crudos, { level: 9 }))
+    const guardado = archivo.comprimir === false
+    const comprimidos = guardado ? crudos : new Uint8Array(deflateRawSync(crudos, { level: 9 }))
+    const metodo = guardado ? 0 : 8
+    const version = guardado ? 10 : 20 // 1.0 basta para lo guardado; DEFLATE pide la 2.0
     const crc = crc32(crudos)
 
     const local = new DataView(new ArrayBuffer(30))
     local.setUint32(0, 0x04034b50, true)
-    local.setUint16(4, 20, true) // versión necesaria: 2.0 (DEFLATE)
+    local.setUint16(4, version, true) // versión necesaria
     local.setUint16(6, 0x0800, true) // nombres en UTF-8
-    local.setUint16(8, 8, true) // DEFLATE
+    local.setUint16(8, metodo, true)
     local.setUint16(10, hora, true)
     local.setUint16(12, dia, true)
     local.setUint32(14, crc, true)
@@ -76,9 +85,9 @@ export function crearZip(archivos: readonly ArchivoDelZip[], fecha: Date = new D
     const entrada = new DataView(new ArrayBuffer(46))
     entrada.setUint32(0, 0x02014b50, true)
     entrada.setUint16(4, 20, true) // hecha por: 2.0
-    entrada.setUint16(6, 20, true)
+    entrada.setUint16(6, version, true)
     entrada.setUint16(8, 0x0800, true)
-    entrada.setUint16(10, 8, true)
+    entrada.setUint16(10, metodo, true)
     entrada.setUint16(12, hora, true)
     entrada.setUint16(14, dia, true)
     entrada.setUint32(16, crc, true)
