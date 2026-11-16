@@ -1,4 +1,4 @@
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { EspacioDelTaller } from '@/components/admin/atlas/EspacioDelTaller'
 import { temaDeLaPlataforma } from '@/lib/temaDeLaPlataforma'
 
@@ -17,7 +17,7 @@ export default async function PaginaAtlas({
 }: {
   searchParams: Promise<{ preparacion?: string | string[]; comentario?: string | string[]; pestana?: string | string[] }>
 }) {
-  const { esAdmin } = await exigirPanel()
+  const { esAdmin } = await exigirPanelCentral()
 
   // El enlace de la bandeja de comentarios (E2, D-158): abre esta preparación y
   // señala este comentario. Son identificadores de fila; lo que no lo parezca se

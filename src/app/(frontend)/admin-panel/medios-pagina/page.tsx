@@ -1,4 +1,4 @@
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { leerCambios } from '@/lib/mediosDeLaPagina'
 import { clientePayload } from '../datos'
@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic'
  * lo sabe `src/lib/espaciosDeLaPagina.ts`, que la pantalla importa entero.
  */
 export default async function PaginaMediosDeLaPagina() {
-  await exigirPanel('admin')
+  await exigirPanelCentral('admin')
 
   // Si la lectura falla —lo corriente: se desplegó sin la migración de estas
   // dos tablas—, se dice. Pintar la pestaña con todo «Original» haría creer que

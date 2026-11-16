@@ -10,7 +10,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { exigirAdmin, accion, type Respuesta } from '@/lib/guardias'
+import { accion, exigirAdminCentral, type Respuesta } from '@/lib/guardias'
 import { esNombreDeRespaldo, type Respaldo } from '@/lib/respaldos'
 import { crearRespaldo, eliminarRespaldo, listarRespaldos } from '@/lib/respaldosServidor'
 
@@ -18,7 +18,7 @@ const RUTA = '/admin-panel/respaldos'
 
 export async function respaldarAhora(): Promise<Respuesta<Respaldo>> {
   return accion(async () => {
-    await exigirAdmin()
+    await exigirAdminCentral()
     const respaldo = await crearRespaldo()
     revalidatePath(RUTA)
     return respaldo
@@ -27,7 +27,7 @@ export async function respaldarAhora(): Promise<Respuesta<Respaldo>> {
 
 export async function borrarRespaldo(nombre: unknown): Promise<Respuesta> {
   return accion(async () => {
-    await exigirAdmin()
+    await exigirAdminCentral()
     if (!esNombreDeRespaldo(nombre)) throw new Error('Nombre de respaldo no válido.')
     await eliminarRespaldo(nombre)
     revalidatePath(RUTA)

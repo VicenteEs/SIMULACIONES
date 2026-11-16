@@ -5,6 +5,7 @@ import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { cuentaEnSuLugar } from '@/lib/sesion'
+import { esDeTraumaHub } from '@/lib/guardias'
 import { esNombreDeRespaldo, estaCifrado } from '@/lib/respaldos'
 import { rutaDeRespaldo } from '@/lib/respaldosServidor'
 
@@ -14,7 +15,9 @@ export const dynamic = 'force-dynamic'
  * Descarga de un respaldo desde el panel.
  *
  * Un respaldo es la base entera —correos, contraseñas cifradas, todo el
- * contenido—, así que exige rol de administrador y no de editor. El nombre del
+ * contenido, de todas las instituciones—, así que exige rol de administrador y
+ * no de editor, y de TraumaHub (D-396): el de una institución también es
+ * `admin`. El nombre del
  * archivo se comprueba contra el patrón de los respaldos antes de tocar el
  * disco: sin eso, «..%2f..%2f.env» en la ruta sería una lectura arbitraria del
  * sistema de archivos.
@@ -31,7 +34,10 @@ export async function GET(
   const { user } = await cuentaEnSuLugar(payload, await siguientesCabeceras())
 
   const esAdmin = Boolean(
-    user && (user as { activo?: boolean }).activo && (user as { rol?: string }).rol === 'admin',
+    user &&
+      (user as { activo?: boolean }).activo &&
+      (user as { rol?: string }).rol === 'admin' &&
+      esDeTraumaHub(user as unknown as Record<string, unknown>),
   )
   if (!esAdmin) return new Response('No autorizado', { status: 401 })
 

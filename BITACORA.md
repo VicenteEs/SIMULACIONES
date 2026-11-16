@@ -11886,6 +11886,41 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) `localhost` queda como dominio para siempre. Quien llegue al puerto del servidor con `Host: x.localhost` está en la institución x, aunque desde fuera no se llega: Cloudflare solo deja pasar los nombres de su zona, y ved, los de Tailscale. Y estar en el lugar no da nada sin una cuenta de él.
 - (−) Los PDF de una institución dependen de que Chromium siga llevando `*.localhost` a la propia máquina. `pdf.test.ts` vigila el origen que se le da, no a Chromium.
 
+### D-398 · 2026-11-16 · vigente · P-016 E5.3 · el filtro, y lo que es solo de TraumaHub
+**Lo que D-396 dejó dicho para el filtro se escribió así. Además se cerró, para las cuentas de institución, todo lo que es de la plataforma entera, y los avisos al equipo van al lugar de cada cosa.**
+
+- **El filtro.** `filtroDeInstitucion` (`reglas.ts`) es la parte de institución del acceso. `conMarcaDeInstitucion` la suma al `read`, `update` y `delete` de las 15 colecciones con marca, y al `readVersions` de las que tienen borradores.
+  - Solo recorta: si el acceso de siempre niega, se niega; si filtra, los dos filtros van juntos con `and`.
+  - Lo compartido (el contenido, medios y modelos 3D): la institución lee lo suyo y lo central publicado. Un borrador de TraumaHub no es suyo aunque su rol le deje leer borradores.
+  - Lo propio (las cuentas y lo que deja cada persona): cada lugar, solo lo suyo. Para la central, «lo suyo» es lo que no tiene institución.
+  - Escribir, y leer versiones, es siempre solo lo propio. A quien no edita, Payload le sigue negando las versiones con un 403, como antes.
+  - Las colecciones sin marca no se tocaron. Sus escrituras ya solo entran por el panel, porque las de la API REST están cerradas, y en el panel manda `puedeEditar` (abajo).
+  - `tests/integration/rolesEntreInstituciones.test.ts` cruza siete cuentas de tres lugares con fichas de los tres: qué lee, qué reescribe y qué versiones alcanza cada una, más las cuentas y las entradas.
+- **Lo que es solo de TraumaHub.** El administrador de una institución es `admin`, y pasaba todo lo que pedía administrador.
+  - Las pantallas: Sistema, Respaldos, Difusión, Medios de la página, las dos de Cotizaciones, el taller del atlas y Estructuras. Piden `exigirPanelCentral`, que devuelve al inicio del panel y no a la portada.
+  - Las acciones: las de diez archivos enteros (atlas, correo, cotizaciones, difusión, estructuras, instrumental, medios de la página, modelos, requisitos y respaldos), más la mantención de los módulos. Piden `exigirAdminCentral` o `exigirEditorCentral`.
+  - Las rutas: la descarga de un respaldo y la planilla de estructuras.
+  - `puedeEditar` le niega a una cuenta de institución toda colección sin marca, antes de mirar si es administrador. Con eso se cierran Equipo y los catálogos del simulador, y con ellos «¿No está? Agregar», sin tocar cada acción.
+  - La barra lateral y el resumen dejan de enseñárselo: los respaldos, los requisitos y las cotizaciones.
+  - `accionesConGuardia` llama a cada acción con un administrador y un editor de institución, y exige que toda acción de esos diez archivos se declare `soloCentral`: una acción nueva en ellos no queda abierta por olvido. `panelPorRol` recorre las pantallas con las mismas dos cuentas, y fija aparte qué pantallas son de TraumaHub.
+- **El catálogo común es de TraumaHub, por ahora.** El atlas, las estructuras, el instrumental, el vocabulario del simulador y el buzón de requisitos los usan todas las instituciones y no son de ninguna. Así que un docente de institución no amplía el vocabulario ni propone requisitos. Si un piloto lo pide, se decide en E5.6.
+- **Los avisos al equipo** (lo que D-397 dejó para aquí). Las cuentas a las que se avisa salen de `filtroDelLugar`:
+  - un comentario nuevo va a los administradores del lugar del comentario, que es el de quien lo dejó, con el enlace a su subdominio;
+  - una alerta de entrada va a los administradores del lugar de la cuenta, también con su enlace;
+  - una cotización, un requisito nuevo y una solicitud de cuenta van solo a los de TraumaHub. La solicitud, hasta E5.7: hoy la cuenta pedida nace sin institución.
+
+*Lo que queda para otros pasos, y por qué no es un riesgo todavía:*
+- Las pantallas compartidas dejan entrar al administrador de una institución, pero todavía leen con `overrideAccess` y sin filtro: Usuarios, Contenido, Por revisar, Comentarios, Estadísticas, Actividad, Registro y Auditoría. Pasa lo mismo con los conteos de la barra. Les pone el filtro E5.6, y la barra de PostgreSQL E5.4.
+- Las acciones de cuentas no miran todavía que la cuenta tocada sea del mismo lugar. Tampoco miran los revisores posibles. Es E5.6.
+- «Que quede un administrador» cuenta a todos los administradores, en las acciones y en el disparador de la base. Con instituciones, el de una institución contaría como el último de TraumaHub. El disparador va en E5.4, y las acciones en E5.6.
+- Nada de esto alcanza a nadie mientras no haya una institución desplegada, y por eso desplegar es el último paso (E5.10).
+
+*Consecuencias.*
+- (+) Un administrador de institución no ve ni abre lo que es de la plataforma entera, y las dos pruebas que recorren pantallas y acciones lo dicen el día que una nueva se olvide.
+- (+) Los avisos no le cuentan a una institución lo que pasa en otra, y llevan a la dirección donde la cuenta sí entra.
+- (−) Hasta E5.6, el panel de una institución no se puede entregar.
+- (−) Un docente de institución no amplía el vocabulario ni propone requisitos.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -18047,7 +18082,11 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - un `Origin` del subdominio pasa y uno ajeno no;
       - el PDF de la institución sale (200, un PDF de verdad) y pedido desde la central da 401;
       - en modo de pruebas, la cookie del selector hace lo mismo que el subdominio;
-  - E5.3 · el filtro de `reglas.ts`, y la matriz de roles cruzando instituciones;
+  - E5.3 · el filtro de `reglas.ts`, y la matriz de roles cruzando instituciones. *Hecho en local el 2026-11-16, con los detalles en D-398:*
+    - el filtro en el acceso de las 15 colecciones con marca, y la matriz de siete cuentas de tres lugares (`rolesEntreInstituciones.test.ts`);
+    - lo que es solo de TraumaHub (ocho pantallas, las acciones de diez archivos, dos rutas, y `puedeEditar` para todo lo que no lleva marca), con `accionesConGuardia` y `panelPorRol` recorriéndolo con un administrador y un editor de institución;
+    - los avisos al equipo, al lugar de cada cosa;
+    - comprobado: `typecheck` limpio, `lint` con los avisos de siempre, la suite unitaria sin fallos nuevos, `test:integration` entera y `build`;
   - E5.4 · la segunda barrera en PostgreSQL;
   - E5.5 · la pestaña «Instituciones», con «Crear institución», el plazo y el cupo;
   - E5.6 · los tres roles de institución en el panel, y el contenido propio con sus revisores;

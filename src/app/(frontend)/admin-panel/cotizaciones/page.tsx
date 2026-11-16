@@ -1,4 +1,4 @@
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { clientePayload } from '../datos'
 import { cotizacionDelPanel } from './datos'
@@ -20,7 +20,7 @@ const TOPE = 500
  * (`mensajeDeCotizacionNueva`) avisa además a quien no abre el panel.
  */
 export default async function PaginaDeCotizaciones() {
-  await exigirPanel('admin')
+  await exigirPanelCentral('admin')
   const payload = await clientePayload()
 
   // Como en Comentarios: «todavía no ha llegado ninguna» y «no se pudo leer»

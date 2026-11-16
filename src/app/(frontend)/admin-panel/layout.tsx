@@ -19,7 +19,7 @@ import './admin.css'
 import './panel.css'
 import { ruta } from '@/lib/rutas'
 import { AUTORIA } from '@/lib/autoria'
-import { puedeEditar } from '@/lib/guardias'
+import { esDeTraumaHub, puedeEditar } from '@/lib/guardias'
 import { MODULOS } from './modulos'
 
 export const dynamic = 'force-dynamic'
@@ -44,6 +44,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect('/')
   }
   const esAdmin = rol === 'admin'
+  // Lo que es de toda la plataforma no se le ofrece a una cuenta de
+  // institución (D-396). Cada pantalla lo vuelve a mirar (`exigirPanelCentral`).
+  const esCentral = esDeTraumaHub(sesion.usuario)
 
   // Un aviso en la barra evita que los comentarios queden meses sin leer por no
   // haber entrado a esa sección.
@@ -108,7 +111,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         : Promise.resolve({ totalDocs: 0 }),
       // Con su `catch`, como las revisiones: una tabla que falta no puede
       // dejar el panel entero sin barra.
-      esAdmin
+      esAdmin && esCentral
         ? payload
             .count({ collection: 'cotizaciones', where: { estado: { equals: 'nueva' } }, overrideAccess: true })
             .catch(() => ({ totalDocs: 0 }))
@@ -138,7 +141,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           aviso: porRevisar || undefined,
         },
         { ruta: '/admin-panel/contenido', etiqueta: 'Contenido', icono: 'contenido' },
-        { ruta: '/admin-panel/atlas', etiqueta: 'Taller anatómico', icono: 'atlas' },
+        // El taller y las estructuras editan el catálogo común: solo TraumaHub.
+        ...(esCentral ? [{ ruta: '/admin-panel/atlas', etiqueta: 'Taller anatómico', icono: 'atlas' }] : []),
         {
           ruta: '/admin-panel/comentarios',
           etiqueta: 'Comentarios',
@@ -147,7 +151,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         },
         // Debajo de Comentarios, como pidió el dueño (D-179). Sin aviso: «2.000
         // pendientes» en la barra no se atiende, se trabaja de a poco.
-        { ruta: '/admin-panel/estructuras', etiqueta: 'Estructuras', icono: 'estructuras' },
+        ...(esCentral ? [{ ruta: '/admin-panel/estructuras', etiqueta: 'Estructuras', icono: 'estructuras' }] : []),
       ],
     },
   ]
@@ -176,21 +180,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           icono: 'usuarios',
           aviso: solicitudes || undefined,
         },
-        // Debajo de las solicitudes de cuenta: las dos son alguien de fuera
-        // que espera respuesta.
-        {
-          ruta: '/admin-panel/cotizaciones',
-          etiqueta: 'Cotizaciones',
-          icono: 'cotizaciones',
-          aviso: cotizaciones || undefined,
-        },
-        { ruta: '/admin-panel/contenido/equipo', etiqueta: 'Equipo', icono: 'equipo' },
-        // Las fotos y los textos de la portada pública (P-007 E2). No «Medios»,
-        // que es la colección del contenido clínico: lo pidió el dueño así.
-        { ruta: '/admin-panel/medios-pagina', etiqueta: 'Medios de la página', icono: 'mediosPagina' },
-        { ruta: '/admin-panel/difusion', etiqueta: 'Difusión', icono: 'difusion' },
-        { ruta: '/admin-panel/respaldos', etiqueta: 'Respaldos', icono: 'respaldos' },
-        { ruta: '/admin-panel/sistema', etiqueta: 'Sistema', icono: 'sistema' },
+        // El resto es de toda la plataforma: el administrador de una
+        // institución administra sus cuentas, y nada más de esta sección.
+        ...(esCentral
+          ? [
+              // Debajo de las solicitudes de cuenta: las dos son alguien de
+              // fuera que espera respuesta.
+              {
+                ruta: '/admin-panel/cotizaciones',
+                etiqueta: 'Cotizaciones',
+                icono: 'cotizaciones',
+                aviso: cotizaciones || undefined,
+              },
+              { ruta: '/admin-panel/contenido/equipo', etiqueta: 'Equipo', icono: 'equipo' },
+              // Las fotos y los textos de la portada pública (P-007 E2). No
+              // «Medios», que es la colección del contenido clínico: lo pidió
+              // el dueño así.
+              { ruta: '/admin-panel/medios-pagina', etiqueta: 'Medios de la página', icono: 'mediosPagina' },
+              { ruta: '/admin-panel/difusion', etiqueta: 'Difusión', icono: 'difusion' },
+              { ruta: '/admin-panel/respaldos', etiqueta: 'Respaldos', icono: 'respaldos' },
+              { ruta: '/admin-panel/sistema', etiqueta: 'Sistema', icono: 'sistema' },
+            ]
+          : []),
       ],
     })
   }

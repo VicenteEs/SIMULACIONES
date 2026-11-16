@@ -1,4 +1,4 @@
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { leerCatalogo } from '@/lib/catalogoDelAtlas'
 import { leerTodasLasEstructuras } from '@/lib/estructurasServidor'
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic'
  * fichas no viaja aquí: la ventana de edición lo pide al abrirse una pieza.
  */
 export default async function PaginaDeEstructuras() {
-  const { esAdmin } = await exigirPanel()
+  const { esAdmin } = await exigirPanelCentral()
   const payload = await clientePayload()
 
   // Sin este `catch`, una tabla que falta —un cambio de esquema desplegado sin su

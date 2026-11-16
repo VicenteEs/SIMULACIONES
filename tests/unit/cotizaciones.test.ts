@@ -10,9 +10,10 @@ import { describe, expect, it, vi } from 'vitest'
 const { actualizar, borrar } = vi.hoisted(() => ({ actualizar: vi.fn(), borrar: vi.fn() }))
 
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
+// Las cotizaciones son de TraumaHub (D-398): las acciones piden la guardia central.
 vi.mock('@/lib/guardias', async (original) => ({
   ...((await original()) as object),
-  exigirAdmin: async () => ({ payload: { update: actualizar, delete: borrar }, usuario: { id: 1, rol: 'admin' } }),
+  exigirAdminCentral: async () => ({ payload: { update: actualizar, delete: borrar }, usuario: { id: 1, rol: 'admin' } }),
 }))
 
 import { Cotizaciones } from '@/collections/Cotizaciones'

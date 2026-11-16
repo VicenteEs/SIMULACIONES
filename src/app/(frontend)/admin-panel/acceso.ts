@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { esColeccionEditable, esquemaDe } from '@/admin/esquema'
-import { puedeEditar } from '@/lib/guardias'
+import { esDeTraumaHub, puedeEditar } from '@/lib/guardias'
 import { obtenerSesion } from '@/lib/sesion'
 
 /**
@@ -39,7 +39,28 @@ export async function exigirPanel(nivel: 'editor' | 'admin' = 'editor') {
   const basta = nivel === 'admin' ? rol === 'admin' : rol === 'admin' || rol === 'editor'
   if (!basta) redirect('/')
 
-  return { sesion: { ...sesion, usuario: sesion.usuario }, rol, esAdmin: rol === 'admin' }
+  return {
+    sesion: { ...sesion, usuario: sesion.usuario },
+    rol,
+    esAdmin: rol === 'admin',
+    esCentral: esDeTraumaHub(sesion.usuario),
+  }
+}
+
+/**
+ * Igual, y además solo para las cuentas de TraumaHub (P-016 E5.3, D-396): las
+ * pantallas de toda la plataforma —Sistema, Respaldos, Difusión, Medios de la
+ * página, Cotizaciones— y las del catálogo común —el taller del atlas y las
+ * estructuras—. El administrador de una institución es `admin` y pasaría
+ * `exigirPanel('admin')`.
+ *
+ * Devuelve al inicio del panel y no a la portada: quien llega aquí sí trabaja
+ * en el panel, solo que esta pantalla no es de su institución.
+ */
+export async function exigirPanelCentral(nivel: 'editor' | 'admin' = 'editor') {
+  const acceso = await exigirPanel(nivel)
+  if (!acceso.esCentral) redirect('/admin-panel')
+  return acceso
 }
 
 /**

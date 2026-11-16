@@ -176,7 +176,14 @@ const SESIONES = {
   adminComoResidente: sesionDe(cuenta(1, 'admin', true), 'lector'),
   // Un lector no sube de rol pidiendo una vista previa que no le corresponde.
   lectorComoAdmin: { ...sesionDe(cuenta(3, 'lector', true)), rol: 'admin' },
+  // Los roles de una institución son los de siempre con la marca (D-396): su
+  // administrador pasa `exigirAdmin`, y lo que es solo de TraumaHub lo para.
+  adminDeInstitucion: sesionDe(cuenta(10, 'admin', true, { institucion: 7 })),
+  editorDeInstitucion: sesionDe(cuenta(11, 'editor', true, { institucion: 7 })),
 } as const
+
+/** Las sesiones que una acción `soloCentral` tiene que rechazar aunque su rol pase. */
+const DE_INSTITUCION: ReadonlySet<NombreDeSesion> = new Set(['adminDeInstitucion', 'editorDeInstitucion'])
 
 type NombreDeSesion = keyof typeof SESIONES
 
@@ -190,6 +197,8 @@ const PASA: Record<Guardia, Record<NombreDeSesion, boolean>> = {
     admin: true,
     adminComoResidente: true,
     lectorComoAdmin: false,
+    adminDeInstitucion: true,
+    editorDeInstitucion: false,
   },
   editor: {
     anonimo: false,
@@ -199,6 +208,8 @@ const PASA: Record<Guardia, Record<NombreDeSesion, boolean>> = {
     admin: true,
     adminComoResidente: true,
     lectorComoAdmin: false,
+    adminDeInstitucion: true,
+    editorDeInstitucion: true,
   },
   edicionDeModulo: {
     anonimo: false,
@@ -208,6 +219,8 @@ const PASA: Record<Guardia, Record<NombreDeSesion, boolean>> = {
     admin: true,
     adminComoResidente: true,
     lectorComoAdmin: false,
+    adminDeInstitucion: true,
+    editorDeInstitucion: true,
   },
   sesion: {
     anonimo: false,
@@ -217,6 +230,8 @@ const PASA: Record<Guardia, Record<NombreDeSesion, boolean>> = {
     admin: true,
     adminComoResidente: true,
     lectorComoAdmin: true,
+    adminDeInstitucion: true,
+    editorDeInstitucion: true,
   },
   // Las públicas no se juzgan por sesión, sino por lo que tocan.
   publica: {
@@ -227,6 +242,8 @@ const PASA: Record<Guardia, Record<NombreDeSesion, boolean>> = {
     admin: true,
     adminComoResidente: true,
     lectorComoAdmin: true,
+    adminDeInstitucion: true,
+    editorDeInstitucion: true,
   },
 }
 
@@ -248,6 +265,12 @@ interface Clasificacion {
   modulo?: 'argumento' | string
   /** Para las públicas: los únicos métodos de Payload que pueden tocar. */
   permitidos?: string[]
+  /**
+   * Solo para cuentas de TraumaHub (P-016 E5.3, D-396): lo que es de toda la
+   * plataforma o del catálogo común. Una cuenta de institución con el rol que
+   * pide la guardia tampoco pasa.
+   */
+  soloCentral?: boolean
 }
 
 const USUARIO_NUEVO = ['nueva@prueba.invalid', 'Cuenta nueva', 'una-clave-larga-de-prueba', 'lector']
@@ -282,7 +305,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'admin.ts:resolverTodosLosComentarios': { guardia: 'editor', argumentos: () => [] },
   // El interruptor de mantención de un módulo (D-156): del administrador, con su
   // rol real, porque decide qué ve cada residente.
-  'admin.ts:cambiarMantencionDeModulo': { guardia: 'admin', argumentos: () => ['patologias', true] },
+  'admin.ts:cambiarMantencionDeModulo': { guardia: 'admin', soloCentral: true, argumentos: () => ['patologias', true] },
 
   'contenido.ts:listarDocumentos': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m, {}] },
   'contenido.ts:opcionesDeRelacion': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m] },
@@ -293,7 +316,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
   // «¿No está? Agregar» del hueso, la clasificación, la técnica y la fase: el catálogo es vocabulario del módulo
   // de cirugías, así que se gobierna con el permiso de ese módulo (`MODULO_DEL_VOCABULARIO`).
   'contenido.ts:agregarAlCatalogo': {
-    guardia: 'edicionDeModulo',
+    guardia: 'edicionDeModulo', soloCentral: true,
     modulo: 'cirugias',
     argumentos: () => ['tecnicas-quirurgicas', { nombre: 'Fijación de prueba' }],
   },
@@ -312,53 +335,53 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'contenido.ts:eliminarDocumento': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m, '5'] },
   'contenido.ts:duplicarDocumento': { guardia: 'edicionDeModulo', modulo: 'argumento', argumentos: (m) => [m, '5'] },
 
-  'atlas.ts:versionDelAtlas': { guardia: 'editor', argumentos: () => [] },
-  'atlas.ts:listarInstancias': { guardia: 'editor', argumentos: () => [] },
-  'atlas.ts:listarModelosDelAtlas': { guardia: 'editor', argumentos: () => [] },
-  'atlas.ts:obtenerInstancia': { guardia: 'editor', argumentos: () => ['5'] },
-  'atlas.ts:guardarInstancia': { guardia: 'editor', argumentos: () => [null, { nombre: 'Preparación' }] },
-  'atlas.ts:duplicarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
-  'atlas.ts:eliminarInstancia': { guardia: 'editor', argumentos: () => ['5'] },
+  'atlas.ts:versionDelAtlas': { guardia: 'editor', soloCentral: true, argumentos: () => [] },
+  'atlas.ts:listarInstancias': { guardia: 'editor', soloCentral: true, argumentos: () => [] },
+  'atlas.ts:listarModelosDelAtlas': { guardia: 'editor', soloCentral: true, argumentos: () => [] },
+  'atlas.ts:obtenerInstancia': { guardia: 'editor', soloCentral: true, argumentos: () => ['5'] },
+  'atlas.ts:guardarInstancia': { guardia: 'editor', soloCentral: true, argumentos: () => [null, { nombre: 'Preparación' }] },
+  'atlas.ts:duplicarInstancia': { guardia: 'editor', soloCentral: true, argumentos: () => ['5'] },
+  'atlas.ts:eliminarInstancia': { guardia: 'editor', soloCentral: true, argumentos: () => ['5'] },
   // Cambia un modelo por otro en todo lo que lo usa (D-372); que quien lo pide edite cada ficha lo mira dentro.
-  'modelos.ts:reemplazarModeloEnTodo': { guardia: 'editor', argumentos: () => ['5', '6'] },
-  'atlas.ts:exportarComoModelo': { guardia: 'editor', argumentos: () => ['5'] },
+  'modelos.ts:reemplazarModeloEnTodo': { guardia: 'editor', soloCentral: true, argumentos: () => ['5', '6'] },
+  'atlas.ts:exportarComoModelo': { guardia: 'editor', soloCentral: true, argumentos: () => ['5'] },
   // Crea un modelo nuevo: es de quien edita (P-003 E9).
-  'atlas.ts:reexportarConEstructurasSeparadas': { guardia: 'editor', argumentos: () => ['5'] },
+  'atlas.ts:reexportarConEstructurasSeparadas': { guardia: 'editor', soloCentral: true, argumentos: () => ['5'] },
   // La paleta del simulador y del taller (P-014 E7): la elige el médico, que es editor, aunque el campo viva
   // en `ajustes`, que es del administrador. Qué escribe y qué no, en `temas.test.ts`.
-  'atlas.ts:guardarElTema': { guardia: 'editor', argumentos: () => ['clara'] },
+  'atlas.ts:guardarElTema': { guardia: 'editor', soloCentral: true, argumentos: () => ['clara'] },
 
   // El listado global de estructuras anatómicas (D-179): llenan el editor y el administrador; cargar las
   // piezas del atlas toca miles de filas y es solo del administrador.
-  'estructuras.ts:leerEstructura': { guardia: 'editor', argumentos: () => ['FJ1'] },
+  'estructuras.ts:leerEstructura': { guardia: 'editor', soloCentral: true, argumentos: () => ['FJ1'] },
   // Solo lee, y es para cualquier sesión activa: la ficha de «Info» la ve también el residente (P-003 E9).
   'fichaDelSimulador.ts:leerFichaParaElSimulador': { guardia: 'sesion', argumentos: () => ['FJ1'] },
   'estructuras.ts:guardarEstructura': {
-    guardia: 'editor',
+    guardia: 'editor', soloCentral: true,
     argumentos: () => ['FJ1', { campos: { definicion: 'Hueso largo.' }, base: { definicion: '' } }],
   },
-  'estructuras.ts:restaurarVersionDeEstructura': { guardia: 'editor', argumentos: () => ['FJ1', '5'] },
-  'estructuras.ts:cargarPiezasDelAtlas': { guardia: 'admin', argumentos: () => [] },
+  'estructuras.ts:restaurarVersionDeEstructura': { guardia: 'editor', soloCentral: true, argumentos: () => ['FJ1', '5'] },
+  'estructuras.ts:cargarPiezasDelAtlas': { guardia: 'admin', soloCentral: true, argumentos: () => [] },
 
   // El instrumental del taller (D-165): el editor describe, el administrador carga y retoca el modelo.
-  'instrumental.ts:listarInstrumental': { guardia: 'editor', argumentos: () => [] },
-  'instrumental.ts:crearInstrumento': { guardia: 'editor', argumentos: () => [{ nombre: 'Un instrumento de prueba' }] },
-  'instrumental.ts:editarInstrumento': { guardia: 'editor', argumentos: () => ['5', { nombre: 'Otro nombre' }] },
-  'instrumental.ts:completarElCatalogo': { guardia: 'admin', argumentos: () => [] },
+  'instrumental.ts:listarInstrumental': { guardia: 'editor', soloCentral: true, argumentos: () => [] },
+  'instrumental.ts:crearInstrumento': { guardia: 'editor', soloCentral: true, argumentos: () => [{ nombre: 'Un instrumento de prueba' }] },
+  'instrumental.ts:editarInstrumento': { guardia: 'editor', soloCentral: true, argumentos: () => ['5', { nombre: 'Otro nombre' }] },
+  'instrumental.ts:completarElCatalogo': { guardia: 'admin', soloCentral: true, argumentos: () => [] },
   // El archivo sube por la ruta de subidas; estas dos solo enlazan el id que devolvió.
-  'instrumental.ts:enlazarModeloDeInstrumento': { guardia: 'admin', argumentos: () => ['5', '7'] },
-  'instrumental.ts:enlazarModeloPorNombre': { guardia: 'admin', argumentos: () => ['tijera-mayo.glb', '7'] },
-  'instrumental.ts:quitarModeloDeInstrumento': { guardia: 'admin', argumentos: () => ['5'] },
-  'instrumental.ts:guardarRetoquesDeInstrumento': { guardia: 'admin', argumentos: () => ['5', {}] },
-  'instrumental.ts:eliminarInstrumento': { guardia: 'admin', argumentos: () => ['5'] },
+  'instrumental.ts:enlazarModeloDeInstrumento': { guardia: 'admin', soloCentral: true, argumentos: () => ['5', '7'] },
+  'instrumental.ts:enlazarModeloPorNombre': { guardia: 'admin', soloCentral: true, argumentos: () => ['tijera-mayo.glb', '7'] },
+  'instrumental.ts:quitarModeloDeInstrumento': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
+  'instrumental.ts:guardarRetoquesDeInstrumento': { guardia: 'admin', soloCentral: true, argumentos: () => ['5', {}] },
+  'instrumental.ts:eliminarInstrumento': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
 
   // Un correo a todas las cuentas es de administrador, y la prueba de ese correo
   // también: gasta la misma cuota del hosting.
-  'difusion.ts:enviarPruebaDeDifusion': { guardia: 'admin', argumentos: () => [DIFUSION] },
-  'difusion.ts:iniciarDifusion': { guardia: 'admin', argumentos: () => [DIFUSION] },
-  'difusion.ts:reanudarDifusion': { guardia: 'admin', argumentos: () => ['5'] },
-  'difusion.ts:detenerDifusion': { guardia: 'admin', argumentos: () => ['5'] },
-  'correo.ts:enviarCorreoDePrueba': { guardia: 'admin', argumentos: () => [] },
+  'difusion.ts:enviarPruebaDeDifusion': { guardia: 'admin', soloCentral: true, argumentos: () => [DIFUSION] },
+  'difusion.ts:iniciarDifusion': { guardia: 'admin', soloCentral: true, argumentos: () => [DIFUSION] },
+  'difusion.ts:reanudarDifusion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
+  'difusion.ts:detenerDifusion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
+  'correo.ts:enviarCorreoDePrueba': { guardia: 'admin', soloCentral: true, argumentos: () => [] },
 
   // La revisión del contenido (D-142). Lo del revisor —medir su tiempo y dar la
   // ficha por lista— pide poder editar el módulo, igual que guardarla; lo que
@@ -386,8 +409,8 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'revision.ts:publicarValidadas': { guardia: 'admin', argumentos: () => [[{ coleccion: 'patologias', id: '5' }]] },
   'revision.ts:revisoresPosibles': { guardia: 'admin', argumentos: () => [] },
 
-  'respaldos.ts:respaldarAhora': { guardia: 'admin', argumentos: () => [] },
-  'respaldos.ts:borrarRespaldo': { guardia: 'admin', argumentos: () => ['base-20260101-000000.sql.gz'] },
+  'respaldos.ts:respaldarAhora': { guardia: 'admin', soloCentral: true, argumentos: () => [] },
+  'respaldos.ts:borrarRespaldo': { guardia: 'admin', soloCentral: true, argumentos: () => ['base-20260101-000000.sql.gz'] },
 
   // El latido de actividad (D-145): cualquier cuenta con sesión activa.
   'registro.ts:registrarLatidoDeActividad': { guardia: 'sesion', argumentos: () => ['/biblioteca'] },
@@ -429,15 +452,15 @@ const GUARDIAS: Record<string, Clasificacion> = {
 
   // El buzón de requisitos del módulo anunciado (D-163): de editores y
   // administradores, con su rol real. Responder y borrar son del administrador.
-  'requisitos.ts:listarRequisitos': { guardia: 'editor', argumentos: () => [] },
-  'requisitos.ts:proponerRequisito': { guardia: 'editor', argumentos: () => ['Un título', 'Una descripción'] },
-  'requisitos.ts:votarRequisito': { guardia: 'editor', argumentos: () => ['5'] },
-  'requisitos.ts:editarRequisito': { guardia: 'editor', argumentos: () => ['5', 'Otro título', 'Otra descripción'] },
-  'requisitos.ts:responderRequisito': { guardia: 'admin', argumentos: () => ['5', 'aceptado', 'Lo hacemos.'] },
-  'requisitos.ts:eliminarRequisito': { guardia: 'admin', argumentos: () => ['5'] },
+  'requisitos.ts:listarRequisitos': { guardia: 'editor', soloCentral: true, argumentos: () => [] },
+  'requisitos.ts:proponerRequisito': { guardia: 'editor', soloCentral: true, argumentos: () => ['Un título', 'Una descripción'] },
+  'requisitos.ts:votarRequisito': { guardia: 'editor', soloCentral: true, argumentos: () => ['5'] },
+  'requisitos.ts:editarRequisito': { guardia: 'editor', soloCentral: true, argumentos: () => ['5', 'Otro título', 'Otra descripción'] },
+  'requisitos.ts:responderRequisito': { guardia: 'admin', soloCentral: true, argumentos: () => ['5', 'aceptado', 'Lo hacemos.'] },
+  'requisitos.ts:eliminarRequisito': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
   // Las cotizaciones de la portada (P-007 E3): traen datos de alguien de fuera.
-  'cotizaciones.ts:actualizarCotizacion': { guardia: 'admin', argumentos: () => ['5', { estado: 'cerrada' }] },
-  'cotizaciones.ts:eliminarCotizacion': { guardia: 'admin', argumentos: () => ['5'] },
+  'cotizaciones.ts:actualizarCotizacion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5', { estado: 'cerrada' }] },
+  'cotizaciones.ts:eliminarCotizacion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
   // La segunda acción pública que escribe, con el mismo trato que
   // `solicitarCuenta`: crea la fila y busca a quién avisar. Nada de `count`
   // —no hay cuenta que proteger—, ni de `update`, `delete` o `login`.
@@ -459,12 +482,12 @@ const GUARDIAS: Record<string, Clasificacion> = {
   },
   // «Medios de la página» (P-007 E2): lo que cambian lo ve cualquier visitante.
   'mediosPagina.ts:guardarTextosDeLaPagina': {
-    guardia: 'admin',
+    guardia: 'admin', soloCentral: true,
     argumentos: () => [[{ espacio: 'portada.hero.titular', texto: 'Otro titular' }]],
   },
-  'mediosPagina.ts:restaurarTextoDeLaPagina': { guardia: 'admin', argumentos: () => ['portada.hero.titular'] },
-  'mediosPagina.ts:restaurarFotoDeLaPagina': { guardia: 'admin', argumentos: () => ['portada.capas.piel'] },
-  'mediosPagina.ts:retirarFotosAnteriores': { guardia: 'admin', argumentos: () => ['portada.capas.piel'] },
+  'mediosPagina.ts:restaurarTextoDeLaPagina': { guardia: 'admin', soloCentral: true, argumentos: () => ['portada.hero.titular'] },
+  'mediosPagina.ts:restaurarFotoDeLaPagina': { guardia: 'admin', soloCentral: true, argumentos: () => ['portada.capas.piel'] },
+  'mediosPagina.ts:retirarFotosAnteriores': { guardia: 'admin', soloCentral: true, argumentos: () => ['portada.capas.piel'] },
 
   'sesion.ts:entrar': { guardia: 'publica', permitidos: ['login'], argumentos: () => ['a@prueba.invalid', 'clave'] },
   // Salir ya no es solo borrar la cookie (O-059): da de baja su propia sesión en
@@ -527,6 +550,24 @@ const GUARDIAS: Record<string, Clasificacion> = {
  */
 const ARCHIVOS_DE_CONTENIDO = ['contenido.ts', 'atlas.ts', 'estructuras.ts']
 
+/**
+ * Los archivos de lo que es de toda la plataforma o del catálogo común (D-396).
+ * Toda acción suya es `soloCentral`: así, la que se añada mañana a uno de ellos
+ * no puede quedar abierta a las instituciones por olvido.
+ */
+const ARCHIVOS_CENTRALES = [
+  'atlas.ts',
+  'correo.ts',
+  'cotizaciones.ts',
+  'difusion.ts',
+  'estructuras.ts',
+  'instrumental.ts',
+  'mediosPagina.ts',
+  'modelos.ts',
+  'requisitos.ts',
+  'respaldos.ts',
+]
+
 // ------------------------------------------------------------ descubrimiento
 
 const CARPETA = resolve(process.cwd(), 'src/app/(frontend)/acciones')
@@ -582,6 +623,14 @@ describe('el inventario de acciones', () => {
     expect(Object.keys(GUARDIAS).filter((c) => !existentes.has(c))).toEqual([])
   })
 
+  it('las acciones de lo que es de toda la plataforma son solo de TraumaHub', () => {
+    const abiertas = Object.entries(GUARDIAS)
+      .filter(([clave]) => ARCHIVOS_CENTRALES.includes(clave.split(':')[0]))
+      .filter(([, c]) => !c.soloCentral)
+      .map(([clave]) => clave)
+    expect(abiertas).toEqual([])
+  })
+
   it('las acciones que escriben contenido exigen editor, no solo sesión', () => {
     const flojas = Object.entries(GUARDIAS)
       .filter(([clave]) => ARCHIVOS_DE_CONTENIDO.includes(clave.split(':')[0]))
@@ -592,14 +641,14 @@ describe('el inventario de acciones', () => {
 })
 
 describe.each(ACCIONES.filter((a) => GUARDIAS[a.clave]?.guardia !== 'publica'))('$clave', ({ clave, accion }) => {
-  const { guardia, argumentos, modulo } = GUARDIAS[clave] ?? { guardia: 'admin', argumentos: () => [] }
+  const { guardia, argumentos, modulo, soloCentral } = GUARDIAS[clave] ?? { guardia: 'admin', argumentos: () => [] }
   // Sobre qué módulo se llama: el fijo, o uno distinto del que se le deja al
   // restringido, para que la restricción tenga algo que negar.
   const objetivo = modulo && modulo !== 'argumento' ? modulo : 'cirugias'
 
   it.each(Object.keys(SESIONES) as NombreDeSesion[])('con la sesión «%s»', async (nombre) => {
     const tocado = await tocadoPor(accion, SESIONES[nombre], argumentos(objetivo))
-    if (PASA[guardia][nombre]) {
+    if (PASA[guardia][nombre] && !(soloCentral && DE_INSTITUCION.has(nombre))) {
       expect(tocado, `${clave} no llegó a tocar nada con «${nombre}», que sí debía pasar`).not.toEqual([])
     } else {
       expect(tocado, `${clave} tocó datos con «${nombre}» antes de rechazarla`).toEqual([])

@@ -84,6 +84,63 @@ export const cuentaValeEnElLugar = (institucionDeLaCuenta: string | null, instit
   institucionDeLaCuenta === institucionDelLugar
 
 /**
+ * Cómo se reparte una colección entre instituciones (D-396):
+ *
+ * - `compartido`, el contenido y sus archivos: lo central publicado lo lee
+ *   también la institución, sin poder tocarlo;
+ * - `propio`, las cuentas y lo que deja cada persona: cada uno, solo lo suyo.
+ */
+export type AlcanceDeInstitucion = 'compartido' | 'propio'
+
+/** Un filtro de consulta de Payload, sin depender de Payload. */
+export type FiltroDeConsulta = Record<string, unknown>
+
+/**
+ * El identificador como lo compara la base: un número. Payload valida el tipo
+ * del identificador de una relación, y la clave es un `serial`.
+ */
+const comoClave = (id: string): string | number => (/^\d+$/.test(id) ? Number(id) : id)
+
+/**
+ * Las filas de un lugar: las de esa institución, o las de TraumaHub si es
+ * `null`. Lo usan, además del acceso, las consultas que hace la plataforma por
+ * su cuenta, como buscar a quién avisar de un comentario.
+ */
+export const filtroDelLugar = (institucion: string | null, campo = 'institucion'): FiltroDeConsulta =>
+  institucion ? { [campo]: { equals: comoClave(institucion) } } : { [campo]: { exists: false } }
+
+/**
+ * La parte de institución de un acceso (D-396): qué filas alcanza la cuenta,
+ * además de lo que ya diga su rol. `false` es ninguna.
+ *
+ * - Lo de la propia institución, siempre. Para la central, «propio» es lo que no
+ *   tiene institución: una cuenta central no ve el contenido de ninguna.
+ * - Al leer lo compartido, una cuenta de institución alcanza además lo central;
+ *   de una colección con borradores, solo lo publicado, porque el borrador de
+ *   TraumaHub no es suyo aunque su rol le deje leer borradores.
+ * - Escribir es siempre solo lo propio.
+ *
+ * `campo` y `estado` cambian para las versiones, que guardan los campos dentro
+ * de `version`.
+ */
+export const filtroDeInstitucion = (
+  u: UsuarioSesion | null | undefined,
+  {
+    alcance,
+    operacion,
+    versionada = false,
+    campo = 'institucion',
+    estado = '_status',
+  }: { alcance: AlcanceDeInstitucion; operacion: 'leer' | 'escribir'; versionada?: boolean; campo?: string; estado?: string },
+): false | FiltroDeConsulta => {
+  if (!habilitada(u)) return false
+  const central = filtroDelLugar(null, campo)
+  const propio = filtroDelLugar(u.institucion ?? null, campo)
+  if (operacion === 'escribir' || alcance === 'propio' || esCentral(u)) return propio
+  return { or: [propio, versionada ? { and: [central, { [estado]: { equals: 'published' } }] } : central] }
+}
+
+/**
  * Crear, extender y bloquear instituciones (D-371): solo el administrador de
  * TraumaHub. El de una institución administra sus cuentas, no la institución.
  */

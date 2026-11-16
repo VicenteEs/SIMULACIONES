@@ -179,8 +179,9 @@ describe.skipIf(payload === null)('una sesión por cuenta', () => {
     expect(alerta?.detalle).toContain('En la última hora se entró 3 veces')
     expect(alerta?.usuarioCorreo).toBe(email)
 
-    // Y por correo, a los administradores activos, que son hasta 20: la cuenta
-    // de la alerta, que es de editor, no está entre ellos.
+    // Y por correo, a los administradores activos de su lugar, que son hasta
+    // 20: la cuenta de la alerta es de TraumaHub, así que los de TraumaHub
+    // (D-396). Ella, que es de editor, no está entre ellos.
     expect(correo.enviar).toHaveBeenCalledTimes(1)
     const [, envio] = correo.enviar.mock.calls[0] as [
       unknown,
@@ -188,7 +189,7 @@ describe.skipIf(payload === null)('una sesión por cuenta', () => {
     ]
     const { totalDocs: administradores } = await base.count({
       collection: 'usuarios',
-      where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }] },
+      where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, { institucion: { exists: false } }] },
       overrideAccess: true,
     })
     expect(envio.para).toHaveLength(Math.min(administradores, 20))

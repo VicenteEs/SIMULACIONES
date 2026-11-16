@@ -15,7 +15,7 @@
  */
 
 import type { Payload } from 'payload'
-import { accion, exigirAdmin, type Respuesta } from '@/lib/guardias'
+import { accion, exigirAdminCentral, type Respuesta } from '@/lib/guardias'
 import { ErrorDeValidacion } from '@/lib/validacion'
 import { espacioDeFoto, espacioDeTexto, normalizarTexto, problemaDelTexto } from '@/lib/espaciosDeLaPagina'
 import { SLUG_DE_FOTOS, SLUG_DE_TEXTOS, leerCambios } from '@/lib/mediosDeLaPagina'
@@ -68,7 +68,7 @@ async function borrarDelEspacio(payload: Payload, coleccion: string, espacio: st
  */
 export async function guardarTextosDeLaPagina(cambios: unknown): Promise<Respuesta<{ guardados: number }>> {
   return accion(async () => {
-    const { payload } = await exigirAdmin()
+    const { payload } = await exigirAdminCentral()
     if (!Array.isArray(cambios) || cambios.length === 0) throw new ErrorDeValidacion('No llegó ningún texto que guardar.')
     if (cambios.length > MAXIMO_POR_GUARDADO) throw new ErrorDeValidacion('Son demasiados textos de una vez.')
 
@@ -108,7 +108,7 @@ export async function guardarTextosDeLaPagina(cambios: unknown): Promise<Respues
 /** Vuelve un texto a su original: borra lo cambiado. */
 export async function restaurarTextoDeLaPagina(espacio: unknown): Promise<Respuesta<{ original: string }>> {
   return accion(async () => {
-    const { payload } = await exigirAdmin()
+    const { payload } = await exigirAdminCentral()
     const elegido = exigirEspacioDeTexto(espacio)
     await borrarDelEspacio(payload, SLUG_DE_TEXTOS, elegido.id)
     return { original: elegido.original }
@@ -121,7 +121,7 @@ export async function restaurarTextoDeLaPagina(espacio: unknown): Promise<Respue
  */
 export async function restaurarFotoDeLaPagina(espacio: unknown): Promise<Respuesta<null>> {
   return accion(async () => {
-    const { payload } = await exigirAdmin()
+    const { payload } = await exigirAdminCentral()
     const elegido = exigirEspacioDeFoto(espacio)
     await borrarDelEspacio(payload, SLUG_DE_FOTOS, elegido.id)
     return null
@@ -141,7 +141,7 @@ export async function restaurarFotoDeLaPagina(espacio: unknown): Promise<Respues
  */
 export async function retirarFotosAnteriores(espacio: unknown): Promise<Respuesta<{ retiradas: number }>> {
   return accion(async () => {
-    const { payload } = await exigirAdmin()
+    const { payload } = await exigirAdminCentral()
     const elegido = exigirEspacioDeFoto(espacio)
     const { fotos } = await leerCambios(payload)
     const vigente = fotos.get(elegido.id)

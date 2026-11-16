@@ -24,7 +24,7 @@ import {
   mensajeDeCuentaActivada,
   mensajeDeSolicitudRechazada,
 } from '@/correo/mensajes'
-import { exigirAdmin, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
+import { exigirAdmin, exigirAdminCentral, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
 import { entradasDeLaCuenta } from '@/lib/entradasServidor'
 import { subdominioDeLaCuenta } from '@/lib/institucionesServidor'
 import { comoListaDeModulos } from '@/lib/mantencion'
@@ -1120,7 +1120,7 @@ export async function cambiarMantencionDeModulo(
   enMantencion: unknown,
 ): Promise<Respuesta<{ enMantencion: string[] }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     const slug = exigirSlugDeModulo(modulo)
     if (typeof enMantencion !== 'boolean') throw new Error('Indique si el módulo queda en mantención.')
 

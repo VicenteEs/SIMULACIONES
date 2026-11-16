@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { direccionPublica } from '@/collections/Usuarios'
+import { filtroDelLugar } from '@/access/reglas'
 import { enviarSinEsperar, hayCorreo } from '@/correo/enviar'
 import { mensajeDeCotizacionNueva, mensajeDeCotizacionRecibida } from '@/correo/mensajes'
 import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
@@ -114,10 +115,12 @@ function avisar(payload: Awaited<ReturnType<typeof getPayload>>, pedida: DatosDe
   if (!base) {
     payload.logger.error({ msg: 'Cotización sin NEXT_PUBLIC_SERVER_URL: el aviso a los administradores sale sin botón' })
   }
+  // Una cotización es un asunto de TraumaHub: a sus administradores, no a los
+  // de una institución (D-396).
   void payload
     .find({
       collection: 'usuarios',
-      where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }] },
+      where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, filtroDelLugar(null)] } as never,
       depth: 0,
       limit: 10,
       overrideAccess: true,

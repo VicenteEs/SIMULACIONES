@@ -1,4 +1,4 @@
-import { ErrorDeAcceso, exigirEditor, type Respuesta } from '@/lib/guardias'
+import { ErrorDeAcceso, exigirEditorCentral, type Respuesta } from '@/lib/guardias'
 import { leerCatalogo } from '@/lib/catalogoDelAtlas'
 import { leerTodasLasEstructuras } from '@/lib/estructurasServidor'
 import { camposQueFaltan, esPendiente, type CampoDeLaFicha } from '@/lib/estructuras'
@@ -55,7 +55,7 @@ const nombreDeArchivo = (region: string, contenido: string) =>
 
 export async function GET(peticion: Request) {
   try {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     const parametros = new URL(peticion.url).searchParams
     const region = parametros.get('region') ?? ''
     const conLoEscrito = parametros.get('contenido') === 'escrita'
@@ -107,7 +107,7 @@ export async function GET(peticion: Request) {
 export async function POST(peticion: Request) {
   try {
     if (!vieneDeAqui(peticion)) return responder({ exito: false, mensaje: 'La petición no viene de esta plataforma.' }, 403)
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
 
     // El peso, antes de leer un solo byte del cuerpo: el navegador lo anuncia.
     const anunciado = Number(peticion.headers.get('content-length'))

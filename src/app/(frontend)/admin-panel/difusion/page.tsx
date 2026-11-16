@@ -1,4 +1,4 @@
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { AUDIENCIAS_DE_DIFUSION } from '@/collections/Difusiones'
 import { direccionPublica } from '@/collections/Usuarios'
 import { condicionDeDestinatarios, correosPorHora, pausaEntreCorreosMs, seEstaEnviando } from '@/correo/difusion'
@@ -22,7 +22,7 @@ const TOPE_DEL_HISTORIAL = 20
  * momento, un correo por persona y con la plantilla de la plataforma.
  */
 export default async function PaginaDifusion() {
-  await exigirPanel('admin')
+  await exigirPanelCentral('admin')
 
   const payload = await clientePayload()
 

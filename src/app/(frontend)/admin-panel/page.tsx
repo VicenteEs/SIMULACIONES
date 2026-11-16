@@ -53,7 +53,10 @@ const plural = (n: number, singular: string, plural: string) => `${cifra(n)} ${n
  * y el registro son del administrador y no se le muestran.
  */
 export default async function ResumenAdmin() {
-  const { sesion, esAdmin } = await exigirPanel()
+  const { sesion, esAdmin, esCentral } = await exigirPanel()
+  // Los respaldos, los requisitos y las cotizaciones son de toda la plataforma:
+  // al administrador de una institución no le tocan (D-396).
+  const delEquipo = esAdmin && esCentral
 
   const payload = await clientePayload()
   // Los módulos en mantención (D-156), para decirlo bajo el gráfico de contenido.
@@ -67,7 +70,7 @@ export default async function ResumenAdmin() {
       // El fallo viaja con su motivo: con la carpeta de respaldos sin permisos
       // esta página afirmaba «no hay ningún respaldo» y mandaba a crear el
       // primero, que fallaba igual por la misma causa (O-067).
-      esAdmin
+      delEquipo
         ? listarRespaldos().then(
             (lista) => ({ lista, fallo: null as string | null }),
             (error: unknown) => ({
@@ -106,7 +109,7 @@ export default async function ResumenAdmin() {
         .catch(() => ({ docs: [] as Record<string, unknown>[] })),
       // Los requisitos que nadie ha atendido todavía (D-163): del administrador,
       // que es quien responde. `null` si la tabla no contestó.
-      esAdmin
+      delEquipo
         ? payload
             .count({
               collection: 'requisitos',
@@ -117,7 +120,7 @@ export default async function ResumenAdmin() {
             .catch(() => null)
         : null,
       // Las cotizaciones que nadie ha abierto (D-236).
-      esAdmin
+      delEquipo
         ? payload
             .count({ collection: 'cotizaciones', where: { estado: { equals: 'nueva' } }, overrideAccess: true })
             .then((conteo) => conteo.totalDocs)
@@ -240,7 +243,7 @@ export default async function ResumenAdmin() {
         </div>
       ) : null}
 
-      {!esAdmin ? null : respaldosIlegibles ? (
+      {!delEquipo ? null : respaldosIlegibles ? (
         <div className="admin-aviso admin-aviso-error">
           <strong>No se pueden leer los respaldos.</strong> {respaldosIlegibles}
         </div>

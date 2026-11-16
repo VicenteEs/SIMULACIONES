@@ -17,7 +17,7 @@ import { basename, resolve } from 'node:path'
 import { revalidatePath } from 'next/cache'
 import { piezasDelArchivo } from '@/lib/piezasDeUnModelo'
 import { etiquetaDeModelo } from '@/lib/usosDeUnModelo'
-import { accion, exigirEditor, type Respuesta } from '@/lib/guardias'
+import { accion, exigirEditorCentral, type Respuesta } from '@/lib/guardias'
 import { puedeEditarModulo, type UsuarioSesion } from '@/access/reglas'
 import { exigirIdentificador, exigirTexto, textoOpcional } from '@/lib/validacion'
 import { SLUG_DE_AJUSTES } from '@/lib/mantencion'
@@ -47,7 +47,7 @@ const RUTA_PANEL = '/admin-panel/atlas'
 /**
  * Guarda la paleta del simulador y del taller (P-014 E7).
  *
- * La elige el médico desde el taller, y el médico es el rol editor: por eso basta con `exigirEditor`, aunque
+ * La elige el médico desde el taller, y el médico es el rol editor: por eso basta con `exigirEditorCentral`, aunque
  * `ajustes` sea una colección del administrador. No se le abre la colección —sigue sin poder leerla ni tocar
  * los módulos en mantención—: esta acción escribe por su cuenta un solo campo, con un valor de una lista de
  * cuatro. Es lo que el dueño pidió, y es lo más que un editor puede hacerle a esa fila.
@@ -60,7 +60,7 @@ const RUTA_PANEL = '/admin-panel/atlas'
  */
 export async function guardarElTema(tema: unknown): Promise<Respuesta<{ tema: Tema }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const elegido = TEMAS.find((t) => t.valor === tema)
     if (!elegido) throw new Error('Esa paleta no existe.')
 
@@ -96,7 +96,7 @@ export async function versionDelAtlas(): Promise<Respuesta<{ version: string; pi
     // contra de D-020. Quien lo escriba no va a sospecharlo: sus seis hermanas
     // de este archivo sí comprueban. La página que la usa pasa por
     // `exigirPanel('admin')`, así que esto no cambia nada visible.
-    await exigirEditor()
+    await exigirEditorCentral()
     const catalogo = await leerCatalogo()
     return { version: catalogo.version, piezas: catalogo.piezas.length }
   })
@@ -113,7 +113,7 @@ export interface ResumenDeInstancia {
 
 export async function listarInstancias(): Promise<Respuesta<ResumenDeInstancia[]>> {
   return accion(async () => {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     const catalogo = await leerCatalogo()
 
     const { docs } = await payload.find({
@@ -154,7 +154,7 @@ export interface ModeloParaElTaller {
  */
 export async function listarModelosDelAtlas(): Promise<Respuesta<ModeloParaElTaller[]>> {
   return accion(async () => {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     const catalogo = await leerCatalogo()
     const conocidas = new Set(catalogo.piezas.map((p) => p.id))
 
@@ -196,7 +196,7 @@ export async function obtenerInstancia(
   }>
 > {
   return accion(async () => {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     const catalogo = await leerCatalogo()
 
     const doc = (await payload.findByID({
@@ -241,7 +241,7 @@ export async function guardarInstancia(
   datos: unknown,
 ): Promise<Respuesta<{ id: string; piezas: number }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const catalogo = await leerCatalogo()
 
     if (!datos || typeof datos !== 'object') throw new Error('No llegó nada que guardar.')
@@ -294,7 +294,7 @@ export async function guardarInstancia(
  */
 export async function duplicarInstancia(id: unknown): Promise<Respuesta<{ id: string }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
 
     const original = (await payload.findByID({
       collection: 'instancias-atlas',
@@ -401,7 +401,7 @@ async function documentosQueUsanLaPreparacion(
  */
 export async function eliminarInstancia(id: unknown): Promise<Respuesta<{ modelosBorrados: number; modelosQueSeQuedan: string[] }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const identificador = exigirIdentificador(id, 'La preparación')
 
     const usos = await documentosQueUsanLaPreparacion(payload, identificador)
@@ -464,7 +464,7 @@ export async function eliminarInstancia(id: unknown): Promise<Respuesta<{ modelo
  */
 export async function reexportarConEstructurasSeparadas(modeloId: unknown): Promise<Respuesta<ModeloExportado>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const id = exigirIdentificador(modeloId, 'El modelo')
     const modelo = (await payload.findByID({ collection: 'modelos-3d', id, depth: 0, overrideAccess: true })) as {
       nombre?: unknown
@@ -515,7 +515,7 @@ export async function exportarComoModelo(
   opciones?: { protagonistas?: unknown; corte?: unknown; separarEstructuras?: unknown; fascias?: unknown },
 ): Promise<Respuesta<ModeloExportado>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const modelo = await exportarPreparacion(
       payload,
       id,

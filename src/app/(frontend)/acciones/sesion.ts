@@ -44,7 +44,7 @@ import { datosDeLaPeticion } from '@/lib/entradas'
 import { cerrarLaEntrada } from '@/lib/entradasServidor'
 import { lugarDeLaPeticion } from '@/lib/institucionesServidor'
 import { idDeInstitucion } from '@/access/payload'
-import { cuentaValeEnElLugar } from '@/access/reglas'
+import { cuentaValeEnElLugar, filtroDelLugar } from '@/access/reglas'
 
 /**
  * Opciones de la cookie de sesión, y el cabo que dejó mudarla de `/` al prefijo.
@@ -726,9 +726,12 @@ async function registrarSolicitud(
   // aviso de la barra del panel, que cuenta las pendientes, sigue avisando.
   if (hayCorreo()) {
     try {
+      // A los de TraumaHub, que es donde nace la cuenta pedida: sin enlace de
+      // invitación no tiene institución (D-396). El registro desde el
+      // subdominio de una institución, y su aviso a los de allí, es E5.7.
       const administradores = await payload.find({
         collection: 'usuarios',
-        where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }] },
+        where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, filtroDelLugar(null)] } as never,
         depth: 0,
         limit: 10,
         overrideAccess: true,

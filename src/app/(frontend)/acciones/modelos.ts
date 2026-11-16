@@ -10,7 +10,7 @@
  * quedaba sin modelo al borrar.
  */
 import { revalidatePath } from 'next/cache'
-import { accion, exigirEditor, puedeEditar, type Respuesta } from '@/lib/guardias'
+import { accion, exigirEditorCentral, puedeEditar, type Respuesta } from '@/lib/guardias'
 import { exigirIdentificador, ErrorDeValidacion } from '@/lib/validacion'
 import { registrarAccion } from '@/lib/registroServidor'
 import { reemplazarModelo, usosDelModelo } from '@/lib/usosDeUnModeloServidor'
@@ -34,7 +34,7 @@ const RUTA_DE_MODELOS = '/admin-panel/contenido/modelos-3d'
  */
 export async function reemplazarModeloEnTodo(desdeId: unknown, haciaId: unknown): Promise<Respuesta<ModeloReemplazado>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const desde = exigirIdentificador(desdeId, 'El modelo que se reemplaza')
     const hacia = exigirIdentificador(haciaId, 'El modelo nuevo')
     if (desde === hacia) throw new ErrorDeValidacion('Elija un modelo distinto del que se reemplaza.')

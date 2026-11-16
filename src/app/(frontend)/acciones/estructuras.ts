@@ -9,13 +9,14 @@
  * mirar lo que recibe y deja lo difícil —no pisar lo escrito por otra persona— a
  * `src/lib/estructurasServidor.ts`, que es lo que también usa la planilla.
  *
- * Escriben el editor y el administrador, con el rol **real** (`exigirEditor`):
+ * Escriben el editor y el administrador, con el rol **real** (`exigirEditorCentral`):
  * la ficha de una estructura no es de un módulo, y un editor restringido a un
  * módulo sigue pudiendo llenarla (la colección es material de apoyo, como los
- * segmentos). Solo «Cargar las piezas del atlas» es del administrador.
+ * segmentos). Solo «Cargar las piezas del atlas» es del administrador. Los dos,
+ * de TraumaHub: el listado es uno para todas las instituciones (D-396).
  */
 import { revalidatePath } from 'next/cache'
-import { accion, exigirAdmin, exigirEditor, type Respuesta } from '@/lib/guardias'
+import { accion, exigirAdminCentral, exigirEditorCentral, type Respuesta } from '@/lib/guardias'
 import { exigirIdentificador } from '@/lib/validacion'
 import { CAMPOS_DE_LA_FICHA, type CampoDeLaFicha, type FichaCompleta } from '@/lib/estructuras'
 import { leerCatalogo } from '@/lib/catalogoDelAtlas'
@@ -54,7 +55,7 @@ export async function leerEstructura(
   atlasId: unknown,
 ): Promise<Respuesta<{ ficha: FichaCompleta; versiones: VersionDeLaFicha[] }>> {
   return accion(async () => {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     const id = exigirIdentificador(atlasId, 'La pieza')
     const ficha = await leerFicha(payload, await leerCatalogo(), id)
     if (!ficha) throw new Error('Esa pieza no existe en el atlas ni en el listado.')
@@ -76,7 +77,7 @@ export async function guardarEstructura(
   forzar?: unknown,
 ): Promise<Respuesta<ResultadoDeGuardar>> {
   return accion(async () => {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     const id = exigirIdentificador(atlasId, 'La pieza')
     if (cambios === null || typeof cambios !== 'object') throw new Error('Los cambios no tienen el formato esperado.')
     const { campos, base, oculta, ocultaBase } = cambios as Record<string, unknown>
@@ -103,7 +104,7 @@ export async function restaurarVersionDeEstructura(
   versionId: unknown,
 ): Promise<Respuesta<{ ficha: FichaCompleta; versiones: VersionDeLaFicha[] }>> {
   return accion(async () => {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     const id = exigirIdentificador(atlasId, 'La pieza')
     await restaurarVersion(payload, id, exigirIdentificador(versionId, 'La versión'))
     revalidatePath(RUTA_DEL_PANEL)
@@ -121,7 +122,7 @@ export async function restaurarVersionDeEstructura(
  */
 export async function cargarPiezasDelAtlas(): Promise<Respuesta<{ resultado: ResultadoDeLaSiembra; resumen: string }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     const resultado = await sincronizarConElAtlas(payload, await leerCatalogo(), { usuario })
     revalidatePath(RUTA_DEL_PANEL)
     return { resultado, resumen: resumenDeLaSiembra(resultado) }

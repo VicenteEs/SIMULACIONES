@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { accion, exigirAdmin, exigirEditor, type Respuesta } from '@/lib/guardias'
+import { accion, exigirAdminCentral, exigirEditorCentral, type Respuesta } from '@/lib/guardias'
 import { crearLimitador } from '@/lib/ritmo'
 import { ruta } from '@/lib/rutas'
 import {
@@ -51,7 +51,7 @@ const identificador = (valor: unknown): string | null =>
 /** Todos los requisitos, los más votados primero y, entre iguales, los más nuevos. */
 export async function listarRequisitos(): Promise<Respuesta<RequisitoDelBuzon[]>> {
   return accion(async () => {
-    const { payload, usuarioId } = await exigirEditor()
+    const { payload, usuarioId } = await exigirEditorCentral()
     const { docs } = await payload.find({
       collection: 'requisitos',
       limit: MAXIMO_DE_REQUISITOS,
@@ -86,7 +86,7 @@ export async function listarRequisitos(): Promise<Respuesta<RequisitoDelBuzon[]>
 /** Un requisito nuevo. */
 export async function proponerRequisito(titulo: unknown, descripcion: unknown): Promise<Respuesta<{ id: string }>> {
   return accion(async () => {
-    const { payload, usuario, usuarioId } = await exigirEditor()
+    const { payload, usuario, usuarioId } = await exigirEditorCentral()
     const datos = exigirRequisito(titulo, descripcion)
     if (!(await LIMITE_DE_PROPUESTAS.permitir(usuarioId))) {
       throw new Error('Propuso varios requisitos en pocos minutos. Espere un poco antes del siguiente.')
@@ -108,7 +108,7 @@ export async function proponerRequisito(titulo: unknown, descripcion: unknown): 
  */
 export async function votarRequisito(id: unknown): Promise<Respuesta<{ votado: boolean; votos: number }>> {
   return accion(async () => {
-    const { payload, usuarioId } = await exigirEditor()
+    const { payload, usuarioId } = await exigirEditorCentral()
     const clave = exigirIdentificador(id, 'El requisito')
     const actual = (await payload.findByID({
       collection: 'requisitos',
@@ -148,7 +148,7 @@ export async function editarRequisito(
   descripcion: unknown,
 ): Promise<Respuesta<void>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const clave = exigirIdentificador(id, 'El requisito')
     const datos = exigirRequisito(titulo, descripcion)
     await payload
@@ -169,7 +169,7 @@ export async function editarRequisito(
 /** El administrador acepta, descarta o pone en estudio, con una respuesta. */
 export async function responderRequisito(id: unknown, estado: unknown, respuesta?: unknown): Promise<Respuesta<void>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     const clave = exigirIdentificador(id, 'El requisito')
     const nuevoEstado = exigirEstadoDeRequisito(estado)
     await payload.update({
@@ -184,7 +184,7 @@ export async function responderRequisito(id: unknown, estado: unknown, respuesta
 
 export async function eliminarRequisito(id: unknown): Promise<Respuesta<void>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     await payload.delete({
       collection: 'requisitos',
       id: exigirIdentificador(id, 'El requisito'),

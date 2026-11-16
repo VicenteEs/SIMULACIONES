@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
 import { Mail } from 'lucide-react'
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
 import { etiquetaDeEstado } from '@/lib/cotizaciones'
@@ -22,7 +22,7 @@ export const dynamic = 'force-dynamic'
  * propio buzón queda la conversación entera en un solo sitio.
  */
 export default async function PaginaDeCotizacion({ params }: { params: Promise<{ id: string }> }) {
-  await exigirPanel('admin')
+  await exigirPanelCentral('admin')
   const { id } = await params
 
   const payload = await clientePayload()

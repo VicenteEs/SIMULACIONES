@@ -5,6 +5,7 @@ import {
   escrituraDeContenido,
   soloAdministracion,
 } from '@/access/payload'
+import { filtroDelLugar } from '@/access/reglas'
 import { enviarSinEsperar, hayCorreo } from '@/correo/enviar'
 import { mensajeDeRequisitoNuevo, mensajeDeRequisitoRespondido } from '@/correo/mensajes'
 import {
@@ -63,9 +64,11 @@ export const Requisitos: CollectionConfig = {
         if (!hayCorreo()) return doc
         try {
           if (operation === 'create') {
+            // El buzón es del equipo de TraumaHub (D-396): sus administradores,
+            // no los de una institución.
             const admins = await req.payload.find({
               collection: 'usuarios',
-              where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }] },
+              where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, filtroDelLugar(null)] } as never,
               limit: MAXIMO_DE_ADMINISTRADORES_AVISADOS,
               depth: 0,
             })

@@ -1,4 +1,4 @@
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import type { Respaldo } from '@/lib/respaldos'
 import {
   directorioDeRespaldos,
@@ -23,7 +23,7 @@ export const dynamic = 'force-dynamic'
  * protege del incendio, únicamente del error.
  */
 export default async function PaginaRespaldos() {
-  await exigirPanel('admin')
+  await exigirPanelCentral('admin')
 
   // El fallo de lectura se enseña, no se convierte en una tabla vacía: una
   // carpeta sin permisos se veía como «0 volcados», que invita a pensar que

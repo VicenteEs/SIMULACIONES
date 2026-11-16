@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { connect as abrirSocketCifrado } from 'node:tls'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { tamanoLegible, type Respaldo } from '@/lib/respaldos'
 import { espacioEnDisco, UMBRAL_DE_USO } from '@/lib/espacioEnDisco'
 import {
@@ -174,7 +174,7 @@ async function correoResponde(host: string, puerto: number): Promise<Diagnostico
 }
 
 export default async function PaginaSistema() {
-  await exigirPanel('admin')
+  await exigirPanelCentral('admin')
 
   let base: Diagnostico = { ok: false, detalle: 'sin respuesta' }
   let versionBase = 'desconocida'
@@ -305,7 +305,7 @@ export default async function PaginaSistema() {
       // Y con qué arreglarlo. La instrucción de ejecutar el guion estaba en el
       // taller anatómico y se quitó de allí con razón: esa página la abre un
       // editor, que no tiene consola en el servidor ni puede desplegar nada.
-      // Esta exige administrador (`exigirPanel('admin')`), que es quien sí.
+      // Esta exige administrador (`exigirPanelCentral('admin')`), que es quien sí.
       // Entre las dos cosas la instrucción se quedó sin estar en ninguna parte
       // de la interfaz.
       titulo: 'Atlas anatómico',

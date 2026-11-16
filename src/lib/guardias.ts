@@ -17,6 +17,8 @@ import { CATALOGOS_DEL_SIMULADOR } from '@/collections/catalogos'
 import { ESQUEMAS } from '@/admin/esquema'
 import { obtenerSesion, type Sesion } from '@/lib/sesion'
 import { MENSAJE_DE_OTRA_ENTRADA } from '@/lib/entradas'
+import { idDeInstitucion } from '@/access/payload'
+import { COLECCIONES_CON_INSTITUCION } from '@/collections/hooks/marcaDeInstitucion'
 
 const COLECCIONES_SOLO_ADMIN: ReadonlySet<string> = new Set(
   ESQUEMAS.filter((e) => e.soloAdmin).map((e) => e.slug),
@@ -56,6 +58,39 @@ export const exigirAdmin = (): Promise<Contexto> =>
 
 export const exigirEditor = (): Promise<Contexto> =>
   exigirRolReal(['admin', 'editor'], 'Acceso denegado: se requiere rol de editor.')
+
+/**
+ * ¿Es una cuenta de TraumaHub y no de una institución (D-396)? Sobre el
+ * documento de la sesión, que trae la institución como número o poblada.
+ *
+ * Los roles de institución son los de siempre con la marca puesta: su
+ * administrador es `admin` y pasa `exigirAdmin`. Lo que es solo de TraumaHub
+ * pregunta esto además del rol.
+ */
+export const esDeTraumaHub = (usuario: Record<string, unknown>): boolean =>
+  idDeInstitucion(usuario.institucion) === null
+
+const MENSAJE_SOLO_CENTRAL = 'Acceso denegado: esto lo administra el equipo de TraumaHub.'
+
+async function exigirCentral(contexto: Promise<Contexto>): Promise<Contexto> {
+  const listo = await contexto
+  if (!esDeTraumaHub(listo.usuario)) throw new ErrorDeAcceso(MENSAJE_SOLO_CENTRAL)
+  return listo
+}
+
+/**
+ * Lo que es de toda la plataforma y no de una institución: los respaldos, el
+ * sistema, la difusión, la portada, las cotizaciones, la mantención de los
+ * módulos (P-016 E5.3). Un administrador de institución no pasa.
+ */
+export const exigirAdminCentral = (): Promise<Contexto> => exigirCentral(exigirAdmin())
+
+/**
+ * Lo que edita el catálogo común: el taller del atlas, las estructuras, el
+ * instrumental, el buzón de requisitos. Lo usan todas las instituciones y no es
+ * de ninguna, así que solo lo escribe TraumaHub (D-396).
+ */
+export const exigirEditorCentral = (): Promise<Contexto> => exigirCentral(exigirEditor())
 
 /**
  * Igual que `exigirEditor`, pero además comprueba los permisos por módulo.
@@ -117,6 +152,11 @@ const MODULO_DEL_VOCABULARIO: Record<string, string> = Object.fromEntries(
  * sobre si alguien es editor.
  */
 export function puedeEditar(usuario: Record<string, unknown>, coleccion: string): boolean {
+  // Una cuenta de institución escribe solo en las colecciones que llevan la
+  // marca (D-396): una fila sin marca es de TraumaHub, y el gancho le pondría
+  // la suya a lo que creara en un catálogo que es de todos. Antes que el
+  // administrador, porque el de una institución también es `admin`.
+  if (!esDeTraumaHub(usuario) && !(COLECCIONES_CON_INSTITUCION as readonly string[]).includes(coleccion)) return false
   if (usuario.rol === 'admin') return true
   // Las colecciones reservadas al administrador (el equipo del inicio) no se abren a ningún editor, ni con la lista de
   // módulos vacía, que en un módulo significa «todos». Se lee del esquema del panel y no de una lista aparte, por lo

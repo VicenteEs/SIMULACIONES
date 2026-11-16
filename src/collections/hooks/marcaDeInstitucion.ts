@@ -1,5 +1,6 @@
-import type { CollectionBeforeChangeHook, CollectionConfig, Field, PayloadRequest } from 'payload'
+import type { Access, CollectionBeforeChangeHook, CollectionConfig, Field, PayloadRequest, Where } from 'payload'
 import { idDeInstitucion, usuarioDeSesion } from '@/access/payload'
+import { filtroDeInstitucion, type AlcanceDeInstitucion } from '@/access/reglas'
 
 /**
  * La marca de institución en cada fila que pertenece a una (D-371, D-396).
@@ -50,6 +51,20 @@ export const COLECCIONES_CON_INSTITUCION = [
   'tiempo-activo',
   'revisiones',
   'sesiones-de-revision',
+] as const
+
+/**
+ * Las que se comparten: el contenido y sus archivos. Lo central publicado lo
+ * lee también la institución (D-396). Las demás de la lista son de cada una.
+ */
+export const COLECCIONES_COMPARTIDAS = [
+  'patologias',
+  'maniobras',
+  'casos-ao',
+  'cirugias',
+  'estudios-ia',
+  'medios',
+  'modelos-3d',
 ] as const
 
 /**
@@ -124,14 +139,67 @@ export const marcarInstitucion: CollectionBeforeChangeHook = async ({ data, oper
 }
 
 /**
+ * El acceso de la colección con la institución sumada (P-016 E5.3).
+ *
+ * Lo que diga el acceso de siempre —el rol, los módulos, la mantención— sigue
+ * mandando; la institución solo recorta, nunca amplía. Si el de siempre niega,
+ * se niega sin preguntar más; si deja todo, queda el filtro de institución; y
+ * si filtra, se juntan los dos con `and`.
+ *
+ * Esto cubre lo que se lee con `overrideAccess: false`: las páginas de los
+ * módulos, la API que queda abierta y los archivos que sirve Payload
+ * (`checkFileAccess` pregunta el `read` de la colección). Lo que el panel
+ * consulta con `overrideAccess: true` no pasa por aquí: eso lo para la segunda
+ * barrera, en PostgreSQL (E5.4).
+ */
+function conInstitucion(
+  base: Access | undefined,
+  opciones: Parameters<typeof filtroDeInstitucion>[1],
+): Access {
+  return async (args) => {
+    // Sin acceso declarado, Payload deja pasar a cualquier sesión: lo mismo.
+    const delRol = base ? await base(args) : Boolean(args.req?.user)
+    if (delRol === false) return false
+    const deLaInstitucion = filtroDeInstitucion(usuarioDeSesion(args.req?.user), opciones)
+    if (deLaInstitucion === false) return false
+    if (delRol === true) return deLaInstitucion as Where
+    return { and: [delRol, deLaInstitucion as Where] }
+  }
+}
+
+/**
  * La colección con la marca puesta, si va en la lista. El campo se agrega al
  * final, para no mover nada de lo que el panel ya pinta.
  */
 export function conMarcaDeInstitucion(coleccion: CollectionConfig): CollectionConfig {
   if (!(COLECCIONES_CON_INSTITUCION as readonly string[]).includes(coleccion.slug)) return coleccion
+  const alcance: AlcanceDeInstitucion = (COLECCIONES_COMPARTIDAS as readonly string[]).includes(coleccion.slug)
+    ? 'compartido'
+    : 'propio'
+  const versionada = Boolean(coleccion.versions)
+  const acceso = coleccion.access ?? {}
   return {
     ...coleccion,
     fields: [...coleccion.fields, CAMPO_DE_INSTITUCION],
+    access: {
+      ...acceso,
+      read: conInstitucion(acceso.read, { alcance, operacion: 'leer', versionada }),
+      update: conInstitucion(acceso.update, { alcance, operacion: 'escribir', versionada }),
+      delete: conInstitucion(acceso.delete, { alcance, operacion: 'escribir', versionada }),
+      // Las versiones, solo las propias: quien no puede editar lo central no
+      // tiene por qué leer sus borradores. Sus campos viven en `version`.
+      ...(versionada
+        ? {
+            readVersions: conInstitucion(acceso.readVersions, {
+              alcance,
+              operacion: 'escribir',
+              versionada,
+              campo: 'version.institucion',
+              estado: 'version._status',
+            }),
+          }
+        : {}),
+    },
     hooks: {
       ...coleccion.hooks,
       // Primero, para que los ganchos de la colección vean ya la marca.

@@ -132,15 +132,34 @@ const SESIONES = {
   // Y tampoco lo quita: el administrador que mira «como residente» sigue
   // entrando a su panel.
   adminComoResidente: sesionDe(cuenta(1, 'admin', true), 'lector'),
+  // Los roles de una institución son los de siempre con la marca (D-396).
+  adminDeInstitucion: sesionDe(cuenta(10, 'admin', true, { institucion: 7 })),
+  editorDeInstitucion: sesionDe(cuenta(11, 'editor', true, { institucion: 7 })),
 } as const
 type NombreDeSesion = keyof typeof SESIONES
 
-type Nivel = 'editor' | 'admin' | 'modulo'
+/**
+ * `adminCentral` y `editorCentral` son `exigirPanelCentral`: el rol, y además
+ * una cuenta de TraumaHub (P-016 E5.3). Lo de toda la plataforma y el
+ * catálogo común no es de ninguna institución.
+ */
+type Nivel = 'editor' | 'admin' | 'modulo' | 'editorCentral' | 'adminCentral'
 
 const ENTRA: Record<Nivel, Record<NombreDeSesion, boolean>> = {
-  admin: { anonimo: false, desactivado: false, lector: false, lectorComoAdmin: false, editor: false, admin: true, adminComoResidente: true },
-  editor: { anonimo: false, desactivado: false, lector: false, lectorComoAdmin: false, editor: true, admin: true, adminComoResidente: true },
-  modulo: { anonimo: false, desactivado: false, lector: false, lectorComoAdmin: false, editor: true, admin: true, adminComoResidente: true },
+  admin: { anonimo: false, desactivado: false, lector: false, lectorComoAdmin: false, editor: false, admin: true, adminComoResidente: true, adminDeInstitucion: true, editorDeInstitucion: false },
+  editor: { anonimo: false, desactivado: false, lector: false, lectorComoAdmin: false, editor: true, admin: true, adminComoResidente: true, adminDeInstitucion: true, editorDeInstitucion: true },
+  modulo: { anonimo: false, desactivado: false, lector: false, lectorComoAdmin: false, editor: true, admin: true, adminComoResidente: true, adminDeInstitucion: true, editorDeInstitucion: true },
+  adminCentral: { anonimo: false, desactivado: false, lector: false, lectorComoAdmin: false, editor: false, admin: true, adminComoResidente: true, adminDeInstitucion: false, editorDeInstitucion: false },
+  editorCentral: { anonimo: false, desactivado: false, lector: false, lectorComoAdmin: false, editor: true, admin: true, adminComoResidente: true, adminDeInstitucion: false, editorDeInstitucion: false },
+}
+
+/**
+ * A dónde se echa a quien no entra. Al inicio del panel, la cuenta que sí es
+ * del panel pero de una institución; a la portada, todas las demás.
+ */
+const DESTINO_SIN_ENTRADA = (nivel: Nivel, nombre: NombreDeSesion): string => {
+  const delRol = nivel === 'adminCentral' ? ENTRA.admin : nivel === 'editorCentral' ? ENTRA.editor : ENTRA[nivel]
+  return delRol[nombre] ? '/admin-panel' : '/'
 }
 
 /**
@@ -155,19 +174,20 @@ const NIVEL_DE_PAGINA: Record<string, Nivel> = {
   'contenido/[coleccion]/page.tsx': 'modulo',
   'contenido/[coleccion]/nuevo/page.tsx': 'modulo',
   'contenido/[coleccion]/[id]/page.tsx': 'modulo',
-  'atlas/page.tsx': 'editor',
+  // El taller y las estructuras escriben el catálogo común (D-396).
+  'atlas/page.tsx': 'editorCentral',
   'comentarios/page.tsx': 'editor',
   // El listado global de estructuras anatómicas (D-179): lo llena el traumatólogo, que es editor.
-  'estructuras/page.tsx': 'editor',
+  'estructuras/page.tsx': 'editorCentral',
   'usuarios/page.tsx': 'admin',
-  'difusion/page.tsx': 'admin',
+  'difusion/page.tsx': 'adminCentral',
   // Las fotos y los textos de la portada pública (P-007 E2): los ve cualquier visitante.
-  'medios-pagina/page.tsx': 'admin',
+  'medios-pagina/page.tsx': 'adminCentral',
   // Las cotizaciones de la portada (P-007 E3): datos de alguien de fuera y un asunto comercial.
-  'cotizaciones/page.tsx': 'admin',
-  'cotizaciones/[id]/page.tsx': 'admin',
-  'respaldos/page.tsx': 'admin',
-  'sistema/page.tsx': 'admin',
+  'cotizaciones/page.tsx': 'adminCentral',
+  'cotizaciones/[id]/page.tsx': 'adminCentral',
+  'respaldos/page.tsx': 'adminCentral',
+  'sistema/page.tsx': 'adminCentral',
   'estadisticas/page.tsx': 'admin',
   'actividad/page.tsx': 'admin',
   // La revisión del contenido (D-142): la cola es de quien revisa; la
@@ -236,8 +256,19 @@ describe('las pantallas del panel', () => {
   it('las pantallas de cuentas, respaldos y sistema son de administrador, no de editor', () => {
     // Fijado aparte de la tabla: bajar una de estas a `editor` en la tabla
     // pondría la matriz de abajo en verde con la pantalla abierta.
-    for (const pagina of ['usuarios/page.tsx', 'respaldos/page.tsx', 'sistema/page.tsx', 'estadisticas/page.tsx', 'actividad/page.tsx', 'auditoria/page.tsx', 'registro/page.tsx']) {
+    for (const pagina of ['usuarios/page.tsx', 'estadisticas/page.tsx', 'actividad/page.tsx', 'auditoria/page.tsx', 'registro/page.tsx']) {
       expect(NIVEL_DE_PAGINA[pagina], pagina).toBe('admin')
+    }
+  })
+
+  it('las de toda la plataforma son del administrador de TraumaHub, no del de una institución', () => {
+    // Igual, fijado aparte (D-396): con `admin` en la tabla, la matriz pasaría
+    // con la pantalla abierta al administrador de una institución.
+    for (const pagina of ['respaldos/page.tsx', 'sistema/page.tsx', 'difusion/page.tsx', 'medios-pagina/page.tsx', 'cotizaciones/page.tsx', 'cotizaciones/[id]/page.tsx']) {
+      expect(NIVEL_DE_PAGINA[pagina], pagina).toBe('adminCentral')
+    }
+    for (const pagina of ['atlas/page.tsx', 'estructuras/page.tsx']) {
+      expect(NIVEL_DE_PAGINA[pagina], pagina).toBe('editorCentral')
     }
   })
 })
@@ -250,7 +281,7 @@ describe.each(PAGINAS.filter((p) => NIVEL_DE_PAGINA[p]))('%s', (pagina) => {
     if (ENTRA[nivel][nombre]) {
       expect(destino, `${pagina} echó a «${nombre}», que sí entra`).not.toBe('/')
     } else {
-      expect(destino, `${pagina} dejó entrar a «${nombre}»`).toBe('/')
+      expect(destino, `${pagina} dejó entrar a «${nombre}»`).toBe(DESTINO_SIN_ENTRADA(nivel, nombre))
       expect(consultado, `${pagina} consultó ${consultado.join(', ')} antes de echar a «${nombre}»`).toEqual([])
     }
   })
@@ -312,6 +343,16 @@ describe('la guardia del panel', () => {
     await expect(exigirPanelPara('cirugias')).resolves.toBeTruthy()
   })
 
+  it('exigirPanelPara le cierra a una institución lo que no lleva su marca: el equipo y los catálogos', async () => {
+    // El administrador de una institución es `admin`, que en todo lo demás
+    // pasa sin mirar módulos (D-396).
+    estado.sesion = SESIONES.adminDeInstitucion
+    await expect(exigirPanelPara('equipo')).rejects.toThrow(/admin-panel\/contenido/)
+    await expect(exigirPanelPara('instrumental')).rejects.toThrow(/admin-panel\/contenido/)
+    await expect(exigirPanelPara('cirugias')).resolves.toBeTruthy()
+    await expect(exigirPanelPara('medios')).resolves.toBeTruthy()
+  })
+
   it('exigirPanelPara también cierra el módulo que la cuenta no ve, y su vocabulario', async () => {
     // Editables vacíos («todos») y la lectura restringida: la restricción
     // tiene que salir de `modulosVisibles`. Los catálogos del simulador cuelgan
@@ -340,7 +381,7 @@ describe('la descarga de un respaldo', () => {
     return { estado: respuesta.status, consultado: [...llamadas] }
   }
 
-  it.each(['anonimo', 'desactivado', 'lector', 'editor'] as NombreDeSesion[])(
+  it.each(['anonimo', 'desactivado', 'lector', 'editor', 'adminDeInstitucion'] as NombreDeSesion[])(
     'la sesión «%s» no llega a buscar el archivo',
     async (nombre) => {
       const { estado: codigo, consultado } = await descargar(SESIONES[nombre])

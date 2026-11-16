@@ -479,10 +479,13 @@ describe('la solicitud de cuenta', { timeout: 30_000 }, () => {
 
     // Y a los administradores se les busca activos: una cuenta de baja no
     // puede activar a nadie, y el aviso a su buzón es ruido para quien ya se fue.
+    // Y de TraumaHub, donde nace la cuenta pedida (D-398).
     const consulta = buscar.mock.calls
       .map(([opciones]) => opciones as { where: Record<string, unknown>; overrideAccess?: boolean; limit?: number })
       .find((o) => 'and' in o.where)
-    expect(consulta?.where).toEqual({ and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }] })
+    expect(consulta?.where).toEqual({
+      and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, { institucion: { exists: false } }],
+    })
     expect(consulta?.overrideAccess).toBe(true)
     expect(consulta?.limit).toBe(10)
   })

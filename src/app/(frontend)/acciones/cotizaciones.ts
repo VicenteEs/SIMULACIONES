@@ -13,7 +13,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { accion, exigirAdmin, type Respuesta } from '@/lib/guardias'
+import { accion, exigirAdminCentral, type Respuesta } from '@/lib/guardias'
 import { ErrorDeValidacion, exigirIdentificador } from '@/lib/validacion'
 import { LARGOS_DE_COTIZACION, esEstadoDeCotizacion, type EstadoDeCotizacion } from '@/lib/cotizaciones'
 
@@ -26,7 +26,7 @@ const RUTA = '/admin-panel/cotizaciones'
  */
 export async function actualizarCotizacion(id: unknown, cambios: unknown): Promise<Respuesta> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     const objetivo = exigirIdentificador(id, 'La cotización')
     const bruto = (typeof cambios === 'object' && cambios !== null ? cambios : {}) as Record<string, unknown>
 
@@ -59,7 +59,7 @@ export async function actualizarCotizacion(id: unknown, cambios: unknown): Promi
  */
 export async function eliminarCotizacion(id: unknown): Promise<Respuesta> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     await payload.delete({ collection: 'cotizaciones', id: exigirIdentificador(id, 'La cotización'), user: usuario as never })
     revalidatePath(RUTA)
     return null

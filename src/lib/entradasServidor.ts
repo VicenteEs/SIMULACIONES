@@ -1,6 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto'
 import type { Payload, PayloadRequest } from 'payload'
 import { direccionPublica } from '@/collections/Usuarios'
+import { idDeInstitucion } from '@/access/payload'
+import { filtroDelLugar } from '@/access/reglas'
+import { subdominioDeLaCuenta } from '@/lib/institucionesServidor'
 import { enviarSinEsperar, hayCorreo } from '@/correo/enviar'
 import { mensajeDeEntradaSospechosa } from '@/correo/mensajes'
 import { registrarAccion } from '@/lib/registroServidor'
@@ -288,9 +291,14 @@ async function alertar(
   await registrarAccion(payload, { accion: 'entrada-sospechosa', usuario, detalle: motivos.join(' ') }, req)
 
   if (yaAvisadas > 0 || !hayCorreo()) return
+  // A los administradores del lugar de la cuenta (D-396): son quienes la
+  // conocen y quienes pueden desactivarla, y el correo lleva su nombre y sus
+  // entradas, que no son de nadie más.
   const administradores = await payload.find({
     collection: 'usuarios',
-    where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }] },
+    where: {
+      and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, filtroDelLugar(idDeInstitucion(usuario.institucion))],
+    } as never,
     depth: 0,
     limit: 20,
     overrideAccess: true,
@@ -321,7 +329,7 @@ async function alertar(
         correo: String(usuario.email ?? ''),
         motivos,
         entradas,
-        enlacePanel: `${direccionPublica()}/admin-panel/usuarios`,
+        enlacePanel: `${direccionPublica(await subdominioDeLaCuenta(payload, usuario.institucion))}/admin-panel/usuarios`,
       }),
     },
     'alerta de entrada sospechosa a los administradores',

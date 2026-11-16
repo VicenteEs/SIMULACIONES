@@ -15,7 +15,7 @@
  */
 
 import { revalidatePath } from 'next/cache'
-import { accion, exigirAdmin, exigirEditor, type Respuesta } from '@/lib/guardias'
+import { accion, exigirAdmin, exigirAdminCentral, exigirEditorCentral, type Respuesta } from '@/lib/guardias'
 import { exigirIdentificador, exigirTexto, textoOpcional } from '@/lib/validacion'
 import {
   CATEGORIAS_DE_INSTRUMENTAL,
@@ -115,7 +115,7 @@ function largoDeTornilloValido(valor: unknown): number | null {
 /** Todo el instrumental, con el estado de su modelo: es lo que dibuja el listado del taller. */
 export async function listarInstrumental(): Promise<Respuesta<InstrumentoDelTaller[]>> {
   return accion(async () => {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     const { docs } = await payload.find({
       collection: 'instrumental',
       limit: 500,
@@ -130,7 +130,7 @@ export async function listarInstrumental(): Promise<Respuesta<InstrumentoDelTall
 /** Un instrumento nuevo, sin modelo: queda «pendiente» hasta que el administrador cargue el archivo. */
 export async function crearInstrumento(entrada: unknown): Promise<Respuesta<{ id: string }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const datos = datosDescriptivos(entrada)
     const repetido = await payload.find({
       collection: 'instrumental',
@@ -153,7 +153,7 @@ export async function crearInstrumento(entrada: unknown): Promise<Respuesta<{ id
 /** Cambia lo que describe al instrumento. El modelo y los retoques no se tocan desde aquí. */
 export async function editarInstrumento(id: unknown, entrada: unknown): Promise<Respuesta<void>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const datos = datosDescriptivos(entrada)
     await payload.update({
       collection: 'instrumental',
@@ -172,7 +172,7 @@ export async function editarInstrumento(id: unknown, entrada: unknown): Promise<
  */
 export async function completarElCatalogo(): Promise<Respuesta<{ creados: number; yaEstaban: number }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     const existentes = await payload.find({ collection: 'instrumental', limit: 1000, depth: 0, overrideAccess: true })
     const slugs = new Set((existentes.docs as unknown as Record<string, unknown>[]).map((d) => texto(d.slug) || slugDeInstrumento(texto(d.nombre))))
     let creados = 0
@@ -226,7 +226,7 @@ async function enlazarModelo(
 /** Enlaza el modelo recién subido con UN instrumento elegido. */
 export async function enlazarModeloDeInstrumento(id: unknown, modelo: unknown): Promise<Respuesta<void>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     await enlazarModelo(payload, usuario, exigirIdentificador(id, 'El instrumento'), exigirIdentificador(modelo, 'El modelo'))
     revalidatePath(RUTA_PANEL)
   })
@@ -240,7 +240,7 @@ export async function enlazarModeloDeInstrumento(id: unknown, modelo: unknown): 
  */
 export async function enlazarModeloPorNombre(nombreDeArchivo: unknown, modelo: unknown): Promise<Respuesta<{ instrumento: string; nombre: string }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     const idDelModelo = exigirIdentificador(modelo, 'El modelo')
     const slug = slugDeArchivo(typeof nombreDeArchivo === 'string' ? nombreDeArchivo : '')
     const encontrados = slug
@@ -260,7 +260,7 @@ export async function enlazarModeloPorNombre(nombreDeArchivo: unknown, modelo: u
 /** Deja al instrumento sin modelo. El archivo se queda en la biblioteca: otro caso puede estar usándolo. */
 export async function quitarModeloDeInstrumento(id: unknown): Promise<Respuesta<void>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     await payload.update({
       collection: 'instrumental',
       id: exigirIdentificador(id, 'El instrumento'),
@@ -275,7 +275,7 @@ export async function quitarModeloDeInstrumento(id: unknown): Promise<Respuesta<
 /** Guarda lo retocado en el taller: partes ocultas, recoloreadas o movidas y el estado inicial de las articulaciones. */
 export async function guardarRetoquesDeInstrumento(id: unknown, ajustes: unknown): Promise<Respuesta<{ retocadas: number }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     const limpios = ajustesValidos(ajustes)
     const hay = Object.keys(limpios.partes ?? {}).length + Object.keys(limpios.articulaciones ?? {}).length > 0
     await payload.update({
@@ -293,7 +293,7 @@ export async function guardarRetoquesDeInstrumento(id: unknown, ajustes: unknown
 /** Borra el instrumento. Los pasos de cirugía que lo pedían quedan sin instrumento: hay que avisarlo antes (el taller lo hace). */
 export async function eliminarInstrumento(id: unknown): Promise<Respuesta<void>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     await payload.delete({
       collection: 'instrumental',
       id: exigirIdentificador(id, 'El instrumento'),

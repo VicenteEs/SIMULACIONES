@@ -20,7 +20,7 @@ import { CANDADO_DEL_INICIO, destinatariosDe, lanzarDifusion, seEstaEnviando } f
 import { enviarCorreo, explicarFalloDeCorreo, hayCorreo, SinServidorDeCorreo } from '@/correo/enviar'
 import { mensajeDeDifusion, type DatosDeDifusion } from '@/correo/mensajes'
 import { esEnlaceSeguro } from '@/correo/plantilla'
-import { accion, exigirAdmin, type Respuesta } from '@/lib/guardias'
+import { accion, exigirAdminCentral, type Respuesta } from '@/lib/guardias'
 import { crearLimitador } from '@/lib/ritmo'
 import { conCandado } from '@/lib/sqlDirecto'
 import { ErrorDeValidacion, exigirIdentificador, exigirTexto } from '@/lib/validacion'
@@ -116,7 +116,7 @@ const YA_HAY_UNA =
  */
 export async function enviarPruebaDeDifusion(datos: unknown): Promise<Respuesta<{ para: string }>> {
   return accion(async () => {
-    const { payload, usuarioId } = await exigirAdmin()
+    const { payload, usuarioId } = await exigirAdminCentral()
     const difusion = validarDatos(datos)
 
     // Se lee la cuenta en vez de fiarse del correo de la sesión: la sesión
@@ -151,7 +151,7 @@ export async function enviarPruebaDeDifusion(datos: unknown): Promise<Respuesta<
 
 export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: string; total: number }>> {
   return accion(async () => {
-    const { payload, usuarioId } = await exigirAdmin()
+    const { payload, usuarioId } = await exigirAdminCentral()
     const difusion = validarDatos(datos)
     const audiencia = validarAudiencia((datos as { audiencia?: unknown } | null)?.audiencia)
 
@@ -215,7 +215,7 @@ export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: s
  */
 export async function reanudarDifusion(id: unknown): Promise<Respuesta<{ pendientes: number }>> {
   return accion(async () => {
-    const { payload } = await exigirAdmin()
+    const { payload } = await exigirAdminCentral()
     const idDifusion = exigirIdentificador(id, 'La difusión')
 
     const difusion = await payload.findByID({
@@ -264,7 +264,7 @@ export async function reanudarDifusion(id: unknown): Promise<Respuesta<{ pendien
  */
 export async function detenerDifusion(id: unknown): Promise<Respuesta<null>> {
   return accion(async () => {
-    const { payload } = await exigirAdmin()
+    const { payload } = await exigirAdminCentral()
     const idDifusion = exigirIdentificador(id, 'La difusión')
 
     const difusion = await payload.findByID({

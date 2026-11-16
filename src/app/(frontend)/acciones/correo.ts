@@ -11,7 +11,7 @@
  * verdad, y hasta ahora el primero lo hacía el residente.
  */
 
-import { accion, exigirAdmin, type Respuesta } from '@/lib/guardias'
+import { accion, exigirAdminCentral, type Respuesta } from '@/lib/guardias'
 import {
   enviarCorreo,
   explicarFalloDeCorreo,
@@ -33,7 +33,7 @@ const limitador = crearLimitador('correo-de-prueba', { maximo: 5, ventanaMs: 10 
 
 export async function enviarCorreoDePrueba(): Promise<Respuesta<{ para: string }>> {
   return accion(async () => {
-    const { payload, usuarioId } = await exigirAdmin()
+    const { payload, usuarioId } = await exigirAdminCentral()
 
     // Siempre a la cuenta de quien lo pide, nunca a una dirección que llegue
     // como argumento: una acción que manda a donde se le diga es un repetidor

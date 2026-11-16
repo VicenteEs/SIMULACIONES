@@ -78,7 +78,7 @@ describe('entrar por la dirección a un módulo ajeno', () => {
    * otro módulo, volvería el `Forbidden`. Se comprueba contra la regla que la
    * colección declara de verdad, no contra `filtroDeLecturaDeModulo` suelto.
    */
-  it.each(LISTADOS)('la guardia de %s coincide con la regla de lectura de su colección', (_n, slug) => {
+  it.each(LISTADOS)('la guardia de %s coincide con la regla de lectura de su colección', async (_n, slug) => {
     const coleccion = COLECCIONES.find((c) => c.slug === slug)
     const leer = coleccion?.access?.read
     expect(leer, `la colección «${slug}» no declara lectura`).toBeTypeOf('function')
@@ -87,12 +87,14 @@ describe('entrar por la dirección a un módulo ajeno', () => {
     const conOtroModulo = { id: '1', rol: 'lector', activo: true, modulosVisibles: [otro] } as UsuarioSesion
     const conEste = { ...conOtroModulo, modulosVisibles: [slug] }
 
-    const reglaCon = (u: UsuarioSesion) => Boolean(leer!({ req: { user: u } } as never))
+    // Con `await`: desde E5.3 la regla de una colección con marca de
+    // institución es asíncrona (D-398), y una promesa siempre es verdadera.
+    const reglaCon = async (u: UsuarioSesion) => Boolean(await leer!({ req: { user: u } } as never))
 
     expect(puedeVerModulo(conOtroModulo, slug)).toBe(false)
-    expect(reglaCon(conOtroModulo)).toBe(false)
+    expect(await reglaCon(conOtroModulo)).toBe(false)
     expect(puedeVerModulo(conEste, slug)).toBe(true)
-    expect(reglaCon(conEste)).toBe(true)
+    expect(await reglaCon(conEste)).toBe(true)
   })
 
   it('la pantalla dice que falta un permiso y ofrece volver', () => {
