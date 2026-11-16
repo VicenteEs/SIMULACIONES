@@ -11626,6 +11626,25 @@ Comprobado después:
 - (−) Abrir el modal es una acción de servidor más.
 - (−) Cualquier administrador ve la IP de cada entrada de cualquier cuenta. Ya la veía en la exportación; ahora le cuesta un clic. El aviso ya dice que se guarda y para qué.
 
+*Comprobado antes de subir*, en un worktree aparte con solo estos commits, porque el checkout principal tenía a medio editar los archivos del simulador de otra sesión:
+- `typecheck` limpio, y `lint` sin errores, con los 15 avisos de siempre;
+- `test:integration`, 296 de 296, con las 8 de `entradas.test.ts`. La nueva entra como el administrador y ve las 5 entradas de la cuenta, con cómo terminó cada una y sin la huella de la sesión, y la misma acción, pedida desde la sesión de la cuenta, que es de editor, no pasa;
+- la suite: 6660 bien y una omitida. La cobertura queda en 87,7 % de sentencias, 79,6 % de ramas, 88,4 % de funciones y 89,0 % de líneas. Fallaron 10, ninguna de lo tocado aquí:
+  - 6 leen el código del simulador esperando finales de línea LF, y el worktree recién sacado los trae en CRLF. Con los fuentes pasados a LF, pasan;
+  - una de `tableroDeRevision` depende de la zona horaria que pone el `.env`, que el worktree no tiene; en el checkout principal pasa;
+  - las 2 de `directorioDeRespaldos` de siempre en Windows, y una de `respaldoCifrado` que sola pasa;
+- `build` con `/traumahub`, bien.
+
+*Mirado en el navegador*, con esa compilación servida en el puerto 3200 contra la base desechable y la cuenta de administración de prueba de D-388:
+- el menú «⋯» de cada cuenta trae «Entradas a la plataforma»;
+- el de la cuenta de prueba enseña arriba sus dos alertas, «…se entró 4 veces…» y «…3 veces…», y debajo sus 5 entradas, la más reciente primero, con la hora de Chile. Bajo la hora de las que echaron a otro equipo dice «Cerró la de otro equipo». La de ahora sale «Abierta» y las demás «Se entró en otro equipo». El país sale «—», porque en local no hay Cloudflare;
+- una cuenta que nunca entró dice «Sin entradas» y «Esta cuenta no ha entrado en los últimos 3 meses»;
+- a 375, 460, 768 y 1280 px de ancho la tabla no se sale de su caja. Para eso hizo falta, después del primer vistazo:
+  - apilar la tabla en el teléfono, como la de cuentas (`.tabla-apilable`): de lado, la IP y cómo terminó quedaban fuera;
+  - poner la nota bajo la hora, en un solo bloque, y dejar que la hora se parta en el teléfono;
+  - dar a la IP el ancho de una IPv4, que partida en dos líneas no se leía como una dirección;
+  - dejar que las insignias se partan en esta tabla, porque «Se entró en otro equipo», entera, desbordaba la tarjeta a 460 px.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

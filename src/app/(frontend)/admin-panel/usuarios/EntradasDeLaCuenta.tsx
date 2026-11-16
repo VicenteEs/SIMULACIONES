@@ -110,7 +110,9 @@ export function EntradasDeLaCuenta({ cuenta, onCerrar }: { cuenta: { id: string;
             </Vacio>
           ) : (
             <div className="admin-table-container">
-              <table className="admin-table entradas-tabla">
+              {/* En el teléfono cada entrada se vuelve tarjeta (`.tabla-apilable`), como
+                  la tabla de cuentas: de lado, la IP y cómo terminó quedaban fuera. */}
+              <table className="admin-table tabla-apilable entradas-tabla">
                 <caption className="sr-only">Entradas de {cuenta.email}</caption>
                 <thead>
                   <tr>
@@ -124,17 +126,24 @@ export function EntradasDeLaCuenta({ cuenta, onCerrar }: { cuenta: { id: string;
                 <tbody>
                   {datos.entradas.map((e) => (
                     <tr key={e.id}>
-                      <td>
-                        <time dateTime={e.fecha}>{fechaYHora(e.fecha)}</time>
-                        {/* Lo que dispara la alerta de turnos: que esta entrada
-                            echara a otro equipo. Va junto a la hora porque es de
-                            la entrada, no de cómo terminó. */}
-                        {e.cerroOtroEquipo ? <div className="entradas-nota">Cerró la de otro equipo</div> : null}
+                      <td data-etiqueta="Cuándo">
+                        {/* Un solo bloque con la hora y la nota: en el teléfono la
+                            celda es una fila flexible, y sueltas la nota se ponía
+                            al lado de la hora y se salía de la tarjeta. */}
+                        <div>
+                          <time dateTime={e.fecha}>{fechaYHora(e.fecha)}</time>
+                          {/* Lo que dispara la alerta de turnos: que esta entrada
+                              echara a otro equipo. Va junto a la hora porque es de
+                              la entrada, no de cómo terminó. */}
+                          {e.cerroOtroEquipo ? <div className="entradas-nota">Cerró la de otro equipo</div> : null}
+                        </div>
                       </td>
-                      <td>{e.equipo ?? '—'}</td>
-                      <td className="entradas-ip">{e.ip ?? '—'}</td>
-                      <td>{e.pais ? nombreDelPais(e.pais) : '—'}</td>
-                      <td>
+                      <td data-etiqueta="Equipo">{e.equipo ?? '—'}</td>
+                      <td data-etiqueta="IP" className="entradas-ip">
+                        {e.ip ?? '—'}
+                      </td>
+                      <td data-etiqueta="País">{e.pais ? nombreDelPais(e.pais) : '—'}</td>
+                      <td data-etiqueta="Cómo terminó">
                         <span className={claseDeInsignia(TONO_DEL_FIN[e.fin])}>{ETIQUETAS_DEL_FIN[e.fin]}</span>
                       </td>
                     </tr>

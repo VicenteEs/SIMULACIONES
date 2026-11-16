@@ -249,6 +249,15 @@ textarea[data-redimensionable='vertical'] { resize: vertical; }
 .entradas-tabla td { vertical-align: top; }
 /* La fecha con su hora, en una línea: partida, la hora parecía otra columna. */
 .entradas-tabla time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* En el teléfono, apilada, la columna de la hora ya no existe y la hora entera no cabe
+ * junto a su rótulo: ahí se parte. */
+@media (max-width: 640px) {
+  .entradas-tabla time { white-space: normal; }
+}
 .entradas-nota { margin-top: var(--e-1); font-size: var(--t-xs); color: var(--mudo); }
-/* Una IPv6 entera no cabe en la columna: que se parta antes que empujar la tabla. */
-.entradas-ip { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* Las insignias no se parten en el resto del panel; aquí sí, porque «Se cerró antes de
+ * caducar…» es una frase, y entera desbordaba la columna, y en el teléfono, la tarjeta. */
+.entradas-tabla .insignia { white-space: normal; }
+/* Una IPv4 entera cabe en 15 caracteres, y partida en dos líneas no se lee como una
+ * dirección. Una IPv6, que no cabe, se parte antes que empujar la tabla. */
+.entradas-ip { min-width: 15ch; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
