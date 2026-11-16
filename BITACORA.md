@@ -11538,6 +11538,11 @@ Comprobado después:
 
 *Pendiente:* la limpieza de los modelos sin usar de ved, con el OK del dueño y su elección del «ejemplo_vicente» que se queda.
 
+*Hecho el 2026-11-16, con el OK del dueño*, que eligió dejar el «ejemplo_vicente» más reciente:
+- antes, un respaldo que no poda nada, porque en ved no se borra ningún respaldo (D-384): la base entera y los 9 archivos, en `~/antes-limpieza-modelos-2026-11-16` del usuario ved. `respaldar.sh` no sirve para esto, porque al terminar descarta los de más de 30 días;
+- se borraron por la API de Payload, desde la imagen de guiones y con `NODE_ENV=production` para que no se ajustara el esquema al vuelo, el 101 a 105, el 108, el 109, el 112 y el 113. Así corrió `negarElBorradoDeUnModeloEnUso`, que no tuvo nada que negar, y se fueron también sus archivos;
+- quedan 73 modelos, 3 del cuerpo: el 110 y el 111, en los casos 10 y 11, y el 114. La base no quedó con un lote `-1` en `payload-migrations`, las 5 cuentas siguen ahí y la salud por fuera da 200.
+
 ### D-388 · 2026-11-16 · vigente · P-016 E3 · sigue a D-374
 **Una sesión por cuenta: al entrar se cierran las demás, el equipo que se queda fuera lo sabe, cada entrada guarda su equipo, su IP y su país por tres meses, y una entrada que no parece de una sola persona se avisa al administrador.**
 
@@ -17809,7 +17814,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - el desplegable con número, fecha y «sin usar», que vuelve a pedir la lista al abrirse, y la marca única en el nombre de cada archivo subido;
       - pruebas: `usosDeUnModelo.test.ts` (unitaria) y `tests/integration/usosDeUnModelo.test.ts`, que exige que toda columna de modelo de la base se sepa leer;
       - desplegado en ved el 2026-11-16 (`28bb000`): la migración enlazó los tres «ejemplo_vicente» con su preparación;
-      - *pendiente:* la limpieza de los modelos sobrantes de ved, con el OK del dueño;
+      - limpiados el 2026-11-16 los modelos sobrantes de ved, con el OK del dueño: quedan el 110 y el 111, de los casos 10 y 11, y el 114, el «ejemplo_vicente» más reciente;
   - las sesiones: una por cuenta, con alertas de entradas imposibles (D-374).
     - *hecho el 2026-11-16 (D-388):*
       - el gancho `unaSesionPorCuenta`, que al entrar deja la cuenta con una sola sesión, y la colección `entradas`, con su migración `20261116_002803_sesion_unica_y_entradas`;
