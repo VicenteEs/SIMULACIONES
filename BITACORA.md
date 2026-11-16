@@ -11907,12 +11907,12 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - **Los avisos al equipo** (lo que D-397 dejó para aquí). Las cuentas a las que se avisa salen de `filtroDelLugar`:
   - un comentario nuevo va a los administradores del lugar del comentario, que es el de quien lo dejó, con el enlace a su subdominio;
   - una alerta de entrada va a los administradores del lugar de la cuenta, también con su enlace;
-  - una cotización, un requisito nuevo y una solicitud de cuenta van solo a los de TraumaHub. La solicitud, hasta E5.7: hoy la cuenta pedida nace sin institución.
+  - una cotización, un requisito nuevo y una solicitud de cuenta van solo a los de TraumaHub. La solicitud, hasta E5.7: hoy la cuenta pedida nace sin institución. *(Superado por D-399: desde E5.4 va a los administradores del lugar donde se pidió.)*
 
 *Lo que queda para otros pasos, y por qué no es un riesgo todavía:*
 - Las pantallas compartidas dejan entrar al administrador de una institución, pero todavía leen con `overrideAccess` y sin filtro: Usuarios, Contenido, Por revisar, Comentarios, Estadísticas, Actividad, Registro y Auditoría. Pasa lo mismo con los conteos de la barra. Les pone el filtro E5.6, y la barra de PostgreSQL E5.4.
 - Las acciones de cuentas no miran todavía que la cuenta tocada sea del mismo lugar. Tampoco miran los revisores posibles. Es E5.6.
-- «Que quede un administrador» cuenta a todos los administradores, en las acciones y en el disparador de la base. Con instituciones, el de una institución contaría como el último de TraumaHub. El disparador va en E5.4, y las acciones en E5.6.
+- «Que quede un administrador» cuenta a todos los administradores, en las acciones y en el disparador de la base. Con instituciones, el de una institución contaría como el último de TraumaHub. El disparador va en E5.4, y las acciones en E5.6. *(El disparador, hecho en E5.4: D-399.)*
 - Nada de esto alcanza a nadie mientras no haya una institución desplegada, y por eso desplegar es el último paso (E5.10).
 
 *Consecuencias.*
@@ -11920,6 +11920,62 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (+) Los avisos no le cuentan a una institución lo que pasa en otra, y llevan a la dirección donde la cuenta sí entra.
 - (−) Hasta E5.6, el panel de una institución no se puede entregar.
 - (−) Un docente de institución no amplía el vocabulario ni propone requisitos.
+
+### D-399 · 2026-11-16 · vigente · P-016 E5.4 · la segunda barrera, por dentro
+**Lo que D-396 dejó dicho para la segunda barrera se escribió así: un rol sin privilegios que la aplicación toma en cada conexión hecha desde el subdominio de una institución, y políticas por filas en las 20 tablas con marca. Hubo que elegir en ocho puntos.**
+
+- **El rol.** PostgreSQL no aplica ninguna política a un superusuario, y el usuario de la base de Docker (`POSTGRES_USER`) lo es. Una variable en la conexión, sola, no habría frenado nada.
+  - La migración `20261116_150000_barrera_de_instituciones` crea `traumahub_app`: sin entrada propia (`NOLOGIN`), con leer y escribir filas en las tablas y las secuencias, y con los privilegios por defecto para las tablas que creen las migraciones de mañana. Se lo concede a quien migra.
+  - Desde una institución, cada conexión hace `set_config('role', 'traumahub_app', false)`. En la central, `'none'`, que la devuelve a su usuario.
+  - Se descartó un segundo usuario de la base con su propia contraseña: pedía una segunda `DATABASE_URI` y un segundo pool, y las migraciones, los guiones y la conservación seguirían necesitando el primero.
+- **Dónde se pone.** `ponerBarrera` (`src/lib/barreraDeInstitucion.ts`) envuelve el `connect` del pool de `pg`, en sus dos formas: `pool.query` pasa por él, y las transacciones de Payload lo llaman directamente.
+  - El lugar se lee al pedir la conexión, no al recibirla: si hay que esperar a que se libere una, la espera ya no corre dentro de la petición.
+  - Solo escribe a la base cuando la conexión cambia de lugar. Lo que tiene puesto se apunta en la propia conexión.
+  - Si no puede ponerlo, destruye la conexión y la consulta falla. Una consulta de institución que corriera sin barrera es lo que esto existe para impedir.
+  - `ponerBarreraEnPayload` la pone desde el `onInit` de `payload.config.ts`, después de las migraciones de arranque, para que estas corran con el usuario de la base aunque la primera petición llegue de un subdominio.
+- **De dónde sale el lugar.** De `workUnitAsyncStorage`, el almacén interno de Next donde vive lo que devuelve `headers()`. `headers()` misma no sirve: es asíncrona, y lanza fuera de una petición.
+  - `tests/unit/barreraDeInstitucion.test.ts` falla si una versión de Next quita esa pieza.
+  - Si la dejara sin cabeceras, el lugar saldría vacío, que es la central y no tiene barrera, sin que nada fallara. Por eso la prueba de humo contra el servidor compilado es parte del paso, y conviene repetirla al subir de versión de Next.
+  - No hay `unstable_cache` ni `'use cache'` en el código. Lo que corriera dentro de una caché de Next no tendría cabeceras, y leería como la central.
+- **Las políticas.** Cuatro por tabla (leer, crear, cambiar, borrar). El lugar es la institución cuyo subdominio dice la conexión:
+  - en las cuentas, medios, modelos 3D y los cinco módulos, se lee lo propio y lo central. De lo central con borradores, solo lo publicado;
+  - en sus cinco tablas de versiones, lo mismo con las columnas `version_`;
+  - en lo que deja cada persona (actividad, comentarios, registro de acciones, entradas, tiempo activo, revisiones y sesiones de revisión), solo lo propio;
+  - escribir es solo lo propio en todas;
+  - un subdominio que no es de ninguna institución ve lo central publicado y nada personal.
+
+  Un `UPDATE` o un `DELETE` sobre una fila ajena cambia cero filas, sin error. Un `INSERT` de otro lugar sí es un error, y se lleva la transacción entera.
+
+  Las tablas hijas de Payload (bloques, relaciones, sesiones de la cuenta) no llevan política: no tienen la columna, y Payload solo llega a ellas desde la fila madre.
+- **Lo que se crea sin sesión desde una institución lleva su institución.** Una solicitud de cuenta, la línea del registro de una cotización. El gancho de la marca (`marcaDeInstitucion.ts`) se la pone a lo que no trae ni sesión ni cuenta dueña. Antes quedaban de TraumaHub, y la barrera las habría rechazado: un `INSERT … RETURNING` exige que la fila nueva pase también la política de leer, y lo personal de la central no se lee desde una institución.
+  - Se pensó en dejar crear filas sin marca desde una institución. No: serían filas que la central lee como suyas, escritas desde fuera.
+- **El aviso de una solicitud de cuenta va a los administradores del lugar donde se pidió**, con el enlace a su subdominio. Esto cambia una línea de D-398, que lo mandaba a TraumaHub hasta E5.7. Con la marca del lugar, la cuenta pedida nace en esa institución, y la acepta quien la administra.
+- **El último administrador.** El disparador de la base cuenta ahora solo los administradores de TraumaHub, y no mira cuando se desactiva o se borra el de una institución. Antes, el administrador activo de una institución bastaba para que la plataforma pudiera quedarse sin ninguno central. Qué pasa con el último de cada institución se decide en E5.6.
+- **Desarrollo y restauración.**
+  - En desarrollo el esquema lo pone el `push` de Drizzle, que no corre migraciones, así que no hay rol. `ponerBarreraEnPayload` lo dice una vez al arrancar y la plataforma sigue sin barrera. En un servidor, el mismo aviso quiere decir que faltan las migraciones.
+  - Un rol es de todo el servidor de bases y no viaja en el volcado de una. `restaurar.sh` lo crea antes de restaurar: sin él, el primer `GRANT` del volcado pararía la restauración entera. `tests/guiones/respaldosCifrados.sh` lo vigila.
+
+*Comprobado.*
+- `tests/integration/barreraDeInstitucion.test.ts`, contra PostgreSQL y con SQL a secas, como una consulta a la que se le olvidó el filtro: qué lee cada lugar en el contenido, las versiones, las cuentas y lo personal; que lo ajeno no se cambia ni se borra; que crear en otro lugar falla; el subdominio que no existe; que la misma conexión vuelve a verlo todo en la central; y el último administrador.
+- Una prueba de humo contra `next start` y la base desechable, con dos instituciones y tres cuentas:
+  - desde la primera, la pantalla de cuentas del panel muestra su cuenta y la central, y no la de la otra. Esa pantalla todavía lee con `overrideAccess` y sin filtro (E5.6), así que lo que la recortó fue la base;
+  - desde la central, la misma pantalla muestra las tres;
+  - el lector de la segunda entra y lee la biblioteca;
+  - las pantallas de TraumaHub devuelven al inicio del panel;
+  - las entradas quedaron con la institución de cada cuenta, y la central sin ninguna.
+
+*Lo que queda para otros pasos:*
+- el filtro de las pantallas compartidas y las acciones de cuentas por lugar, con los revisores y el último administrador de cada institución (E5.6);
+- borrar una cuenta desde una institución (E5.6). La anonimización de D-293 corre dentro de la transacción del borrado, y por tanto con la barrera: lo que nombra a la cuenta en filas de TraumaHub, como la línea del registro que dejó la central al crearla, no se alcanzaría. Hasta entonces, las cuentas de una institución las borra la central;
+- el registro con enlace de invitación y el cupo (E5.7).
+
+*Consecuencias.*
+- (+) Una pantalla del panel a la que le falte el filtro, abierta desde una institución, no muestra filas de otra. Tampoco escribe en ellas, ni con `overrideAccess`.
+- (+) La central, los guiones, las migraciones y la conservación siguen viendo todo, sin cambiar nada.
+- (−) Una consulta más cuando una conexión cambia de lugar. No se ha medido; con una sola institución en uso, casi nunca pasa.
+- (−) Una fila que el gancho marcara mal desde una institución no se escribe: falla con un error de «row-level security» que a la persona no le dice nada. Es mejor que escribirla en el lugar de otro.
+- (−) En desarrollo no hay barrera, así que lo que se prueba ahí a mano no pasa por ella. Sí pasan las pruebas de integración, que migran.
+- (−) Restaurar un volcado a mano con `psql`, sin `restaurar.sh`, en un servidor nuevo falla en el primer `GRANT` hasta crear el rol.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -18087,7 +18143,12 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - lo que es solo de TraumaHub (ocho pantallas, las acciones de diez archivos, dos rutas, y `puedeEditar` para todo lo que no lleva marca), con `accionesConGuardia` y `panelPorRol` recorriéndolo con un administrador y un editor de institución;
     - los avisos al equipo, al lugar de cada cosa;
     - comprobado: `typecheck` limpio, `lint` con los avisos de siempre, la suite unitaria sin fallos nuevos, `test:integration` entera y `build`;
-  - E5.4 · la segunda barrera en PostgreSQL;
+  - E5.4 · la segunda barrera en PostgreSQL. *Hecho en local el 2026-11-16, con los detalles en D-399:*
+    - el rol `traumahub_app` y las políticas de las 20 tablas con marca, en la migración `20261116_150000_barrera_de_instituciones`;
+    - `ponerBarrera`, que le pone a cada conexión el lugar de la petición, y lo creado sin sesión desde una institución, con la institución del lugar;
+    - el disparador del último administrador, que cuenta solo los de TraumaHub, y `restaurar.sh`, que crea el rol antes de restaurar;
+    - comprobado: `typecheck` limpio, `lint` con los avisos de siempre, la suite unitaria sin fallos nuevos, `test:integration` entera y `build`;
+    - y una prueba de humo contra el servidor compilado: la pantalla de cuentas, que aún no tiene filtro, desde una institución no muestra las de otra;
   - E5.5 · la pestaña «Instituciones», con «Crear institución», el plazo y el cupo;
   - E5.6 · los tres roles de institución en el panel, y el contenido propio con sus revisores;
   - E5.7 · el enlace de invitación y el cupo;

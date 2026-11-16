@@ -56,6 +56,7 @@ import * as migration_20261115_234719_modelo_con_su_preparacion from './20261115
 import * as migration_20261116_002803_sesion_unica_y_entradas from './20261116_002803_sesion_unica_y_entradas';
 import * as migration_20261116_033200_estado_compartido from './20261116_033200_estado_compartido';
 import * as migration_20261116_091012_instituciones from './20261116_091012_instituciones';
+import * as migration_20261116_150000_barrera_de_instituciones from './20261116_150000_barrera_de_instituciones';
 
 export const migrations = [
   {
@@ -347,5 +348,10 @@ export const migrations = [
     up: migration_20261116_091012_instituciones.up,
     down: migration_20261116_091012_instituciones.down,
     name: '20261116_091012_instituciones'
+  },
+  {
+    up: migration_20261116_150000_barrera_de_instituciones.up,
+    down: migration_20261116_150000_barrera_de_instituciones.down,
+    name: '20261116_150000_barrera_de_instituciones'
   },
 ];

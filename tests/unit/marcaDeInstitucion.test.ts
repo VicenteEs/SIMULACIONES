@@ -1,5 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { CollectionConfig, Field, PayloadRequest } from 'payload'
+
+// El lugar de la petición (D-399): lo que se crea sin sesión desde una
+// institución es de ella. Aquí lo dice la prueba, no la cabecera de Next.
+const { lugar } = vi.hoisted(() => ({ lugar: { subdominio: '', institucion: null as string | null } }))
+vi.mock('@/lib/barreraDeInstitucion', async (original) => ({
+  ...((await original()) as object),
+  subdominioDeLaPeticionEnCurso: () => lugar.subdominio,
+}))
+vi.mock('@/lib/institucionesServidor', async (original) => ({
+  ...((await original()) as object),
+  institucionPorSubdominio: async (_payload: unknown, subdominio: string) =>
+    subdominio && lugar.institucion ? { id: lugar.institucion, subdominio } : null,
+}))
 import { COLECCIONES } from '@/collections'
 import {
   COLECCIONES_CON_INSTITUCION,
@@ -110,6 +123,26 @@ describe('quién pone la marca al crear', () => {
     const datos = await marcar({ data: { alt: 'foto' }, operation: 'create', req })
     expect(datos.institucion).toBeNull()
     expect(findByID).not.toHaveBeenCalled()
+  })
+
+  it('sin sesión ni cuenta, desde el subdominio de una institución, la de ese lugar', async () => {
+    // Una solicitud de cuenta, la línea del registro de una cotización: sin la
+    // marca, la barrera de la base rechazaría la fila (D-399).
+    Object.assign(lugar, { subdominio: 'uchile', institucion: '5' })
+    try {
+      const { req } = peticion(null)
+      expect((await marcar({ data: { email: 'a@b.cl' }, operation: 'create', req })).institucion).toBe(5)
+      expect((await marcar({ data: { usuario: null, accion: 'x' }, operation: 'create', req })).institucion).toBe(5)
+      // Pero la fila de una cuenta es de la institución de la cuenta, esté
+      // donde esté la petición: la de una cuenta central sigue central.
+      const conCuenta = peticion(null, { '1': { institucion: null } })
+      expect((await marcar({ data: { usuario: 1 }, operation: 'create', req: conCuenta.req })).institucion).toBeNull()
+      // Y un subdominio sin institución no inventa ninguna.
+      Object.assign(lugar, { subdominio: 'nadie', institucion: null })
+      expect((await marcar({ data: { email: 'a@b.cl' }, operation: 'create', req })).institucion).toBeNull()
+    } finally {
+      Object.assign(lugar, { subdominio: '', institucion: null })
+    }
   })
 })
 

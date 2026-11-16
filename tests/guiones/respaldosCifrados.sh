@@ -84,6 +84,9 @@ case "$a" in
   *"--single-transaction"*)
     cat > "$RESTAURADO"
     grep -q "PostgreSQL database dump" "$RESTAURADO" || exit 3 ;;
+  # El rol de la segunda barrera, antes de restaurar (D-399).
+  *"ON_ERROR_STOP=1 --quiet")
+    grep -q "CREATE ROLE traumahub_app" || exit 4 ;;
   *"select count(*) from usuarios"*) echo 3 ;;
   *"pg_size_pretty"*) echo "12 MB" ;;
   *"pg_isready"*) exit 0 ;;

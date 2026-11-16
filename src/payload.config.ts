@@ -11,6 +11,7 @@ import { TECHO_DE_MEDIOS_BYTES, TECHO_DE_MODELOS_3D_BYTES } from '@/admin/esquem
 import { origenDe } from '@/lib/rutas'
 import { dominioDeInstituciones, OrigenesDeConfianza } from '@/lib/anfitrion'
 import { agregarTablasInternas } from '@/lib/tablasInternas'
+import { ponerBarreraEnPayload } from '@/lib/barreraDeInstitucion'
 import { migrations } from './migrations'
 import { editorClinico } from '@/blocks'
 
@@ -267,4 +268,11 @@ export default buildConfig({
     )} MB).`,
   },
   telemetry: false,
+  // La segunda barrera entre instituciones (D-399): al terminar de arrancar, y
+  // no antes, para que las migraciones de `prodMigrations` corran con el
+  // usuario de la base y no con el rol sin privilegios de una institución, si
+  // la primera petición que despierta a Payload llega de su subdominio.
+  onInit: async (payload) => {
+    await ponerBarreraEnPayload(payload)
+  },
 })

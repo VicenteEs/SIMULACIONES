@@ -1,6 +1,8 @@
 import type { Access, CollectionBeforeChangeHook, CollectionConfig, Field, PayloadRequest, Where } from 'payload'
 import { idDeInstitucion, usuarioDeSesion } from '@/access/payload'
 import { filtroDeInstitucion, type AlcanceDeInstitucion } from '@/access/reglas'
+import { subdominioDeLaPeticionEnCurso } from '@/lib/barreraDeInstitucion'
+import { institucionPorSubdominio } from '@/lib/institucionesServidor'
 
 /**
  * La marca de institución en cada fila que pertenece a una (D-371, D-396).
@@ -20,7 +22,12 @@ import { filtroDeInstitucion, type AlcanceDeInstitucion } from '@/access/reglas'
  *   administrador de una institución nueva;
  * - si no trae ninguna y la fila es de una cuenta (`usuario`), la de esa cuenta.
  *   Es lo que pasa con el registro y las entradas que se escriben al entrar,
- *   cuando todavía no hay sesión.
+ *   cuando todavía no hay sesión;
+ * - si no es de ninguna cuenta, la del lugar de la petición (D-399): lo que se
+ *   crea sin sesión desde el subdominio de una institución —una solicitud de
+ *   cuenta, la línea del registro de una cotización— es de ella. Sin esto, la
+ *   segunda barrera de PostgreSQL rechazaría la fila, y con ella la
+ *   transacción entera. Fuera de una petición (un guion), de TraumaHub.
  *
  * Al actualizar, la marca no cambia: se repone la que tenía la fila. Mover una
  * fila de institución partiría su historia en dos, y la segunda barrera de
@@ -110,6 +117,22 @@ async function institucionDeLaCuenta(req: PayloadRequest, usuario: unknown): Pro
 }
 
 /**
+ * La institución del lugar de la petición en curso, o `null` si es la central o
+ * no hay petición. No lanza: sin poder leerla, la fila queda de TraumaHub, y
+ * desde una institución la barrera de la base la rechaza en vez de dejarla
+ * pasar.
+ */
+async function institucionDelLugar(req: PayloadRequest): Promise<string | null> {
+  const subdominio = subdominioDeLaPeticionEnCurso()
+  if (!subdominio) return null
+  try {
+    return (await institucionPorSubdominio(req.payload, subdominio))?.id ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
  * El identificador como lo guarda la base: un número. Payload valida el tipo
  * del identificador de una relación, y con la clave `serial` de PostgreSQL un
  * «3» de texto no pasa («El siguiente campo es inválido: Institución»).
@@ -133,8 +156,12 @@ export const marcarInstitucion: CollectionBeforeChangeHook = async ({ data, oper
     return data
   }
   // `usuario` es la cuenta dueña de la fila en todas las colecciones de la
-  // lista que tienen una. En `usuarios` no existe, y no se busca nada.
-  data.institucion = 'usuario' in data ? comoGuardar(await institucionDeLaCuenta(req, data.usuario)) : null
+  // lista que tienen una. En `usuarios` no existe.
+  if ('usuario' in data && data.usuario !== null && data.usuario !== undefined && data.usuario !== '') {
+    data.institucion = comoGuardar(await institucionDeLaCuenta(req, data.usuario))
+    return data
+  }
+  data.institucion = comoGuardar(await institucionDelLugar(req))
   return data
 }
 

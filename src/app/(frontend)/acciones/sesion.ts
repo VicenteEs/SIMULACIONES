@@ -726,12 +726,15 @@ async function registrarSolicitud(
   // aviso de la barra del panel, que cuenta las pendientes, sigue avisando.
   if (hayCorreo()) {
     try {
-      // A los de TraumaHub, que es donde nace la cuenta pedida: sin enlace de
-      // invitación no tiene institución (D-396). El registro desde el
-      // subdominio de una institución, y su aviso a los de allí, es E5.7.
+      // A los administradores del lugar, que es donde nace la cuenta pedida:
+      // la marca le pone la institución del subdominio (D-399), y en la
+      // central, ninguna. El enlace de invitación y el cupo son E5.7.
+      const lugar = await lugarDeLaPeticion(payload, await headers())
       const administradores = await payload.find({
         collection: 'usuarios',
-        where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, filtroDelLugar(null)] } as never,
+        where: {
+          and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, filtroDelLugar(lugar.institucion?.id ?? null)],
+        } as never,
         depth: 0,
         limit: 10,
         overrideAccess: true,
@@ -750,7 +753,7 @@ async function registrarSolicitud(
               institucion,
               etapa: etiquetaDeEtapa(etapaDeFormacion),
               motivo,
-              enlacePanel: `${base}/admin-panel/usuarios`,
+              enlacePanel: `${direccionPublica(lugar.subdominio)}/admin-panel/usuarios`,
             }),
           },
           'aviso de nueva solicitud a los administradores',

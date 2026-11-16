@@ -152,6 +152,19 @@ al_salir() {
 }
 trap al_salir EXIT
 
+# El rol de la segunda barrera entre instituciones (D-399). El volcado le da
+# permisos sobre cada tabla, y un rol no viaja en el volcado de una base: es de
+# todo el servidor de bases. En un servidor nuevo, sin el rol, el primer `GRANT`
+# del volcado pararia la restauracion entera. Crearlo antes no cambia nada si
+# ya estaba.
+dc exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 --quiet <<'SQL'
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'traumahub_app') THEN
+    CREATE ROLE traumahub_app NOLOGIN;
+  END IF;
+END $$;
+SQL
+
 paso "Restaurando"
 # `--single-transaction` es lo que convierte esto en todo o nada. El volcado
 # empieza destruyendo objetos (--clean --if-exists), asi que sin transaccion un
