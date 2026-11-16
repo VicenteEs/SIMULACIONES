@@ -36,6 +36,8 @@ import { VERSION_DEL_AVISO_DE_PRIVACIDAD } from '@/lib/avisoDePrivacidad'
  *  - `editor`: `exigirEditor`. Taller del atlas y bandeja de comentarios.
  *  - Cualquiera de las dos con `soloCentral`: además, solo una cuenta de
  *    TraumaHub (`exigirAdminCentral`, `exigirEditorCentral`).
+ *  - Cualquiera de las dos con `soloInstituciones`: lo contrario, lo que solo
+ *    existe en una institución (su enlace de invitación, D-402).
  *  - `edicionDeModulo`: `exigirEdicionDe(coleccion)`. El editor de contenido:
  *    además del rol, el módulo.
  *  - `sesion`: cuenta activa, y el módulo visible si la fila cuelga de uno. Lo
@@ -273,6 +275,12 @@ interface Clasificacion {
    * pide la guardia tampoco pasa.
    */
   soloCentral?: boolean
+  /**
+   * Solo para cuentas de una institución (P-016 E5.7, D-402): lo que la
+   * central no tiene, como el enlace de invitación. Una cuenta de TraumaHub con
+   * el rol que pide la guardia tampoco llega a tocar nada.
+   */
+  soloInstituciones?: boolean
 }
 
 const USUARIO_NUEVO = ['nueva@prueba.invalid', 'Cuenta nueva', 'una-clave-larga-de-prueba', 'lector']
@@ -309,6 +317,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'admin.ts:cambiarActivoUsuario': { guardia: 'admin', argumentos: () => ['5', true] },
   'admin.ts:eliminarUsuario': { guardia: 'admin', argumentos: () => ['5'] },
   'admin.ts:generarEnlaceDeClave': { guardia: 'admin', argumentos: () => ['5'] },
+  'admin.ts:regenerarCodigoDeInvitacion': { guardia: 'admin', soloInstituciones: true, argumentos: () => [] },
   'admin.ts:entradasDeUnaCuenta': { guardia: 'admin', argumentos: () => ['5'] },
   'admin.ts:resolverSolicitud': { guardia: 'admin', argumentos: () => ['5', 'activar', 'lector'] },
   // Los comentarios van todos a TraumaHub, y las instituciones no los ven (D-371, D-401).
@@ -660,14 +669,18 @@ describe('el inventario de acciones', () => {
 })
 
 describe.each(ACCIONES.filter((a) => GUARDIAS[a.clave]?.guardia !== 'publica'))('$clave', ({ clave, accion }) => {
-  const { guardia, argumentos, modulo, soloCentral } = GUARDIAS[clave] ?? { guardia: 'admin', argumentos: () => [] }
+  const { guardia, argumentos, modulo, soloCentral, soloInstituciones } = GUARDIAS[clave] ?? {
+    guardia: 'admin',
+    argumentos: () => [],
+  }
   // Sobre qué módulo se llama: el fijo, o uno distinto del que se le deja al
   // restringido, para que la restricción tenga algo que negar.
   const objetivo = modulo && modulo !== 'argumento' ? modulo : 'cirugias'
 
   it.each(Object.keys(SESIONES) as NombreDeSesion[])('con la sesión «%s»', async (nombre) => {
     const tocado = await tocadoPor(accion, SESIONES[nombre], argumentos(objetivo))
-    if (PASA[guardia][nombre] && !(soloCentral && DE_INSTITUCION.has(nombre))) {
+    const deSuLugar = soloCentral ? !DE_INSTITUCION.has(nombre) : soloInstituciones ? DE_INSTITUCION.has(nombre) : true
+    if (PASA[guardia][nombre] && deSuLugar) {
       expect(tocado, `${clave} no llegó a tocar nada con «${nombre}», que sí debía pasar`).not.toEqual([])
     } else {
       expect(tocado, `${clave} tocó datos con «${nombre}» antes de rechazarla`).toEqual([])

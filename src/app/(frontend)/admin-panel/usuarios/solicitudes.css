@@ -261,3 +261,10 @@ textarea[data-redimensionable='vertical'] { resize: vertical; }
 /* Una IPv4 entera cabe en 15 caracteres, y partida en dos líneas no se lee como una
  * dirección. Una IPv6, que no cabe, se parte antes que empujar la tabla. */
 .entradas-ip { min-width: 15ch; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* La tarjeta del enlace de invitación de una institución (D-402). El enlace va
+ * en un campo de solo lectura y no en texto: así se selecciona entero con un
+ * toque en el teléfono, donde «Copiar» a veces no tiene permiso. */
+.usuarios-invitacion-texto { margin: 0 0 var(--e-3); font-size: var(--t-sm); color: var(--mudo); }
+.usuarios-invitacion-enlace { display: flex; gap: var(--e-2); align-items: center; margin-bottom: var(--e-3); }
+.usuarios-invitacion-enlace .admin-form-input { flex: 1; min-width: 0; }

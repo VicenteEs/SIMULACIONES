@@ -42,7 +42,14 @@ import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
 import { destinoAlEntrar } from '@/lib/bienvenida'
 import { datosDeLaPeticion } from '@/lib/entradas'
 import { cerrarLaEntrada } from '@/lib/entradasServidor'
-import { lugarDeLaPeticion } from '@/lib/institucionesServidor'
+import {
+  lugarDeLaPeticion,
+  nombreDeLaInstitucion,
+  subdominioDeLaCuenta,
+  type LugarDeLaPeticion,
+} from '@/lib/institucionesServidor'
+import { codigoDeLaInstitucion, codigosIguales } from '@/lib/invitacionesServidor'
+import { sinLaPeticion } from '@/lib/barreraDeInstitucion'
 import { idDeInstitucion } from '@/access/payload'
 import { cuentaValeEnElLugar, filtroDelLugar } from '@/access/reglas'
 
@@ -465,6 +472,52 @@ const LIMITE_POR_DIRECCION = crearLimitador('solicitud-de-cuenta:direccion', {
 const LIMITE_GLOBAL = crearLimitador('solicitud-de-cuenta:global', { maximo: 30, ventanaMs: UNA_HORA })
 
 /**
+ * Los frenos de la solicitud en el subdominio de una institución (D-402), que
+ * reemplazan a los dos de arriba allí.
+ *
+ * Con los de la central, un curso no podía pedir cuenta: sus alumnos salen a
+ * internet por la misma dirección del hospital, y el sexto de la clase leía
+ * «demasiadas solicitudes». En una institución la barrera contra los robots es
+ * el código del enlace, que se comprueba antes, así que los frenos solo tienen
+ * que acotar lo que haría un enlace filtrado: sesenta por hora desde una misma
+ * dirección cubre una clase grande, y doscientas en toda la institución, varias
+ * a la vez. Cada institución tiene su cuenta: el curso de una no gasta el freno
+ * de otra ni el de la central.
+ */
+const LIMITE_EN_LA_INSTITUCION_POR_DIRECCION = crearLimitador('solicitud-de-cuenta:institucion-direccion', {
+  maximo: 60,
+  ventanaMs: UNA_HORA,
+})
+const LIMITE_EN_LA_INSTITUCION = crearLimitador('solicitud-de-cuenta:institucion', { maximo: 200, ventanaMs: UNA_HORA })
+
+/** Lo que se contesta a una solicitud con un enlace de invitación que no vale. */
+const ENLACE_DE_INVITACION_INVALIDO =
+  'El enlace de invitación no es válido: puede que tu institución lo haya cambiado. ' +
+  'Pide el enlace vigente a quien administra TraumaHub en tu institución.'
+
+/**
+ * En el subdominio de una institución la cuenta se pide con su enlace de
+ * invitación (D-402). La página no enseña el formulario sin él, pero esta acción
+ * se llama por HTTP con lo que se quiera. En la central no se pide nada.
+ *
+ * Antes de los frenos, y a propósito: un código no se adivina —120 bits, o 96
+ * en las instituciones que ya existían antes del enlace—, y gastar el freno de
+ * la institución en intentos con códigos falsos dejaría a cualquiera cerrarle
+ * la puerta a un curso entero llamando sin enlace desde muchas direcciones.
+ */
+async function exigirInvitacion(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  lugar: LugarDeLaPeticion,
+  dado: unknown,
+): Promise<void> {
+  if (!lugar.subdominio) return
+  if (!lugar.institucion) throw new Error('Esta institución no existe en TraumaHub.')
+  if (!codigosIguales(dado, await codigoDeLaInstitucion(payload, lugar.institucion.id))) {
+    throw new Error(ENLACE_DE_INVITACION_INVALIDO)
+  }
+}
+
+/**
  * Pide una cuenta desde `/registro` (D-119).
  *
  * Es la primera acción que cualquiera puede llamar sin cuenta y que escribe en
@@ -498,8 +551,17 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
     // guion que manda basura, que no escribe en la base pero sí ocupa el
     // proceso. El formulario ya exige en el navegador casi todo lo que se
     // comprueba aquí, así que a una persona no le cuesta huecos equivocarse.
-    const direccion = direccionDeQuienLlama(await headers())
-    if (!(await LIMITE_POR_DIRECCION.permitir(direccion)) || !(await LIMITE_GLOBAL.permitir('todas'))) {
+    const cabeceras = await headers()
+    const direccion = direccionDeQuienLlama(cabeceras)
+    const payload = await getPayload({ config })
+    const lugar = await lugarDeLaPeticion(payload, cabeceras)
+    await exigirInvitacion(payload, lugar, bruto.invitacion)
+    const institucion = lugar.institucion?.id
+    const dentroDelFreno = institucion
+      ? (await LIMITE_EN_LA_INSTITUCION_POR_DIRECCION.permitir(`${institucion}:${direccion}`)) &&
+        (await LIMITE_EN_LA_INSTITUCION.permitir(institucion))
+      : (await LIMITE_POR_DIRECCION.permitir(direccion)) && (await LIMITE_GLOBAL.permitir('todas'))
+    if (!dentroDelFreno) {
       throw new Error(
         'Se recibieron demasiadas solicitudes en poco tiempo. Espere una hora y vuelva a intentarlo.',
       )
@@ -533,7 +595,7 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
       typeof bruto.programa === 'string' && bruto.programa.trim()
         ? exigirSinEnlaces(exigirTexto(bruto.programa, 'El programa o servicio', LARGOS_DE_SOLICITUD.programa), 'El programa o servicio')
         : ''
-    const institucion = exigirTexto(
+    const procedencia = exigirTexto(
       institucionConPrograma(
         exigirSinEnlaces(
           exigirTexto(bruto.institucion, 'La institución o el servicio', LARGOS_DE_SOLICITUD.institucion),
@@ -557,8 +619,6 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
     const motivo = typeof bruto.motivo === 'string' ? bruto.motivo.trim().slice(0, LARGOS_DE_SOLICITUD.motivo) : ''
     const password = exigirContrasena(bruto.contrasena)
 
-    const payload = await getPayload({ config })
-
     // Sin ninguna cuenta, `ajustarPrimerUsuario` convierte a la que se cree en
     // administradora activa, pase lo que pase en `data`. Dejar pasar esta
     // solicitud sería regalar la plataforma a quien llegue antes que el dueño
@@ -572,10 +632,10 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
     // arriba no esperan: no saben nada de ninguna cuenta, y a quien se equivocó
     // en un campo no hay por qué hacerle esperar para corregirlo.
     try {
-      return await registrarSolicitud(payload, {
+      return await registrarSolicitud(payload, lugar, {
         nombre,
         email,
-        institucion,
+        institucion: procedencia,
         etapaDeFormacion,
         motivo,
         password,
@@ -590,6 +650,7 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
 /** La parte de `solicitarCuenta` que ya habla con la base; se llama solo desde ahí. */
 async function registrarSolicitud(
   payload: Awaited<ReturnType<typeof getPayload>>,
+  lugar: LugarDeLaPeticion,
   {
     nombre,
     email,
@@ -608,7 +669,8 @@ async function registrarSolicitud(
     versionDelAvisoDePrivacidad: string
   },
 ): Promise<null> {
-  const base = direccionPublica()
+  // La dirección del lugar donde se pidió: la cuenta nace allí, y allí entra.
+  const base = direccionPublica(lugar.subdominio)
   // Con SMTP y sin dirección pública, el aviso al titular hablaría de «/clave»
   // sin botón y el de los administradores llegaría sin «Revisar la solicitud»,
   // todo sin rastro. `pedirEnlaceDeClave` anota el mismo fallo de
@@ -620,14 +682,48 @@ async function registrarSolicitud(
     })
   }
 
-  const existente = await payload.find({
-    collection: 'usuarios',
-    where: { email: { equals: email } },
-    depth: 0,
-    limit: 1,
-    overrideAccess: true,
-  })
+  // En el subdominio de una institución la base solo deja ver sus cuentas
+  // (D-399), y el correo es único en toda la plataforma: una cuenta de otro
+  // lugar con este correo no salía aquí, la escritura chocaba con ella y la
+  // persona leía «no se pudo registrar». Se busca sin la barrera
+  // (`sinLaPeticion`, D-402), solo para saber si existe y dónde. En la central
+  // no hay barrera que quitar.
+  const buscar = () =>
+    payload.find({
+      collection: 'usuarios',
+      where: { email: { equals: email } },
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+    })
+  const porCorreo = () => (lugar.subdominio ? sinLaPeticion(buscar) : buscar())
+
+  const existente = await porCorreo()
   const cuenta = existente.docs[0]
+  const aquiMismo = cuenta ? idDeInstitucion(cuenta.institucion) === (lugar.institucion?.id ?? null) : false
+  if (cuenta && !aquiMismo) {
+    // La cuenta está en otro lugar: en la central, o en otra institución. Se
+    // le dice al titular dónde, con los enlaces de allí, que es donde entra.
+    // Pendiente o no: una solicitud sin revisar en otro lugar tampoco deja
+    // pedir otra con el mismo correo.
+    const suLugar = idDeInstitucion(cuenta.institucion)
+    const suBase = direccionPublica(await subdominioDeLaCuenta(payload, cuenta.institucion))
+    if (suBase) {
+      enviarSinEsperar(
+        payload,
+        {
+          para: email,
+          correo: mensajeDeCuentaYaExistente({
+            enlaceEntrar: `${suBase}/entrar`,
+            enlaceClave: `${suBase}/clave`,
+            enOtroLugar: (await nombreDeLaInstitucion(payload, suLugar)) ?? 'TraumaHub',
+          }),
+        },
+        'aviso de solicitud sobre una cuenta que ya existe en otro lugar',
+      )
+    }
+    return null
+  }
   if (cuenta) {
     // La verdad se le dice al titular en su buzón, que es lo único que un
     // curioso con la dirección ajena no puede leer.
@@ -700,15 +796,7 @@ async function registrarSolicitud(
     // preguntar. Si la cuenta está, se contesta lo mismo que arriba y sin
     // avisar al titular: es la misma persona que acaba de pedirla, y un
     // «ya tiene una cuenta» junto a «recibimos su solicitud» solo confunde.
-    const ahora = await payload
-      .find({
-        collection: 'usuarios',
-        where: { email: { equals: email } },
-        depth: 0,
-        limit: 1,
-        overrideAccess: true,
-      })
-      .catch(() => ({ docs: [] }))
+    const ahora = await porCorreo().catch(() => ({ docs: [] }))
     if (ahora.docs.length > 0) return null
     payload.logger.error({ msg: 'No se pudo registrar la solicitud de cuenta', err: fallo })
     // El mensaje de Payload viaja en inglés y habla de campos; a quien pide la
@@ -728,8 +816,7 @@ async function registrarSolicitud(
     try {
       // A los administradores del lugar, que es donde nace la cuenta pedida:
       // la marca le pone la institución del subdominio (D-399), y en la
-      // central, ninguna. El enlace de invitación y el cupo son E5.7.
-      const lugar = await lugarDeLaPeticion(payload, await headers())
+      // central, ninguna.
       const administradores = await payload.find({
         collection: 'usuarios',
         where: {

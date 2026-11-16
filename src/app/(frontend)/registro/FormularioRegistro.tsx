@@ -52,7 +52,19 @@ const ULTIMO = PASOS_DE_LA_SOLICITUD.length - 1
  * lector de pantalla pulsa «Continuar», el botón desaparece bajo su foco y el
  * lector no anuncia nada: no sabe si avanzó.
  */
-export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
+export function FormularioRegistro({
+  conCorreo,
+  invitacion,
+}: {
+  conCorreo: boolean
+  /**
+   * El código del enlace de invitación, en el subdominio de una institución
+   * (D-402). Viaja tal cual a la acción, que es la que lo compara: la página
+   * solo enseña este formulario si ya valía, pero puede cambiar mientras se
+   * rellena.
+   */
+  invitacion?: string
+}) {
   const [paso, setPaso] = useState(0)
   const [datos, setDatos] = useState<DatosDeSolicitud>(VACIA)
   const [intentados, setIntentados] = useState<ReadonlySet<number>>(new Set())
@@ -109,6 +121,7 @@ export function FormularioRegistro({ conCorreo }: { conCorreo: boolean }) {
         // la acción la compara con la vigente y es la que guarda en la cuenta.
         avisoDePrivacidadAceptado: datos.privacidad ? VERSION_DEL_AVISO_DE_PRIVACIDAD : '',
         sitioWeb: trampa.current?.value ?? '',
+        invitacion,
       })
       if (respuesta.exito) {
         setDatos((antes) => ({ ...antes, clave: '', repetida: '' }))

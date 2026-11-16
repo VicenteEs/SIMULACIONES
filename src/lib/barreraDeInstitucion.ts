@@ -73,11 +73,18 @@ export function subdominioDeLaPeticionEnCurso(): string {
  * Corre `trabajo` como si no hubiera petición: las conexiones que pida salen
  * sin barrera, como las de un guion.
  *
- * Existe para una sola cosa, y conviene que siga así: borrar una cuenta desde
- * su institución (D-401). La anonimización de D-293 tiene que alcanzar lo que
- * la central anotó sobre ella —su alta como administradora de la institución,
- * las invitaciones—, y desde el subdominio la barrera no lo deja ver. Cada uso
- * nuevo es un agujero en la segunda barrera: que lo pida una decisión.
+ * Existe para dos cosas, y conviene que no sean más. Cada uso nuevo es un
+ * agujero en la segunda barrera: que lo pida una decisión.
+ *
+ * - Borrar una cuenta desde su institución (D-401). La anonimización de D-293
+ *   tiene que alcanzar lo que la central anotó sobre ella —su alta como
+ *   administradora de la institución, las invitaciones—, y desde el subdominio
+ *   la barrera no lo deja ver.
+ * - Saber si un correo ya tiene cuenta en otro lugar al pedir una en el
+ *   subdominio de una institución (D-402). El correo es único en toda la
+ *   plataforma, y sin mirar más allá de la institución la solicitud chocaba
+ *   con una cuenta que no veía. Solo se lee si existe y dónde; quien pide la
+ *   cuenta recibe la misma respuesta en el mismo tiempo.
  *
  * Fuera de toda transacción de quien llama: la conexión es otra. Si `trabajo`
  * toca una fila que esa transacción ya tiene tomada, se esperan la una a la

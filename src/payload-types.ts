@@ -195,6 +195,7 @@ export interface Institucione {
   vence?: string | null;
   cupo: number;
   correoDelAdministrador: string;
+  codigoDeInvitacion?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2846,6 +2847,7 @@ export interface InstitucionesSelect<T extends boolean = true> {
   vence?: T;
   cupo?: T;
   correoDelAdministrador?: T;
+  codigoDeInvitacion?: T;
   updatedAt?: T;
   createdAt?: T;
 }

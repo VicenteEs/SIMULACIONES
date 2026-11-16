@@ -1,12 +1,15 @@
+import type { Payload } from 'payload'
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { direccionPublica } from '@/collections/Usuarios'
 import { hayCorreo } from '@/correo/enviar'
 import { clientePayload } from '../datos'
 import { TablaUsuarios, type UsuarioDelPanel } from './TablaUsuarios'
 import { LateralDeCuentas } from './LateralDeCuentas'
+import { TarjetaDeInvitacion } from './TarjetaDeInvitacion'
 import { tableroDeCuentas } from './tablero'
 import { etiquetaDeEtapa } from '@/lib/solicitudDeCuenta'
 import { esProfesion } from '@/lib/firmas'
+import { codigoDeLaInstitucion, estadoDelCupo, rutaDeInvitacion } from '@/lib/invitacionesServidor'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,11 +48,22 @@ const TOPE_DE_SOLICITUDES = 100
  * cuentas de verdad sin forma de llegar a ellas desde el panel. Separadas, lo
  * que pide cualquiera no le quita sitio a lo que un administrador ya revisó.
  */
+/**
+ * Lo que pinta la tarjeta del enlace de invitación (D-402), o `null` si la
+ * institución no se pudo leer: la página sale igual, sin la tarjeta.
+ */
+async function invitacionDelLugar(payload: Payload, lugar: string) {
+  const [estado, codigo] = await Promise.all([estadoDelCupo(payload, lugar), codigoDeLaInstitucion(payload, lugar)])
+  if (!estado) return null
+  const base = direccionPublica(estado.subdominio)
+  return { enlace: base && codigo ? `${base}${rutaDeInvitacion(codigo)}` : null, cupo: estado.cupo, activas: estado.activas }
+}
+
 export default async function PaginaUsuarios() {
-  const { sesion } = await exigirPanel('admin')
+  const { sesion, lugar } = await exigirPanel('admin')
 
   const payload = await clientePayload()
-  const [cuentas, pedidas, tablero] = await Promise.all([
+  const [cuentas, pedidas, tablero, invitacion] = await Promise.all([
     payload.find({
       collection: 'usuarios',
       // `not_equals` y no `equals: false`: la columna admite nulos, y el
@@ -76,6 +90,9 @@ export default async function PaginaUsuarios() {
       overrideAccess: true,
     }),
     tableroDeCuentas(payload),
+    // Solo en una institución: en la central la cuenta se pide sin enlace, y
+    // no hay cupo que contar.
+    lugar ? invitacionDelLugar(payload, lugar) : null,
   ])
 
   const aFila = (d: unknown): UsuarioDelPanel => {
@@ -136,7 +153,12 @@ export default async function PaginaUsuarios() {
       idPropio={String(sesion.usuario.id)}
       hayCorreo={hayCorreo()}
       hayDireccion={Boolean(direccionPublica())}
-      lateral={<LateralDeCuentas datos={tablero} />}
+      lateral={
+        <>
+          {invitacion ? <TarjetaDeInvitacion {...invitacion} /> : null}
+          <LateralDeCuentas datos={tablero} />
+        </>
+      }
     />
   )
 }

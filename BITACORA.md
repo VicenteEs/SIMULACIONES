@@ -11877,7 +11877,7 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
   - lo que el servidor trae por su cuenta va a `127.0.0.1`, con el anfitrión en la cabecera `Host` y por `node:http`, porque Node no siempre resuelve `*.localhost` y su `fetch` descarta esa cabecera (comprobado en Node 24).
 - **El selector de ved** es un campo de texto y no una lista: ved se abre a quien tenga la dirección, y una lista daría los nombres de las instituciones sin entrar. Cambiar de lugar no toca la sesión. La cuenta que no es del lugar deja de valer, y vuelve a valer al regresar.
 
-*Lo que queda para otros pasos:* el registro desde el subdominio de una institución (E5.7), y los avisos al equipo —comentarios, solicitudes, alertas de entrada—, que hoy llevan la dirección central y van a todos los administradores (E5.3).
+*Lo que queda para otros pasos:* el registro desde el subdominio de una institución (E5.7, *hecho en D-402*), y los avisos al equipo —comentarios, solicitudes, alertas de entrada—, que hoy llevan la dirección central y van a todos los administradores (E5.3).
 
 *Consecuencias.*
 - (+) Una cuenta llevada a otro subdominio no abre nada: ni las páginas, ni las acciones, ni las rutas de API que miran la sesión.
@@ -11967,7 +11967,7 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 *Lo que queda para otros pasos:*
 - el filtro de las pantallas compartidas y las acciones de cuentas por lugar, con los revisores y el último administrador de cada institución (E5.6);
 - borrar una cuenta desde una institución (E5.6). La anonimización de D-293 corre dentro de la transacción del borrado, y por tanto con la barrera: lo que nombra a la cuenta en filas de TraumaHub, como la línea del registro que dejó la central al crearla, no se alcanzaría. Hasta entonces, las cuentas de una institución las borra la central; *(hecho en E5.6: D-401)*
-- el registro con enlace de invitación y el cupo (E5.7).
+- el registro con enlace de invitación y el cupo (E5.7). *(Hecho en D-402.)*
 
 *Consecuencias.*
 - (+) Una pantalla del panel a la que le falte el filtro, abierta desde una institución, no muestra filas de otra. Tampoco escribe en ellas, ni con `overrideAccess`.
@@ -12050,10 +12050,60 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 *Consecuencias.*
 - (+) Una pantalla o una acción nueva del panel nace recortada al lugar: hay que pedir a propósito el Payload de toda la plataforma, y una prueba lo vigila.
 - (+) En la central, donde la base no pone barrera, el recorte es la protección entre TraumaHub y las cuentas de las instituciones, y ya no depende de cada consulta.
-- (+) El panel de una institución ya se puede entregar. Falta que sus alumnos entren con el enlace de invitación (E5.7).
+- (+) El panel de una institución ya se puede entregar. Falta que sus alumnos entren con el enlace de invitación (E5.7). *(Hecho en D-402.)*
 - (−) Cada `update` y `delete` por identificador de una colección con marca lee antes la fila: una consulta más por escritura.
-- (−) `sinLaPeticion` es un agujero deliberado en la segunda barrera. Se usa solo para la anonimización, y cada uso nuevo tiene que pedirlo una decisión.
+- (−) `sinLaPeticion` es un agujero deliberado en la segunda barrera. Se usa solo para la anonimización, y cada uso nuevo tiene que pedirlo una decisión. *(D-402 le dio un segundo: saber si un correo tiene cuenta en otro lugar.)*
 - (−) Un comentario sobre una ficha propia de una institución llega a TraumaHub y hay que reenviárselo, como ya decía D-371.
+
+### D-402 · 2026-11-16 · vigente · P-016 E5.7 · el enlace de invitación y el cupo
+**Los alumnos de una institución piden su cuenta con el enlace de invitación que reparte su administrador, y él las aprueba hasta llenar el cupo. Sin un enlace válido, el `/registro` de una institución no enseña el formulario.**
+
+- **El enlace.**
+  - Cada institución tiene un código (`codigoDeInvitacion`: 15 bytes al azar, 20 caracteres) que nace con ella en un gancho. El enlace es `https://<subdominio>.traumahub.cl/registro?invitacion=<código>`.
+  - La migración rellenó las instituciones que ya existían con 24 caracteres de `md5(random())`. Sin código, su `/registro` no dejaba pedir cuenta a nadie, y su administrador no sabría que tenía que pulsar «Cambiar el enlace».
+  - El campo está cerrado a la API, también para el administrador de TraumaHub: lo leen y lo cambian solo el servidor y sus acciones. Lo reparte el administrador de la institución desde una tarjeta en «Usuarios», con «Copiar» y «Cambiar el enlace». Cambiarlo deja sin efecto el viejo en el acto; las solicitudes que ya llegaron no cambian.
+  - El enlace no da entrada a nadie: deja pedir la cuenta, que espera la aprobación. Por eso se puede pegar en el aula virtual del curso.
+  - La comparación es en tiempo constante (`codigosIguales`) y admite los espacios que trae un pegado.
+- **El registro.**
+  - En una institución, la página comprueba el código antes de pintar. Sin él, o con uno viejo, explica a quién pedirlo y no enseña el formulario: rellenar tres pasos para leer al final «el enlace no es válido» es lo que no podía pasar.
+  - `solicitarCuenta` lo vuelve a comprobar, porque se llama por HTTP sin pasar por la página. En la central no se pide ni se mira.
+  - La cuenta pedida nace pendiente en la institución del subdominio (D-399), y el aviso va a los administradores de esa institución.
+- **Los frenos de una institución.** Los de la central (5 por dirección y 30 en total, por hora) frenaban a un curso entero. Sus alumnos salen a internet por la misma dirección del hospital, y el sexto leía «demasiadas solicitudes».
+  - En una institución la barrera contra los robots es el código, así que sus frenos solo acotan lo que haría un enlace filtrado: 60 por hora desde una dirección y 200 en toda la institución. Cada institución tiene los suyos, aparte de los de la central.
+  - El código se comprueba antes de los frenos. Gastarlos en intentos con códigos falsos dejaba a cualquiera cerrarle la puerta a un curso llamando desde muchas direcciones, y un código de 120 bits no se adivina.
+- **El correo que ya tiene cuenta.** El correo es único en toda la plataforma. En el subdominio de una institución, la base no deja ver las cuentas de otro lugar (D-399): la solicitud chocaba con una cuenta que no veía, y la persona leía «no se pudo registrar».
+  - Ahora se busca el correo sin la barrera (`sinLaPeticion`, su segundo uso), solo para saber si existe y dónde.
+  - Si está en otro lugar, el titular recibe en su buzón dónde la tiene, con los enlaces de allí, y que para tener cuenta también aquí le hace falta otro correo. Quien llama recibe la misma respuesta en el mismo tiempo, como siempre (D-119).
+  - De paso, «Ya tiene una cuenta» lleva ahora a la dirección del lugar donde se pidió, y no a la central.
+- **El cupo.** Cuenta las cuentas activas de cualquier rol, también la del administrador (D-400). Lo vigilan las tres acciones que activan: crear una cuenta activa, activarla desde su fila y aprobar una solicitud (`conLugarEnElCupo`).
+  - El conteo y la escritura van en la misma transacción, con un candado por institución (`cupo:<id>`). Sin él, dos administradores que aprueban a la vez ven el mismo último lugar y entran los dos. La prueba lo hace: sin el candado, entran ambas solicitudes en tres pasadas de tres.
+  - Activar una cuenta que ya está activa no pide lugar, y una cuenta que nace desactivada tampoco lo ocupa.
+  - Con el cupo lleno, el mensaje dice cuánto lleva y qué hacer: «Hospital X llenó su cupo: 30 de 30 cuentas activas. Desactive una cuenta para liberar su lugar, o pida a TraumaHub que amplíe el cupo.»
+  - La API REST de Payload contesta 403 a toda escritura (`(payload)/api/[...slug]/route.ts`), así que no hay otra puerta por la que activar.
+- **Lo que no se hizo.**
+  - En ved no hay subdominios (D-371): allí el enlace sale a la central, que no mira el código. Que valga en ved es parte del selector de institución de E5.10.
+  - Ningún aviso al administrador cuando el cupo se llena. Lo ve en la tarjeta, y al aprobar.
+
+*Comprobado.*
+- `tests/unit/invitaciones.test.ts`: el código, la comparación, el cupo sobre una base de mentira, y que las tres acciones que activan pasen por el cupo.
+- `tests/integration/invitaciones.test.ts`, contra PostgreSQL y como en el subdominio, con la barrera puesta:
+  - cada institución nace con su código, y la API no lo enseña;
+  - sin enlace, o con el de otra institución, no se crea nada;
+  - siete solicitudes desde la misma dirección pasan y nacen pendientes en su institución;
+  - en la central el código no se mira;
+  - un correo con cuenta en la central o en otra institución: el aviso dice dónde, con los enlaces de allí, y no se crea otra cuenta;
+  - el cupo por los tres caminos, la cuenta ya activa, la que nace desactivada y el lugar que se libera;
+  - dos aprobaciones a la vez con un solo lugar libre;
+  - cambiar el enlace deja sin efecto el viejo, y la central no tiene enlace que cambiar.
+- `accionesConGuardia`, con una clase nueva, `soloInstituciones`, para la acción que cambia el enlace.
+- La suite entera: la integración pasa completa, y fallan solo las 10 de siempre en este equipo (CRLF, zona horaria y respaldos bajo carga). Cobertura: 89,1 % de las líneas.
+
+*Consecuencias.*
+- (+) Una institución recibe a su curso sin que TraumaHub intervenga: reparte el enlace y aprueba.
+- (+) El cupo contratado no se pasa por ningún camino del panel, tampoco con dos administradores aprobando a la vez.
+- (−) `sinLaPeticion` tiene un segundo uso. Solo lee si el correo existe y dónde, pero es otra puerta en la segunda barrera.
+- (−) Un enlace filtrado deja pedir hasta 200 cuentas por hora en esa institución. Ninguna entra sin aprobación, pero llenan la lista de solicitudes hasta que se cambia el enlace.
+- (−) Quien ya tiene cuenta en la central no puede tener otra en su institución con el mismo correo.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -18237,7 +18287,11 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - los comentarios, todos a TraumaHub: la pantalla, sus acciones y el aviso;
     - borrar una cuenta desde su institución, con lo que la central anotó sobre ella;
     - la presencia en el editor, solo con las fichas del lugar;
-  - E5.7 · el enlace de invitación y el cupo;
+  - E5.7 · el enlace de invitación y el cupo. *Hecho en local el 2026-11-16, con los detalles en D-402:*
+    - el código de cada institución, que nace con ella, y su tarjeta en «Usuarios» con «Copiar» y «Cambiar el enlace»;
+    - `/registro` en una institución, solo con un enlace válido, y frenos propios para que pida cuenta un curso entero;
+    - el correo que ya tiene cuenta en otro lugar, avisado al titular con los enlaces de allí;
+    - el cupo en las tres acciones que activan, con candado por institución;
   - E5.8 · el bloqueo, con sus 12 meses, y la exportación;
   - E5.9 · la entrada como fantasma;
   - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño.

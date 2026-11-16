@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { administracionCentral } from '@/access/payload'
 import { olvidarInstituciones } from '@/lib/institucionesServidor'
+import { nuevoCodigoDeInvitacion } from '@/lib/invitacionesServidor'
 import {
   MODALIDADES,
   motivoDeSubdominioInvalido,
@@ -45,6 +46,16 @@ export const Instituciones: CollectionConfig = {
         if (data.modalidad !== 'definitiva' && !data.vence && data.inicio) {
           data.vence = vencimientoDelPiloto(new Date(data.inicio as string)).toISOString()
         }
+        return data
+      },
+    ],
+    // El código del enlace de invitación nace con la institución (D-402): así
+    // no hay ninguna sin enlace, cree quien la cree. En `beforeChange`, después
+    // de que Payload quite de lo recibido los campos cerrados (lo hace al
+    // validar): un código elegido por quien llama no llega, y el de aquí sí.
+    beforeChange: [
+      ({ data, operation }) => {
+        if (operation === 'create' && data && !data.codigoDeInvitacion) data.codigoDeInvitacion = nuevoCodigoDeInvitacion()
         return data
       },
     ],
@@ -112,6 +123,16 @@ export const Instituciones: CollectionConfig = {
       type: 'email',
       required: true,
       label: 'Correo del administrador de la institución',
+    },
+    {
+      // El código del enlace con que los alumnos piden su cuenta (D-402). Lo
+      // lee el servidor con `overrideAccess` y no sale por la API, ni siquiera
+      // al administrador de TraumaHub: quien lo reparte es el de la
+      // institución, desde su pestaña «Usuarios», y allí mismo lo cambia.
+      name: 'codigoDeInvitacion',
+      type: 'text',
+      label: 'Código de invitación',
+      access: { read: () => false, create: () => false, update: () => false },
     },
   ],
 }

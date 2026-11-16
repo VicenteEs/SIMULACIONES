@@ -15,7 +15,7 @@
 
 import { randomBytes } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import { direccionPublica, enlaceDeClave } from '@/collections/Usuarios'
 import { enviarCorreo, enviarSinEsperar, hayCorreo } from '@/correo/enviar'
 import {
@@ -27,6 +27,8 @@ import {
 import { exigirAdmin, exigirAdminCentral, exigirEditorCentral, accion, type Respuesta } from '@/lib/guardias'
 import { entradasDeLaCuenta } from '@/lib/entradasServidor'
 import { subdominioDeLaCuenta } from '@/lib/institucionesServidor'
+import { candadoDelCupo, exigirCupoLibre, nuevoCodigoDeInvitacion, rutaDeInvitacion } from '@/lib/invitacionesServidor'
+import { conCandado } from '@/lib/sqlDirecto'
 import { comoListaDeModulos } from '@/lib/mantencion'
 import { esProfesion } from '@/lib/firmas'
 import {
@@ -454,6 +456,50 @@ function notaParaGuardar(valor: unknown): string | undefined {
 const contrasenaQueNadieConoce = (): string => randomBytes(32).toString('base64url')
 
 /**
+ * La escritura que deja activa una cuenta más de una institución, con su cupo
+ * vigilado (D-402): pasa solo si queda un lugar libre. Las tres que activan
+ * —crear una cuenta activa, activarla desde su fila, aprobar una solicitud—
+ * pasan por aquí, y `tests/unit/invitaciones.test.ts` cuenta que sigan
+ * pasando.
+ *
+ * El conteo y la escritura van en la misma transacción y bajo el candado del
+ * cupo de esa institución (`conCandado`). Sin el candado, dos administradores
+ * que aprueban a la vez ven el mismo último lugar libre y entran los dos; sin
+ * la transacción, el conteo del segundo no vería la cuenta que el primero
+ * acaba de activar.
+ *
+ * `cuentaId`, si la cuenta ya existe: si al tomar el candado ya está activa
+ * —otra sesión la activó un instante antes—, ya ocupa su lugar y no se le pide
+ * otro. Sin esa lectura, activar dos veces la misma cuenta con el cupo justo
+ * contestaría «llenó su cupo» a quien no está quitándole sitio a nadie.
+ *
+ * En la central no hay cupo, y se escribe sin candado, como siempre.
+ */
+async function conLugarEnElCupo<T>(
+  payload: Payload,
+  lugar: string | null,
+  cuentaId: string | null,
+  escribir: (req?: Partial<PayloadRequest>) => Promise<T>,
+): Promise<T> {
+  if (!lugar) return escribir()
+  return conCandado(payload, candadoDelCupo(lugar), async (req) => {
+    const cuenta = cuentaId
+      ? ((await payload.findByID({
+          collection: 'usuarios',
+          id: cuentaId,
+          depth: 0,
+          overrideAccess: true,
+          disableErrors: true,
+          select: { activo: true } as never,
+          req,
+        })) as { activo?: unknown } | null)
+      : null
+    if (cuenta?.activo !== true) await exigirCupoLibre(payload, lugar, req)
+    return escribir(req)
+  })
+}
+
+/**
  * Crea una cuenta desde el panel, de una de dos maneras.
  *
  * Sin `invitar`, como siempre: el administrador pone la contraseña y se la
@@ -484,7 +530,7 @@ export async function crearUsuario(
   invitar?: unknown,
 ): Promise<Respuesta<{ id: string; invitacion?: { enviada: boolean; enlace: string } }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario, lugar } = await exigirAdmin()
     const conInvitacion = invitar === true
 
     if (conInvitacion) {
@@ -508,23 +554,23 @@ export async function crearUsuario(
 
     const correo = exigirCorreo(email)
     const nombreLimpio = exigirTexto(nombre, 'El nombre', 120)
-    const creado = await payload.create({
-      collection: 'usuarios',
-      data: {
-        email: correo,
-        nombre: nombreLimpio,
-        password: conInvitacion ? contrasenaQueNadieConoce() : exigirContrasena(contrasena),
-        rol: exigirRol(rol),
-        procedencia: textoOpcional(procedencia, 'La institución', 160),
-        activo: activo !== false,
-        // La nota se acepta ya al crear porque el caso que el campo existe para
-        // resolver —«quién pidió esta cuenta»— se sabe exactamente aquí y en
-        // ningún momento mejor. Obligar a crear primero y anotar después es
-        // pedir un segundo paso que nadie da.
-        notas: notaParaGuardar(notas),
-      },
-      user: usuario as never,
-    })
+    const data = {
+      email: correo,
+      nombre: nombreLimpio,
+      password: conInvitacion ? contrasenaQueNadieConoce() : exigirContrasena(contrasena),
+      rol: exigirRol(rol),
+      procedencia: textoOpcional(procedencia, 'La institución', 160),
+      activo: activo !== false,
+      // La nota se acepta ya al crear porque el caso que el campo existe para
+      // resolver —«quién pidió esta cuenta»— se sabe exactamente aquí y en
+      // ningún momento mejor. Obligar a crear primero y anotar después es
+      // pedir un segundo paso que nadie da.
+      notas: notaParaGuardar(notas),
+    }
+    const crear = (req?: Partial<PayloadRequest>) =>
+      payload.create({ collection: 'usuarios', data, user: usuario as never, ...(req ? { req } : {}) })
+    // Una cuenta que nace desactivada no ocupa cupo: lo ocupará al activarla.
+    const creado = data.activo ? await conLugarEnElCupo(payload, lugar, null, crear) : await crear()
     revalidatePath(RUTA_USUARIOS)
     const id = String(creado.id)
     if (!conInvitacion) return { id }
@@ -716,7 +762,7 @@ function avisarDeCuentaActivada(payload: Payload, cuenta: Record<string, unknown
 
 export async function cambiarActivoUsuario(id: unknown, activo: unknown): Promise<Respuesta> {
   return accion(async () => {
-    const { payload, usuario, usuarioId } = await exigirAdmin()
+    const { payload, usuario, usuarioId, lugar } = await exigirAdmin()
     const objetivo = exigirIdentificador(id, 'El usuario')
     const nuevoEstado = activo === true
 
@@ -735,7 +781,7 @@ export async function cambiarActivoUsuario(id: unknown, activo: unknown): Promis
     const antes = nuevoEstado ? await leerCuenta(payload, objetivo) : null
     const respondeAUnaSolicitud = antes?.pendiente === true
 
-    const escribir = () =>
+    const escribir = (req?: Partial<PayloadRequest>) =>
       payload.update({
         collection: 'usuarios',
         id: objetivo,
@@ -744,11 +790,12 @@ export async function cambiarActivoUsuario(id: unknown, activo: unknown): Promis
         // puede rechazarla —borrarla— creyendo que nunca entró.
         data: respondeAUnaSolicitud ? { activo: true, pendiente: false } : { activo: nuevoEstado },
         user: usuario as never,
+        ...(req ? { req } : {}),
       })
     // Activar no puede dejar a nadie sin administradores: solo se vigila el
-    // sentido que el disparador rechaza.
+    // sentido que el disparador rechaza. Lo que sí puede es pasarse del cupo.
     if (nuevoEstado) {
-      await escribir()
+      await conLugarEnElCupo(payload, lugar, objetivo, escribir)
       if (respondeAUnaSolicitud && antes) avisarDeCuentaActivada(payload, antes)
     } else {
       await escribirSinDejarSinAdministradores(
@@ -865,7 +912,7 @@ export async function resolverSolicitud(
   rol?: unknown,
 ): Promise<Respuesta<{ avisoPorCorreo: boolean }>> {
   return accion(async () => {
-    const { payload, usuario, usuarioId } = await exigirAdmin()
+    const { payload, usuario, usuarioId, lugar } = await exigirAdmin()
     const objetivo = exigirIdentificador(id, 'La solicitud')
     if (decision !== 'activar' && decision !== 'rechazar') {
       throw new Error('La decisión sobre la solicitud no es válida.')
@@ -879,13 +926,17 @@ export async function resolverSolicitud(
 
     if (rolElegido !== null) {
       // Sin la vigilancia del último administrador: activar a alguien, con el
-      // rol que sea, no deja a nadie sin acceso.
-      await payload.update({
-        collection: 'usuarios',
-        id: objetivo,
-        data: { activo: true, pendiente: false, rol: rolElegido },
-        user: usuario as never,
-      })
+      // rol que sea, no deja a nadie sin acceso. Con la del cupo, en cambio:
+      // aprobar es la forma más corriente de llenarlo.
+      await conLugarEnElCupo(payload, lugar, objetivo, (req) =>
+        payload.update({
+          collection: 'usuarios',
+          id: objetivo,
+          data: { activo: true, pendiente: false, rol: rolElegido },
+          user: usuario as never,
+          ...(req ? { req } : {}),
+        }),
+      )
       avisarDeCuentaActivada(payload, cuenta)
     } else {
       // El correo y el nombre se sacan de la lectura de arriba, que es de antes
@@ -1012,6 +1063,43 @@ export async function generarEnlaceDeClave(
       }
     }
     return { enlace, enviadoPorCorreo }
+  })
+}
+
+// ------------------------------------------------------------- invitación
+
+/**
+ * Cambia el código del enlace de invitación de la institución de quien llama, y
+ * devuelve el enlace nuevo (D-402). El de antes deja de servir en el acto; las
+ * solicitudes que ya llegaron con él no cambian.
+ *
+ * Es lo que se hace cuando el enlace se filtra fuera del curso. No hay forma de
+ * «desactivarlo» sin dar uno nuevo, a propósito: una institución sin enlace no
+ * tiene por dónde recibir alumnos, y el siguiente curso lo necesita igual.
+ *
+ * Solo en una institución. La central no tiene enlace: allí la cuenta se pide
+ * en `/registro` sin él.
+ */
+export async function regenerarCodigoDeInvitacion(): Promise<Respuesta<{ enlace: string | null }>> {
+  return accion(async () => {
+    const { payload, lugar } = await exigirAdmin()
+    if (!lugar) throw new Error('TraumaHub no tiene enlace de invitación: sus cuentas se piden en /registro, sin él.')
+    const codigo = nuevoCodigoDeInvitacion()
+    // Con `overrideAccess`: el campo está cerrado a toda escritura por la API,
+    // y la colección, al administrador de la institución. Lo único que se le
+    // deja cambiar de su fila es esto, y por esta acción.
+    const fila = await payload.update({
+      collection: 'instituciones',
+      id: lugar,
+      data: { codigoDeInvitacion: codigo },
+      depth: 0,
+      overrideAccess: true,
+    })
+    revalidatePath(RUTA_USUARIOS)
+    // Sin dirección pública el código cambia igual —el viejo deja de servir,
+    // que es lo urgente—, y la tarjeta dice por qué no hay enlace que copiar.
+    const base = direccionPublica(String((fila as { subdominio?: unknown }).subdominio ?? ''))
+    return { enlace: base ? `${base}${rutaDeInvitacion(codigo)}` : null }
   })
 }
 

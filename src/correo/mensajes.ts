@@ -146,8 +146,19 @@ export function mensajeDeSolicitudRecibida(datos: { nombre: string }): Correo {
  * correo ya está registrado» la convierte en un comprobador de quién tiene
  * acceso—, así que la verdad se le dice aquí, en el buzón, que solo lee el
  * titular.
+ *
+ * `enOtroLugar` es el nombre del sitio donde está la cuenta (una institución, o
+ * «TraumaHub»), cuando se pidió desde otro (D-402). Un correo es una sola
+ * cuenta en toda la plataforma, y quien la pide en el subdominio de su
+ * hospital teniéndola ya en la central no puede tener las dos: se le dice
+ * dónde está la que tiene, y que para la otra hace falta otro correo. Los
+ * enlaces son los de ese sitio, que es donde entra.
  */
-export function mensajeDeCuentaYaExistente(datos: { enlaceEntrar: string; enlaceClave: string }): Correo {
+export function mensajeDeCuentaYaExistente(datos: {
+  enlaceEntrar: string
+  enlaceClave: string
+  enOtroLugar?: string
+}): Correo {
   return {
     asunto: 'TraumaHub · Ya tiene una cuenta',
     resumen: 'Alguien pidió una cuenta con su correo, pero ya tiene una.',
@@ -155,8 +166,9 @@ export function mensajeDeCuentaYaExistente(datos: { enlaceEntrar: string; enlace
     bloques: [
       {
         tipo: 'parrafo',
-        texto:
-          'Alguien pidió una cuenta nueva en TraumaHub con esta dirección, pero ya existe una cuenta con ella. No se creó ninguna otra.',
+        texto: datos.enOtroLugar
+          ? `Alguien pidió una cuenta nueva en TraumaHub con esta dirección, pero ya existe una cuenta con ella en ${datos.enOtroLugar}. Cada correo es una sola cuenta, en un solo lugar, así que no se creó ninguna otra. Si necesita una cuenta también aquí, pídala con otro correo.`
+          : 'Alguien pidió una cuenta nueva en TraumaHub con esta dirección, pero ya existe una cuenta con ella. No se creó ninguna otra.',
       },
       {
         tipo: 'parrafo',
