@@ -125,8 +125,8 @@ function TarjetaDeSolicitud({
         <div>
           <div className="admin-table-user-name">{solicitud.nombre || '—'}</div>
           <div className="admin-table-user-email">{solicitud.email}</div>
-          {solicitud.etapa || solicitud.institucion ? (
-            <div className="admin-table-user-email">{[solicitud.etapa, solicitud.institucion].filter(Boolean).join(' · ')}</div>
+          {solicitud.etapa || solicitud.procedencia ? (
+            <div className="admin-table-user-email">{[solicitud.etapa, solicitud.procedencia].filter(Boolean).join(' · ')}</div>
           ) : null}
         </div>
         {pedidaEl ? <span className="solicitud-fecha">Pedida el {fecha(pedidaEl)}</span> : null}

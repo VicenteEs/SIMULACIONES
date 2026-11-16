@@ -17,6 +17,7 @@ import {
   puedeEditarModulo,
   puedeVerModulo,
   puedeAdministrarUsuarios,
+  puedeAdministrarInstituciones,
   type Rol,
   type UsuarioSesion,
 } from './reglas'
@@ -49,7 +50,19 @@ export function usuarioDeSesion(usuario: unknown): UsuarioSesion | null {
     activo: activo === true,
     modulosVisibles: comoLista(registro.modulosVisibles),
     modulosEditables: comoLista(registro.modulosEditables),
+    institucion: idDeInstitucion(registro.institucion),
   }
+}
+
+/**
+ * El identificador de la institución, venga como venga: un número de la base,
+ * un texto, o la fila poblada con `depth`. `null` si no hay, que es la central.
+ */
+export function idDeInstitucion(valor: unknown): string | null {
+  if (valor === null || valor === undefined || valor === '') return null
+  if (typeof valor === 'object') return idDeInstitucion((valor as { id?: unknown }).id)
+  if (typeof valor === 'number' || typeof valor === 'string') return String(valor)
+  return null
 }
 
 const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
@@ -175,6 +188,9 @@ export const mantenimientoDeContenido: FieldAccess = (args) =>
 
 export const administracionDeUsuarios: Access = (args) =>
   puedeAdministrarUsuarios(usuarioDe(args))
+
+/** Solo el administrador de TraumaHub (D-371): las instituciones mismas. */
+export const administracionCentral: Access = (args) => puedeAdministrarInstituciones(usuarioDe(args))
 
 /**
  * Acceso a registros propios (comentarios, actividad).

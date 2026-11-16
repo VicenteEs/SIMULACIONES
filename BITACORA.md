@@ -11824,6 +11824,42 @@ Qué la decide: la prueba repetida, con fichas publicadas y con el PDF. Si con 3
 - (−) La prueba repetida espera a que haya fichas publicadas en producción. Hoy están todas en borrador.
 - (−) Si al final la caché hace falta, llega más tarde que en el orden de D-392.
 
+### D-396 · 2026-11-16 · vigente · P-016 E5 · cómo se lleva D-371 al código
+**La institución de cada petición sale del subdominio, y cada cuenta vale solo en el suyo. Los tres roles de institución son los tres de siempre con la marca de su institución. El filtro vive en `reglas.ts`, y PostgreSQL lo repite con una variable que se pone en cada conexión.**
+
+Antes de escribir E5 se miró qué toca. El código pregunta por el rol de administrador en 194 sitios de 62 archivos, y hace 221 consultas con `overrideAccess: true`, casi todas en el panel. Un filtro solo en las reglas de Payload no alcanza a esas 221.
+
+- **La institución de la petición.** `proxy.ts`, el antiguo middleware de Next, lee el anfitrión y pasa el subdominio en la cabecera `x-traumahub-subdominio`:
+  - siempre la escribe él, también vacía: la que mande el navegador se descarta;
+  - el dominio sale de `DOMINIO_DE_INSTITUCIONES` (`traumahub.cl` en Contabo y `localhost` en desarrollo, donde `uni.localhost` llega solo al equipo). La raíz y `www` son la central;
+  - en ved, que no tiene subdominios, la elige el selector de pruebas con una cookie, y el proxy la convierte en la misma cabecera.
+- **La institución de la cuenta.** `usuarios` gana `institucion`, vacía para las cuentas de TraumaHub. Una cuenta solo vale en el anfitrión de su institución: en otro es como no tener sesión, y entrar se niega. La cookie de sesión ya es de cada anfitrión, así que esto es la segunda vuelta de llave, no la primera.
+  - El texto libre que hoy se llama `institucion`, lo que cada persona escribió al pedir la cuenta, pasa a llamarse `procedencia`, con la misma etiqueta. La migración renombra la columna y no pierde nada.
+- **Los roles no se multiplican.** Administrador de institución es `admin` con institución, docente es `editor` con institución y alumno es `lector` con institución. Así siguen valiendo los permisos por módulo, la revisión con doble firma y todo lo que ya mira el rol. Lo que es solo de TraumaHub (Sistema, Difusión, Medios de la página, Equipo, Respaldos, Cotizaciones, Instituciones) pregunta además si la cuenta es central (`esCentral`), y una prueba recorre esas pantallas con un administrador de institución.
+- **La institución efectiva.** Las reglas no miran la marca de la cuenta sino su institución efectiva: la suya, o, para el administrador central que entra al subdominio de otra, la de ese subdominio (el fantasma, E5.9). `usuarioDeSesion` la lleva en `institucion`, junto a `fantasma`.
+- **Qué filas llevan la marca.** Las cuentas; los cinco módulos con sus versiones; medios y modelos 3D; y lo que deja cada persona: actividad, comentarios, registro, entradas, tiempo activo, revisiones y sesiones de revisión. Un gancho la pone al crear con la institución efectiva, y nadie la cambia después. Lo demás es central y se comparte: catálogos del simulador, atlas, ajustes, requisitos, equipo, textos y medios de la página, y cotizaciones. Las difusiones eligen institución en E6.
+- **El filtro (`reglas.ts`).**
+  - El contenido: una cuenta de institución ve lo central publicado, sin poder editarlo, y lo de su institución con las reglas de siempre. Una cuenta central ve solo lo central: el contenido de una institución no aparece en la central.
+  - Lo personal: cada institución, solo lo suyo.
+- **La segunda barrera, en PostgreSQL.** Cada vez que la aplicación toma una conexión del pool le pone `traumahub.subdominio`, sacado de la petición en curso. Las políticas de seguridad por filas:
+  - en las cuentas, el contenido, los medios y los modelos, la central más la propia;
+  - en lo personal, solo la propia;
+  - sin petición (migraciones, guiones, tareas programadas), sin restricción.
+
+  Así las 221 consultas con `overrideAccess` del panel, hechas desde el subdominio de una institución, no alcanzan las filas de otra aunque a alguna le falte el filtro.
+- **Lo que hay que cambiar para que un subdominio funcione:**
+  - la dirección de los archivos subidos sale sin el origen. Payload la arma con `serverURL`, `https://traumahub.cl`, y desde `uni.traumahub.cl` la imagen se pediría a la central, con la cookie de otra sesión o sin ninguna;
+  - la lista CSRF de Payload compara el origen con una lista exacta (`extractJWT.js`), y descarta la cookie de cualquier subdominio. Se le da una lista que además acepta `https://<subdominio>.<dominio>`.
+- **Por pasos (E5.1 a E5.10)**, cada uno con sus pruebas y sin cambiar nada para la central hasta que exista la primera institución.
+
+*Consecuencias.*
+- (+) Un administrador de institución que abre una pantalla del panel a la que se le olvidó el filtro ve sus filas, no las de otra.
+- (+) Los roles, permisos y revisiones de hoy sirven tal cual dentro de cada institución.
+- (−) Una consulta más al tomar cada conexión, solo cuando cambia el subdominio de la conexión.
+- (−) La variable sale de la petición en curso con una pieza interna de Next (`workUnitAsyncStorage`). Una prueba falla si una actualización de Next la quita.
+- (−) En el subdominio de una institución se ven las cuentas centrales en la base, porque el fantasma y los autores del contenido central lo necesitan. Que no se listen depende del filtro de Payload.
+- (−) Las cuentas centrales, en la central, no tienen segunda barrera: entre ellas y lo de las instituciones solo está el filtro de `reglas.ts`.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17964,13 +18000,23 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - *comprobado el 2026-11-16 (nota en D-376):* Cloudflare ya guarda lo estático sin regla;
   - *desplegados en Contabo el 2026-11-16, a las 05:56 en Chile (`487fa73`), con el OK del dueño en cada paso:* D-393, D-394 y D-395. Ver la nota al final de las etapas;
   - *pendiente, en el orden de D-392:* repetir la prueba con fichas publicadas y con el PDF, y con ella decidir la caché del contenido publicado (D-395). Espera a que haya fichas publicadas en producción y a que el dueño cree otra cuenta de prueba.
-- [ ] **E5 · Las instituciones (D-371).**
-  - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;
-  - el subdominio, con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381);
-  - la pestaña «Instituciones», con el botón «Crear institución»;
-  - los tres roles de institución y el enlace de invitación;
-  - el bloqueo, con sus 12 meses, y la exportación;
-  - la entrada como fantasma.
+- [ ] **E5 · Las instituciones (D-371).** Cómo se lleva al código, en D-396. Por pasos:
+  - E5.1 · la colección `instituciones`, con sus nombres reservados, y la marca en las filas; `procedencia` para el texto libre de hoy. *Hecho en local el 2026-11-16:*
+    - la colección, solo del administrador central (`puedeAdministrarInstituciones`), con el subdominio validado en `lib/instituciones.ts` y el piloto que vence a los 15 días si no se da fecha;
+    - la marca en las 15 colecciones de D-396, con su gancho (`marcaDeInstitucion.ts`). Una prueba exige que toda colección con una cuenta esté en la lista o en la de excepciones, con su porqué: hoy, requisitos y difusiones;
+    - la migración `20261116_091012_instituciones`, con el `RENAME` a `procedencia` escrito a mano y la bajada reordenada, porque la generada fallaba. Se probó a bajar y a subir con un texto puesto, y el texto vuelve;
+    - la marca se guarda como número: Payload valida el tipo del identificador, y un «3» de texto no pasa;
+    - `instituciones` viaja a la copia del ensayo: el contenido propio apunta a su fila;
+    - comprobado: `typecheck` limpio, `lint` con los 15 avisos de siempre, la suite unitaria sin fallos nuevos (los 12 de Windows de siempre), `test:integration` con 312 de 312, y `build`;
+  - E5.2 · el anfitrión: `proxy.ts`, la cuenta que solo vale en el suyo, «esta institución no existe», los archivos sin origen, la lista CSRF y el selector de ved;
+  - E5.3 · el filtro de `reglas.ts`, y la matriz de roles cruzando instituciones;
+  - E5.4 · la segunda barrera en PostgreSQL;
+  - E5.5 · la pestaña «Instituciones», con «Crear institución», el plazo y el cupo;
+  - E5.6 · los tres roles de institución en el panel, y el contenido propio con sus revisores;
+  - E5.7 · el enlace de invitación y el cupo;
+  - E5.8 · el bloqueo, con sus 12 meses, y la exportación;
+  - E5.9 · la entrada como fantasma;
+  - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño.
 - [ ] **E6 · Las difusiones (D-375).**
 - [ ] **E7 · El monitoreo (D-377).**
 - [ ] **E8 · Lo legal, antes del primer piloto.** Todo con el abogado:

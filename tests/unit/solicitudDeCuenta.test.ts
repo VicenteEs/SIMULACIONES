@@ -304,7 +304,7 @@ describe('la solicitud de cuenta', { timeout: 30_000 }, () => {
     expect(data).toMatchObject({
       email: SOLICITUD.correo,
       nombre: SOLICITUD.nombre,
-      institucion: SOLICITUD.institucion,
+      procedencia: SOLICITUD.institucion,
       password: SOLICITUD.contrasena,
       rol: 'lector',
       activo: false,
@@ -437,7 +437,7 @@ describe('la solicitud de cuenta', { timeout: 30_000 }, () => {
     await pedirCuenta({ ...SOLICITUD, institucion: 'Hospital Regional', programa: ' Traumatología y ortopedia ', etapaDeFormacion: 'r2' })
 
     const { data } = crear.mock.calls[0][0] as { data: Record<string, unknown> }
-    expect(data.institucion).toBe('Hospital Regional · Traumatología y ortopedia')
+    expect(data.procedencia).toBe('Hospital Regional · Traumatología y ortopedia')
     expect(data.etapaDeFormacion).toBe('r2')
     const aviso = envios().find((e) => Array.isArray(e.para))
     expect(JSON.stringify(aviso?.correo)).toContain('"Etapa de formación","R2"')
@@ -447,7 +447,7 @@ describe('la solicitud de cuenta', { timeout: 30_000 }, () => {
     await pedirCuenta({ ...SOLICITUD, programa: '   ', etapaDeFormacion: '' })
 
     const { data } = crear.mock.calls[0][0] as { data: Record<string, unknown> }
-    expect(data.institucion).toBe(SOLICITUD.institucion)
+    expect(data.procedencia).toBe(SOLICITUD.institucion)
     expect(data.etapaDeFormacion).toBeUndefined()
     expect(JSON.stringify(envios())).not.toContain('Etapa de formación')
   })

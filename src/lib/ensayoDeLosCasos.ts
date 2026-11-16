@@ -61,6 +61,11 @@ export const COLECCIONES_SIN_COPIAR: readonly string[] = [
  * no está en ninguna de las dos.
  */
 export const COLECCIONES_QUE_SE_COPIAN: readonly string[] = [
+  // El contenido propio de una institución apunta a su fila (D-396): sin ella,
+  // la copia no restauraría la clave ajena. Lleva un solo dato de persona, el
+  // correo de contacto de su administrador, que es de la institución y no de
+  // un alumno.
+  'instituciones',
   'segmentos',
   'tipos-de-ficha',
   'medios',

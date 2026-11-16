@@ -300,7 +300,7 @@ describe('la pantalla de cuentas escribe y lee la nota', () => {
     expect(
       pagina,
       'Falta una línea en el map de src/app/(frontend)/admin-panel/usuarios/page.tsx, ' +
-        "junto a la de institucion: notas: (u.notas as string) ?? '',",
+        "junto a la de procedencia: notas: (u.notas as string) ?? '',",
     ).toMatch(/notas:\s*[^,}]*u\.notas[^,}]*''/)
   })
 

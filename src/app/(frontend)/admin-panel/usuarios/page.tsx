@@ -86,7 +86,7 @@ export default async function PaginaUsuarios() {
       nombre: String(u.nombre ?? ''),
       rol: (u.rol as UsuarioDelPanel['rol']) ?? 'lector',
       activo: u.activo === true,
-      institucion: (u.institucion as string) ?? '',
+      procedencia: (u.procedencia as string) ?? '',
       etapa: etiquetaDeEtapa(u.etapaDeFormacion),
       profesion: esProfesion(u.profesion) ? u.profesion : '',
       // La nota del administrador sobre la cuenta. Sin esta línea la tabla la

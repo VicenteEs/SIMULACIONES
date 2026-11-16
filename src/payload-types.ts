@@ -67,6 +67,7 @@ export interface Config {
   };
   blocks: {};
   collections: {
+    instituciones: Institucione;
     usuarios: Usuario;
     segmentos: Segmento;
     'tipos-de-ficha': TiposDeFicha;
@@ -106,6 +107,7 @@ export interface Config {
   };
   collectionsJoins: {};
   collectionsSelect: {
+    instituciones: InstitucionesSelect<false> | InstitucionesSelect<true>;
     usuarios: UsuariosSelect<false> | UsuariosSelect<true>;
     segmentos: SegmentosSelect<false> | SegmentosSelect<true>;
     'tipos-de-ficha': TiposDeFichaSelect<false> | TiposDeFichaSelect<true>;
@@ -179,6 +181,25 @@ export interface UsuarioAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instituciones".
+ */
+export interface Institucione {
+  id: number;
+  nombre: string;
+  /**
+   * La dirección será <subdominio>.traumahub.cl.
+   */
+  subdominio: string;
+  modalidad: 'piloto' | 'definitiva';
+  inicio: string;
+  vence?: string | null;
+  cupo: number;
+  correoDelAdministrador: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "usuarios".
  */
 export interface Usuario {
@@ -192,7 +213,7 @@ export interface Usuario {
    * Mientras esté desmarcada, la cuenta no puede ver nada de la plataforma.
    */
   activo?: boolean | null;
-  institucion?: string | null;
+  procedencia?: string | null;
   etapaDeFormacion?: ('r1' | 'r2' | 'r3' | 'r4' | 'kinesiologia' | 'docente') | null;
   profesion?: ('medico' | 'kinesiologo') | null;
   origen?: ('panel' | 'solicitud') | null;
@@ -215,6 +236,10 @@ export interface Usuario {
   ultimoAcceso?: string | null;
   bienvenidaVistaEn?: string | null;
   notas?: string | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -267,6 +292,10 @@ export interface Medio {
    * Qué se ve en la imagen, o qué gesto se hace en el video. Sin esto la plataforma no es accesible.
    */
   alt: string;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -326,6 +355,10 @@ export interface Modelos3D {
     giroZ?: number | null;
     distanciaCamara?: number | null;
   };
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -1253,6 +1286,10 @@ export interface Patologia {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -1424,6 +1461,10 @@ export interface Maniobra {
           }
       )[]
     | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -1608,6 +1649,10 @@ export interface CasosAo {
           }
       )[]
     | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -1929,6 +1974,10 @@ export interface Cirugia {
           }
       )[]
     | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -2104,6 +2153,10 @@ export interface EstudiosIa {
           }
       )[]
     | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -2140,6 +2193,10 @@ export interface Comentario {
     | null;
   texto: string;
   estado: 'pendiente' | 'resuelto';
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
 }
@@ -2217,6 +2274,10 @@ export interface Actividad {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
 }
@@ -2344,6 +2405,10 @@ export interface Revisione {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
 }
@@ -2372,6 +2437,10 @@ export interface SesionesDeRevision {
     | null;
   ediciones?: number | null;
   guardados?: number | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
 }
@@ -2410,6 +2479,10 @@ export interface RegistroDeAccione {
     | boolean
     | null;
   origen?: string | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
 }
@@ -2428,6 +2501,10 @@ export interface Entrada {
   cerroOtroEquipo?: boolean | null;
   cerradaEn?: string | null;
   motivoDelCierre?: ('salio' | 'otra-entrada') | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
 }
@@ -2452,6 +2529,10 @@ export interface TiempoActivo {
     | null;
   ultimoLatido?: string | null;
   ultimaRuta?: string | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
 }
@@ -2579,6 +2660,10 @@ export interface PayloadKv {
 export interface PayloadLockedDocument {
   id: number;
   document?:
+    | ({
+        relationTo: 'instituciones';
+        value: number | Institucione;
+      } | null)
     | ({
         relationTo: 'usuarios';
         value: number | Usuario;
@@ -2751,13 +2836,28 @@ export interface PayloadMigration {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "instituciones_select".
+ */
+export interface InstitucionesSelect<T extends boolean = true> {
+  nombre?: T;
+  subdominio?: T;
+  modalidad?: T;
+  inicio?: T;
+  vence?: T;
+  cupo?: T;
+  correoDelAdministrador?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "usuarios_select".
  */
 export interface UsuariosSelect<T extends boolean = true> {
   nombre?: T;
   rol?: T;
   activo?: T;
-  institucion?: T;
+  procedencia?: T;
   etapaDeFormacion?: T;
   profesion?: T;
   origen?: T;
@@ -2771,6 +2871,7 @@ export interface UsuariosSelect<T extends boolean = true> {
   ultimoAcceso?: T;
   bienvenidaVistaEn?: T;
   notas?: T;
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -2815,6 +2916,7 @@ export interface TiposDeFichaSelect<T extends boolean = true> {
  */
 export interface MediosSelect<T extends boolean = true> {
   alt?: T;
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -2872,6 +2974,7 @@ export interface Modelos3DSelect<T extends boolean = true> {
         giroZ?: T;
         distanciaCamara?: T;
       };
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -3602,6 +3705,7 @@ export interface PatologiasSelect<T extends boolean = true> {
         criterio?: T;
         id?: T;
       };
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
@@ -3716,6 +3820,7 @@ export interface ManiobrasSelect<T extends boolean = true> {
               blockName?: T;
             };
       };
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
@@ -3838,6 +3943,7 @@ export interface CasosAoSelect<T extends boolean = true> {
               blockName?: T;
             };
       };
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
@@ -4064,6 +4170,7 @@ export interface CirugiasSelect<T extends boolean = true> {
               blockName?: T;
             };
       };
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
@@ -4215,6 +4322,7 @@ export interface EstudiosIaSelect<T extends boolean = true> {
               blockName?: T;
             };
       };
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
@@ -4230,6 +4338,7 @@ export interface ComentariosSelect<T extends boolean = true> {
   ancla?: T;
   texto?: T;
   estado?: T;
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4264,6 +4373,7 @@ export interface ActividadSelect<T extends boolean = true> {
         detalle?: T;
         id?: T;
       };
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4349,6 +4459,7 @@ export interface RevisionesSelect<T extends boolean = true> {
         segundosActivos?: T;
         id?: T;
       };
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4368,6 +4479,7 @@ export interface SesionesDeRevisionSelect<T extends boolean = true> {
   porSeccion?: T;
   ediciones?: T;
   guardados?: T;
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4389,6 +4501,7 @@ export interface RegistroDeAccionesSelect<T extends boolean = true> {
   detalle?: T;
   cambios?: T;
   origen?: T;
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4406,6 +4519,7 @@ export interface EntradasSelect<T extends boolean = true> {
   cerroOtroEquipo?: T;
   cerradaEn?: T;
   motivoDelCierre?: T;
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4421,6 +4535,7 @@ export interface TiempoActivoSelect<T extends boolean = true> {
   porHora?: T;
   ultimoLatido?: T;
   ultimaRuta?: T;
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
 }

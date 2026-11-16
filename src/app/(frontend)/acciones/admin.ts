@@ -477,7 +477,7 @@ export async function crearUsuario(
   nombre: unknown,
   contrasena: unknown,
   rol: unknown,
-  institucion?: unknown,
+  procedencia?: unknown,
   activo: unknown = true,
   notas?: unknown,
   invitar?: unknown,
@@ -514,7 +514,7 @@ export async function crearUsuario(
         nombre: nombreLimpio,
         password: conInvitacion ? contrasenaQueNadieConoce() : exigirContrasena(contrasena),
         rol: exigirRol(rol),
-        institucion: textoOpcional(institucion, 'La institución', 160),
+        procedencia: textoOpcional(procedencia, 'La institución', 160),
         activo: activo !== false,
         // La nota se acepta ya al crear porque el caso que el campo existe para
         // resolver —«quién pidió esta cuenta»— se sabe exactamente aquí y en
@@ -588,7 +588,7 @@ export async function actualizarUsuario(
   datos: {
     nombre?: unknown
     rol?: unknown
-    institucion?: unknown
+    procedencia?: unknown
     email?: unknown
     modulosVisibles?: unknown
     modulosEditables?: unknown
@@ -603,8 +603,8 @@ export async function actualizarUsuario(
     const cambios: Record<string, unknown> = {}
     if (datos.nombre !== undefined) cambios.nombre = exigirTexto(datos.nombre, 'El nombre', 120)
     if (datos.email !== undefined) cambios.email = exigirCorreo(datos.email)
-    if (datos.institucion !== undefined) {
-      cambios.institucion = textoOpcional(datos.institucion, 'La institución', 160) ?? null
+    if (datos.procedencia !== undefined) {
+      cambios.procedencia = textoOpcional(datos.procedencia, 'La institución', 160) ?? null
     }
     if (datos.modulosVisibles !== undefined) {
       cambios.modulosVisibles = modulosValidos(datos.modulosVisibles)
@@ -617,7 +617,7 @@ export async function actualizarUsuario(
       // el cuerpo de la escritura y Payload dejaría el texto anterior en su
       // sitio: el administrador vaciaría el cuadro, vería «Cuenta actualizada» y
       // encontraría la nota intacta al volver a abrir. Es el mismo `?? null` de
-      // `institucion`, y por el mismo motivo.
+      // `procedencia`, y por el mismo motivo.
       cambios.notas = notaParaGuardar(datos.notas) ?? null
     }
     if (datos.profesion !== undefined) {

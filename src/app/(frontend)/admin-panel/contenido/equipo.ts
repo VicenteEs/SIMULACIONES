@@ -32,7 +32,7 @@ export interface PersonaDelEquipo {
   nombre: string
   rol: Rol
   activa: boolean
-  institucion: string
+  procedencia: string
   /** Los módulos que puede editar, en el orden de siempre; un administrador, todos. */
   modulos: string[]
   /** Las que validó y siguen validadas por ella (`listaPor`). */
@@ -107,7 +107,7 @@ export function armarEquipo(
       nombre: String(c.nombre || c.email || `#${id}`),
       rol: c.rol as Rol,
       activa: c.activo === true,
-      institucion: typeof c.institucion === 'string' ? c.institucion : '',
+      procedencia: typeof c.procedencia === 'string' ? c.procedencia : '',
       modulos: modulosDe(c),
       validadas: revisiones.filter((r) => r.listaEn && idDe(r.listaPor) === id).length,
       pendientesRecientes: suyas.length - antiguas,
@@ -148,7 +148,7 @@ export async function leerEquipo(payload: Payload): Promise<TableroDelEquipo | n
           rol: true,
           activo: true,
           pendiente: true,
-          institucion: true,
+          procedencia: true,
           modulosVisibles: true,
           modulosEditables: true,
         },

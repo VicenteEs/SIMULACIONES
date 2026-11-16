@@ -121,7 +121,7 @@ describe('el programa va con la institución', () => {
     // dos se separan, una cuenta pedida con institución y programa largos ya
     // no se puede editar desde el panel sin recortársela.
     const admin = readFileSync(join(process.cwd(), 'src/app/(frontend)/acciones/admin.ts'), 'utf8')
-    const topes = [...admin.matchAll(/textoOpcional\((?:datos\.)?institucion, 'La institución', (\d+)\)/g)].map((m) => Number(m[1]))
+    const topes = [...admin.matchAll(/textoOpcional\((?:datos\.)?procedencia, 'La institución', (\d+)\)/g)].map((m) => Number(m[1]))
     expect(topes.length).toBeGreaterThan(0)
     for (const tope of topes) expect(tope).toBe(LARGOS_DE_SOLICITUD.institucion)
   })

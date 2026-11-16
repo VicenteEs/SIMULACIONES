@@ -141,7 +141,7 @@ describe.skipIf(intento.payload === null)('los datos de una cuenta: exportarla y
         password,
         rol: 'editor',
         activo: true,
-        institucion: persona.institucion,
+        procedencia: persona.institucion,
         profesion: 'medico',
         motivoDeSolicitud: persona.motivo,
         notas: persona.notas,

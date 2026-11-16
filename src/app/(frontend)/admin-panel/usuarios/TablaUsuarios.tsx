@@ -50,7 +50,7 @@ export interface UsuarioDelPanel {
   nombre: string
   rol: 'admin' | 'editor' | 'lector'
   activo: boolean
-  institucion: string
+  procedencia: string
   /**
    * La etapa de formación que dio al pedir la cuenta, ya en su etiqueta corta
    * («R2», «Docente»), o vacía (D-236). Se pinta delante de la institución, que
@@ -346,7 +346,7 @@ export function TablaUsuarios({
       // pidió esta cuenta», y eso solo sirve si buscando al jefe de servicio
       // aparecen las cuatro cuentas que pidió. No filtra nada que el
       // administrador no esté viendo ya: esta pantalla es suya entera.
-      const donde = normalizar([u.nombre, u.email, u.etapa, u.institucion, u.notas].join(' '))
+      const donde = normalizar([u.nombre, u.email, u.etapa, u.procedencia, u.notas].join(' '))
       return palabras.every((palabra) => donde.includes(palabra))
     })
   }, [listaMostrada, busqueda, filtroRol, filtroEstado])
@@ -743,9 +743,9 @@ export function TablaUsuarios({
                           {esUnoMismo ? <span className={claseDeInsignia('neutra')}>usted</span> : null}
                         </div>
                         <div className="admin-table-user-email">{u.email}</div>
-                        {u.etapa || u.institucion || u.profesion ? (
+                        {u.etapa || u.procedencia || u.profesion ? (
                           <div className="admin-table-user-email">
-                            {[etiquetaDeProfesion(u.profesion), u.etapa, u.institucion].filter(Boolean).join(' · ')}
+                            {[etiquetaDeProfesion(u.profesion), u.etapa, u.procedencia].filter(Boolean).join(' · ')}
                           </div>
                         ) : null}
                         {/*
@@ -1049,7 +1049,7 @@ export function TablaUsuarios({
                   // la petición una clave que no se va a usar.
                   datos.invitar ? '' : datos.contrasena,
                   datos.rol,
-                  datos.institucion,
+                  datos.procedencia,
                   datos.activo,
                   datos.notas,
                   datos.invitar,
@@ -1152,7 +1152,7 @@ function ModalNuevaCuenta({
     nombre: string
     contrasena: string
     rol: string
-    institucion: string
+    procedencia: string
     activo: boolean
     notas: string
     invitar: boolean
@@ -1160,7 +1160,7 @@ function ModalNuevaCuenta({
 }) {
   const [email, setEmail] = useState('')
   const [nombre, setNombre] = useState('')
-  const [institucion, setInstitucion] = useState('')
+  const [procedencia, setProcedencia] = useState('')
   const [contrasena, setContrasena] = useState(claveSugerida)
   const [rol, setRol] = useState('lector')
   const [activo, setActivo] = useState(true)
@@ -1182,7 +1182,7 @@ function ModalNuevaCuenta({
             nombre,
             contrasena,
             rol,
-            institucion,
+            procedencia,
             activo,
             notas,
             invitar: invitar && puedeInvitar,
@@ -1219,14 +1219,14 @@ function ModalNuevaCuenta({
         </div>
 
         <div className="admin-form-group">
-          <label className="admin-form-label" htmlFor="nueva-institucion">
+          <label className="admin-form-label" htmlFor="nueva-procedencia">
             Institución o servicio
           </label>
           <input
-            id="nueva-institucion"
+            id="nueva-procedencia"
             className="admin-form-input"
-            value={institucion}
-            onChange={(e) => setInstitucion(e.target.value)}
+            value={procedencia}
+            onChange={(e) => setProcedencia(e.target.value)}
           />
         </div>
 
@@ -1392,14 +1392,14 @@ function ModalEditar({
   onGuardar: (datos: {
     nombre: string
     email: string
-    institucion: string
+    procedencia: string
     profesion: string
     notas?: string
   }) => void
 }) {
   const [nombre, setNombre] = useState(usuario.nombre)
   const [email, setEmail] = useState(usuario.email)
-  const [institucion, setInstitucion] = useState(usuario.institucion)
+  const [procedencia, setProcedencia] = useState(usuario.procedencia)
   const [profesion, setProfesion] = useState<string>(usuario.profesion)
   const notaOriginal = usuario.notas
   const [notas, setNotas] = useState(notaOriginal)
@@ -1418,7 +1418,7 @@ function ModalEditar({
           // escribió entretanto desde su propia pestaña. `actualizarUsuario`
           // ignora el campo que no viene, así que omitirla es exactamente «no
           // tocar», y solo se pisa lo que se pisó a propósito.
-          onGuardar({ nombre, email, institucion, profesion, ...(notas === notaOriginal ? {} : { notas }) })
+          onGuardar({ nombre, email, procedencia, profesion, ...(notas === notaOriginal ? {} : { notas }) })
         }}
       >
         <div className="admin-form-group">
@@ -1451,14 +1451,14 @@ function ModalEditar({
           </p>
         </div>
         <div className="admin-form-group">
-          <label className="admin-form-label" htmlFor="editar-institucion">
+          <label className="admin-form-label" htmlFor="editar-procedencia">
             Institución o servicio
           </label>
           <input
-            id="editar-institucion"
+            id="editar-procedencia"
             className="admin-form-input"
-            value={institucion}
-            onChange={(e) => setInstitucion(e.target.value)}
+            value={procedencia}
+            onChange={(e) => setProcedencia(e.target.value)}
           />
         </div>
         <div className="admin-form-group">

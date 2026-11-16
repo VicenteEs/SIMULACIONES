@@ -201,6 +201,10 @@ type Clase =
   | 'referencia'
 
 const CLASE_DE: Record<string, Clase> = {
+  // Las instituciones (D-371, D-396): solo el administrador de TraumaHub. Los
+  // actores de esta matriz son todos centrales; los de institución entran con
+  // E5.3.
+  instituciones: 'administracion',
   usuarios: 'cuentas',
   segmentos: 'apoyo',
   // El tipo de una patología (D-177): material de apoyo como los segmentos, porque se agrega desde cualquier ficha.
@@ -402,6 +406,20 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
     }),
   },
   segmentos: { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre, orden: 999 } }) },
+  instituciones: {
+    titulo: 'nombre',
+    // El subdominio sale del nombre, que ya es único en cada pasada.
+    fabricar: (nombre) => ({
+      data: {
+        nombre,
+        subdominio: nombre.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+|-+$/g, '').slice(0, 40),
+        modalidad: 'definitiva',
+        inicio: new Date().toISOString(),
+        cupo: 10,
+        correoDelAdministrador: 'admin-de-prueba@prueba.invalid',
+      },
+    }),
+  },
   'tipos-de-ficha': { titulo: 'nombre', fabricar: (nombre) => ({ data: { nombre, orden: 999 } }) },
   medios: {
     titulo: 'alt',

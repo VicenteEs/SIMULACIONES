@@ -55,6 +55,7 @@ import * as migration_20261115_225931_resoluciones_de_referencia from './2026111
 import * as migration_20261115_234719_modelo_con_su_preparacion from './20261115_234719_modelo_con_su_preparacion';
 import * as migration_20261116_002803_sesion_unica_y_entradas from './20261116_002803_sesion_unica_y_entradas';
 import * as migration_20261116_033200_estado_compartido from './20261116_033200_estado_compartido';
+import * as migration_20261116_091012_instituciones from './20261116_091012_instituciones';
 
 export const migrations = [
   {
@@ -340,6 +341,11 @@ export const migrations = [
   {
     up: migration_20261116_033200_estado_compartido.up,
     down: migration_20261116_033200_estado_compartido.down,
-    name: '20261116_033200_estado_compartido'
+    name: '20261116_033200_estado_compartido',
+  },
+  {
+    up: migration_20261116_091012_instituciones.up,
+    down: migration_20261116_091012_instituciones.down,
+    name: '20261116_091012_instituciones'
   },
 ];

@@ -132,6 +132,12 @@ const LOS_ESCRIBE_OTRA_PANTALLA = new Set([
   // De qué preparación salió el modelo (D-372): lo escribe la exportación del
   // atlas, y a mano sería una mentira que borraría modelos ajenos con ella.
   'modelos-3d.preparacion',
+  // La institución de la fila (D-396): la pone la plataforma al crearla, con
+  // la de quien escribe (`marcaDeInstitucion.ts`), y no cambia nunca. En el
+  // formulario sería invitar a mover contenido de una institución a otra.
+  ...['patologias', 'maniobras', 'casos-ao', 'cirugias', 'estudios-ia', 'medios', 'modelos-3d'].map(
+    (slug) => `${slug}.institucion`,
+  ),
 ])
 
 /**

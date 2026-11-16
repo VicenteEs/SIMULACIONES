@@ -402,7 +402,10 @@ export const Usuarios: CollectionConfig = {
         description: 'Mientras esté desmarcada, la cuenta no puede ver nada de la plataforma.',
       },
     },
-    { name: 'institucion', type: 'text', label: 'Institución o servicio' },
+    // Lo que la persona dice de dónde viene, en texto libre. Se llamó
+    // `institucion` hasta D-396, que le dio ese nombre a la institución de la
+    // cuenta: la que decide qué ve. Esta no decide nada.
+    { name: 'procedencia', type: 'text', label: 'Institución o servicio' },
     {
       // Lo que la persona dice de sí al pedir la cuenta en `/registro`: R1 a
       // R4, kinesiología o docente (P-007 E3, D-236). Opcional, porque las

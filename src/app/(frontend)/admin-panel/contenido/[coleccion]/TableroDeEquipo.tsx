@@ -81,7 +81,7 @@ export async function TableroDeEquipo() {
                   </div>
                 </div>
                 <span className="equipo-persona-detalle">
-                  {[p.rol === 'admin' ? 'Administrador' : 'Editor', p.institucion].filter(Boolean).join(' · ')}
+                  {[p.rol === 'admin' ? 'Administrador' : 'Editor', p.procedencia].filter(Boolean).join(' · ')}
                 </span>
                 <ul className="equipo-modulos" aria-label="Módulos que puede editar">
                   {todos ? (

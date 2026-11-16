@@ -125,7 +125,7 @@ export async function cuentasDelResumen(payload: Payload): Promise<CuentasDelRes
   try {
     const { docs } = await leerTodas(payload, {
       coleccion: 'usuarios',
-      select: { rol: true, activo: true, pendiente: true, institucion: true, etapaDeFormacion: true, createdAt: true },
+      select: { rol: true, activo: true, pendiente: true, procedencia: true, etapaDeFormacion: true, createdAt: true },
     })
     const activas = docs.filter((u) => u.activo === true && u.pendiente !== true)
     const meses = ultimosMeses(6)
@@ -138,7 +138,7 @@ export async function cuentasDelResumen(payload: Payload): Promise<CuentasDelRes
       editores: activas.filter((u) => u.rol === 'editor').length,
       admins: activas.filter((u) => u.rol === 'admin').length,
       instituciones: new Set(
-        activas.map((u) => (typeof u.institucion === 'string' ? u.institucion.split('·')[0].trim().toLowerCase() : '')).filter(Boolean),
+        activas.map((u) => (typeof u.procedencia === 'string' ? u.procedencia.split('·')[0].trim().toLowerCase() : '')).filter(Boolean),
       ).size,
       nuevasEsteMes: altasPorMes[altasPorMes.length - 1],
       activasPorMes: altasPorMes.map((altas) => (acumulado += altas)),

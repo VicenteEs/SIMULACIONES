@@ -27,6 +27,8 @@ import { Entradas } from './Entradas'
 import { TiempoActivo } from './TiempoActivo'
 import { ResolucionesDeReferencia } from './ResolucionesDeReferencia'
 import { conRegistro } from './hooks/registrarAccion'
+import { conMarcaDeInstitucion } from './hooks/marcaDeInstitucion'
+import { Instituciones } from './Instituciones'
 import {
   CATALOGOS_DEL_SIMULADOR,
   ClasificacionesAO,
@@ -51,6 +53,7 @@ export const SLUGS_DE_MODULOS = [
  * operaciones de acceso y ninguna puede permitir lectura ni escritura anónima.
  */
 const DECLARADAS: CollectionConfig[] = [
+  Instituciones,
   Usuarios,
   Segmentos,
   TiposDeFicha,
@@ -82,13 +85,15 @@ const DECLARADAS: CollectionConfig[] = [
 ]
 
 /**
- * Las mismas colecciones con los ganchos del registro de acciones puestos
- * (D-145): ninguna escritura queda sin anotar por olvido de quien declara la
- * colección.
+ * Las mismas colecciones con la marca de institución (D-396) y los ganchos del
+ * registro de acciones (D-145) puestos: ninguna fila queda sin su institución,
+ * ni ninguna escritura sin anotar, por olvido de quien declara la colección. La
+ * marca va antes, para que el registro de la escritura ya la vea.
  */
-export const COLECCIONES: CollectionConfig[] = DECLARADAS.map(conRegistro)
+export const COLECCIONES: CollectionConfig[] = DECLARADAS.map(conMarcaDeInstitucion).map(conRegistro)
 
 export {
+  Instituciones,
   Usuarios,
   Segmentos,
   TiposDeFicha,

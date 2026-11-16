@@ -32,6 +32,12 @@ export interface UsuarioSesion {
   modulosVisibles?: string[]
   /** Módulos que puede editar. Solo tiene efecto sobre un editor. */
   modulosEditables?: string[]
+  /**
+   * La institución efectiva de la cuenta (D-396), o `null` si es de TraumaHub.
+   * Ausente cuenta como `null`: las cuentas de antes de las instituciones son
+   * todas centrales.
+   */
+  institucion?: string | null
 }
 
 /** Filtro de Payload para restringir una consulta a lo publicado. */
@@ -52,6 +58,24 @@ const permite = (lista: string[] | undefined, modulo: string): boolean =>
   !Array.isArray(lista) || lista.length === 0 || lista.includes(modulo)
 
 export const puedeLeerContenido = (u: UsuarioSesion | null | undefined): boolean => habilitada(u)
+
+/**
+ * ¿Es una cuenta de TraumaHub, y no de una institución (D-396)?
+ *
+ * Los roles de institución son los de siempre con la marca puesta: su
+ * administrador es `admin`. Todo lo que es solo de TraumaHub —Sistema,
+ * Difusión, Respaldos, Instituciones…— tiene que preguntar esto además del
+ * rol, o un administrador de institución entraría.
+ */
+export const esCentral = (u: UsuarioSesion | null | undefined): boolean =>
+  habilitada(u) && (u.institucion === null || u.institucion === undefined)
+
+/**
+ * Crear, extender y bloquear instituciones (D-371): solo el administrador de
+ * TraumaHub. El de una institución administra sus cuentas, no la institución.
+ */
+export const puedeAdministrarInstituciones = (u: UsuarioSesion | null | undefined): boolean =>
+  esCentral(u) && u!.rol === 'admin'
 
 export const puedeEditarContenido = (u: UsuarioSesion | null | undefined): boolean =>
   habilitada(u) && (u.rol === 'admin' || u.rol === 'editor')

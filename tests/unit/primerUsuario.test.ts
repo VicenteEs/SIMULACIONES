@@ -42,11 +42,11 @@ describe('ajustarPrimerUsuario', () => {
 
   it('respeta el resto de los campos', async () => {
     const resultado = await ajustarPrimerUsuario({
-      data: { rol: 'lector', activo: false, nombre: 'Vicente', institucion: 'UTEM' },
+      data: { rol: 'lector', activo: false, nombre: 'Vicente', procedencia: 'UTEM' },
       contarUsuarios: async () => 0,
       operacion: 'create',
     })
     expect(resultado.nombre).toBe('Vicente')
-    expect(resultado.institucion).toBe('UTEM')
+    expect(resultado.procedencia).toBe('UTEM')
   })
 })

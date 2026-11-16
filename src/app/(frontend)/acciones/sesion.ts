@@ -640,7 +640,9 @@ async function registrarSolicitud(
       data: {
         email,
         nombre,
-        institucion,
+        // Lo que la persona escribió de dónde viene. No es la institución de
+        // la cuenta (D-396), que sale del enlace de invitación.
+        procedencia: institucion,
         etapaDeFormacion,
         password,
         rol: 'lector',
