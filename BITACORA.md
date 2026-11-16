@@ -11230,6 +11230,8 @@ El trazo hondo se apoya en lo que el ratón encuentra —un músculo, un vaso, e
 
 *Medido el 2026-11-16 en D-392:* el techo es la CPU de un solo proceso y no la base. Los varios procesos pasan a ir primero y las conexiones a la base, al final y solo si hacen falta. El orden vigente es el de D-392.
 
+*Comprobado el 2026-11-16, para el paso 5:* Cloudflare ya guarda lo estático sin ninguna regla. Un archivo de `_next/static` sale con `cf-cache-status: HIT` y un año de `immutable`, y un paquete del atlas pasa de `MISS` a `HIT` a la segunda petición. El catálogo del atlas no se guarda (`DYNAMIC`), a propósito: es `max-age=0` para que nunca quede uno viejo frente a geometría nueva, y contesta 304 con su `ETag`. La portada sale `DYNAMIC` y un archivo subido sin sesión `BYPASS`: ninguna respuesta con sesión queda en la caché de Cloudflare. No hace falta tocar nada.
+
 ### D-377 · 2026-11-15 · vigente · P-016
 **Una pestaña de monitoreo en el panel del administrador de TraumaHub, solo para la producción en Contabo: el estado del servidor, las visitas por página, y el tráfico y los ataques que ve Cloudflare.**
 
@@ -11739,6 +11741,8 @@ La pidió D-376 antes del primer piloto. El dueño eligió hacerla en el momento
   3. **ETag y Cloudflare para lo estático**, los pasos 4 y 5. Los estáticos ya salen baratos, así que van al final;
   4. **más conexiones a la base, solo si hace falta.** Hay que hacerlo si, con varios procesos, la base pasa a ser el cuello. Cada proceso trae su propio pool de 10, y PostgreSQL acepta 100 por omisión;
   5. **repetir la prueba**, con fichas publicadas y con el PDF.
+
+  *Cambiado el 2026-11-16 en D-395:* la caché pasa detrás de la prueba repetida, que es la que decide si hace falta.
 - **Los guiones** quedan en Contabo, en `~/carga`, junto al informe (`informe.json`, `salida.txt`) y a las muestras de CPU y memoria cada 5 s (`muestras.txt`):
   - `carga.mjs`, el generador;
   - `abrir-sesion.ts` y `abrir-sesion.sh`, que abren la sesión. La dirección de la base se arma como en `ensayar-casos.sh`, porque la del `.env` no sirve fuera del compose;
@@ -11802,6 +11806,22 @@ Payload sirve las imágenes, los vídeos y los modelos 3D sin `ETag`. Con la cac
 - (+) No toca a quién se le enseña qué: la caché sigue `private`, con `Vary: Cookie`.
 - (−) El 304 sigue costando la petición entera hasta Payload, sesión incluida. Lo que se ahorra es el cuerpo.
 - (−) Si un archivo se reemplazara en el disco con el mismo nombre y el mismo tamaño, el navegador seguiría con el viejo. No hay forma de hacerlo desde la plataforma.
+
+### D-395 · 2026-11-16 · vigente · P-016 E4 · cambia el orden de D-392 · sigue el criterio de D-376
+**La caché del contenido publicado se decide con la prueba repetida, ya con los cuatro procesos. Antes iba en segundo lugar, delante de la prueba.**
+
+D-392 ponía la caché justo después de los varios procesos. Se cambia el orden por tres razones:
+
+- **D-376 dice que se optimiza lo que la medición señale**, y la medición de D-392 se hizo con un solo proceso. Con cuatro, el techo de CPU sube del orden de cuatro veces, y no se sabe si la caché seguirá haciendo falta.
+- **Una caché bien hecha cuesta mucho más que la que parece.** La página de un caso no lee solo el caso: lee también el instrumental de `catalogos.ts`, el modelo y las fases. La tabla `publicaciones` de D-393 solo sube cuando se publica en uno de los cinco módulos. Una caché que se renovara con ella serviría una bandeja vieja después de editar un instrumento. Hacerla bien pide una versión por colección, con su gancho en cada una de las que alimentan una página, y probarla contra todas.
+- **No se sabe todavía qué parte de esos 240 ms es consulta y qué parte es pintar.** Si es pintar, una caché de las consultas no ganaría casi nada.
+
+Qué la decide: la prueba repetida, con fichas publicadas y con el PDF. Si con 300 personas el p95 del caso o de la ficha sigue por encima de unos pocos segundos, o la CPU de los cuatro procesos llega al techo, la caché va, empezando por medir dónde se van esos 240 ms.
+
+*Consecuencias.*
+- (+) No se escribe una caché con riesgo de servir contenido viejo antes de saber si hace falta.
+- (−) La prueba repetida espera a que haya fichas publicadas en producción. Hoy están todas en borrador.
+- (−) Si al final la caché hace falta, llega más tarde que en el orden de D-392.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -17939,7 +17959,9 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - *la prueba de carga, hecha el 2026-11-16 (D-392):* con 300 personas el servidor no se cae ni da errores, pero se satura a unas 29 peticiones por segundo, porque un solo proceso usa poco más de uno de los seis núcleos;
   - *hechos en local el 2026-11-16 (D-393):* varios procesos, cuatro en Contabo, con lo que vivía en la memoria de uno pasado antes a la base. Migración `20261116_033200_estado_compartido`. Los guiones de la prueba, en `scripts/carga`;
   - *hecho en local el 2026-11-16 (D-394):* el `ETag` de los archivos subidos, con su 304;
-  - *pendiente, en el orden de D-392:* desplegar D-393 y D-394; la caché del contenido publicado; Cloudflare para lo estático; y repetir la prueba con fichas publicadas y con el PDF.
+  - *desplegados en ved el 2026-11-16 (`fb84dbb`):* D-393 y D-394, con la plantilla nueva del override. Cuatro procesos, la migración en el lote 28, y salud 200 por fuera;
+  - *comprobado el 2026-11-16 (nota en D-376):* Cloudflare ya guarda lo estático sin regla;
+  - *pendiente, en el orden de D-392:* desplegar D-393 y D-394 en Contabo; repetir la prueba con fichas publicadas y con el PDF, y con ella decidir la caché del contenido publicado (D-395).
 - [ ] **E5 · Las instituciones (D-371).**
   - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;
   - el subdominio, con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381);
