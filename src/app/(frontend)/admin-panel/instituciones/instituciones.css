@@ -1,0 +1,40 @@
+/* La pestaña «Instituciones» (P-016 E5.5): solo lo suyo, con el prefijo
+   `inst-`. La tabla, los botones, los campos y las insignias son los del panel. */
+
+.inst-direccion { text-decoration: none; }
+.inst-direccion:hover { text-decoration: underline; }
+
+.inst-cupo { font-variant-numeric: tabular-nums; }
+
+.inst-administradores { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+
+/* Piloto o definitiva: las mismas tarjetas que «Cómo entra esta persona» de
+   «Nueva cuenta», que viven en la hoja de esa pantalla. */
+.inst-opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--e-2);
+  margin: 0 0 var(--e-4);
+  padding: 0;
+  border: 0;
+}
+.inst-opciones legend { margin-bottom: var(--e-2); padding: 0; }
+.inst-opcion {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e-3);
+  padding: var(--e-3);
+  border: 1px solid var(--linea-fuerte);
+  border-radius: var(--r);
+  font-size: var(--t-sm);
+  cursor: pointer;
+  transition: border-color var(--dur-rapida) ease, background-color var(--dur-rapida) ease;
+}
+.inst-opcion:hover { border-color: var(--pizarra); }
+.inst-opcion:has(input:checked) { border-color: var(--marca); background: var(--marca-tenue); }
+.inst-opcion input { margin-top: 3px; }
+.inst-opcion small { display: block; margin-top: 2px; font-size: var(--t-xs); color: var(--mudo); }
+
+/* El enlace que se entrega a mano, con su botón «Copiar». */
+.inst-enlace { display: flex; gap: var(--e-2); margin: var(--e-3) 0; }
+.inst-enlace .admin-form-input { flex: 1; min-width: 0; font-family: var(--mono); }

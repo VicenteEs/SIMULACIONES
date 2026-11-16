@@ -578,6 +578,9 @@ describe('la pantalla de cuentas', () => {
     const horas = (codigo: string) => codigo.match(/HORAS_DE_INVITACION = (\d+)/)?.[1] ?? 'no declarado'
     expect(horas(tabla)).toBe(horas(accion))
     expect(horas(accion)).toBe('72')
+    // La del administrador de una institución nueva (D-400), que la pestaña
+    // «Instituciones» importa de aquí.
+    expect(horas(sinComentarios('src', 'lib', 'instituciones.ts'))).toBe(horas(accion))
   })
 
   it('`page.tsx` copia los campos de la solicitud y pregunta por el correo como las acciones', () => {

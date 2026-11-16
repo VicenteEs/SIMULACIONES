@@ -11977,6 +11977,33 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) En desarrollo no hay barrera, así que lo que se prueba ahí a mano no pasa por ella. Sí pasan las pruebas de integración, que migran.
 - (−) Restaurar un volcado a mano con `psql`, sin `restaurar.sh`, en un servidor nuevo falla en el primer `GRANT` hasta crear el rol.
 
+### D-400 · 2026-11-16 · vigente · P-016 E5.5 · la pestaña «Instituciones»
+**El administrador de TraumaHub crea cada institución desde el panel, con la cuenta de quien la administra y su invitación, y después le cambia el plazo, la modalidad y el cupo. El plazo es el último día entero en Chile, y el cupo cuenta las cuentas activas de cualquier rol.**
+
+- **Crear una institución es crear dos filas**, la institución y la cuenta de su administrador (`admin` con la institución puesta), en una sola transacción y con el candado de la base (`conCandado`). Si la cuenta no se puede crear, no queda una institución sin nadie que la administre; y dos pestañas que piden el mismo subdominio no se pisan.
+  - Un correo es una sola cuenta en toda la plataforma. El de una cuenta de TraumaHub o de otra institución no puede administrar una nueva, y la pantalla lo dice antes de crear nada.
+  - Después de confirmar, el administrador recibe `mensajeDeInstitucionLista`: la dirección de su institución, el plazo y el enlace para elegir su contraseña, que va a su subdominio y dura 72 horas, como cualquier invitación (`HORAS_DE_INVITACION`, ahora también en `lib/instituciones.ts`).
+  - Sin servidor de correo, o si el envío falla, la institución queda creada igual y el enlace aparece en pantalla para entregarlo a mano, como hace «Nueva cuenta».
+- **El plazo.** El panel lo pide como fecha, sin hora, y «el último día» se trabaja entero: vence al terminar ese día en Chile (`finDelDiaEnChile`). Se calcula con la zona `America/Santiago` y no con la del proceso: en el contenedor coinciden, pero en otro equipo no, y el cambio de hora movería el bloqueo una hora.
+  - Una fecha que no se puede leer cuenta como vencida. De esto saldrá el bloqueo (E5.8), y una fila estropeada no puede dejar una institución abierta para siempre.
+  - Se avisa desde cinco días antes (`DIAS_DE_AVISO`), en la tabla.
+  - El inicio se guarda a mediodía UTC, que en Chile es el mismo día: es un dato del contrato y no decide nada a una hora.
+- **El cupo cuenta las cuentas activas de cualquier rol**, también la del administrador y las de los docentes.
+  - Se pensó en contar solo a los alumnos. No: el rol lo pone el administrador de la institución, y con solo cambiar alumnos a docentes el cupo dejaría de contar.
+  - Bajar el cupo por debajo de las activas no desactiva a nadie. Solo impide aprobar más hasta que se liberen lugares, y la pantalla lo avisa al guardar.
+- **Lo que no cambia.** El subdominio va en los enlaces que ya se repartieron, y el inicio, en lo firmado: después de crearla solo cambian el nombre, la modalidad, el último día, el cupo y el correo de contacto. Una institución no se borra desde aquí: eso es el bloqueo con sus doce meses (E5.8).
+- **«Enviar invitación»** devuelve la llave a quien la institución designó: si la cuenta del correo de la ficha ya es de la institución, queda como administrador activo y recibe un enlace nuevo; si no existe, se crea. Si es de otro lugar, no se toca. No mira el cupo: lo fija TraumaHub, y el administrador no puede quedar fuera porque sus alumnos lo llenaron.
+- **La central no ve las cuentas de las instituciones en «Usuarios y permisos»** desde E5.6. Esta pestaña es el único sitio donde ve a sus administradores, con su estado: sin administrador, desactivado o «aún no entra».
+
+*Comprobado.* `tests/unit/plazoDeInstituciones.test.ts` (el último día en verano y en invierno, el aviso, el formulario campo a campo); `tests/integration/institucionesDelPanel.test.ts` (crear deja las dos filas y la invitación al subdominio, o nada; cambiar el plazo y el cupo; la invitación de nuevo, y que no se lleva la cuenta de otro lugar); `accionesConGuardia` y `panelPorRol` con las tres acciones y la pantalla como solo de TraumaHub. Y en el navegador, contra el servidor compilado: los avisos del formulario, la creación con el enlace a mano, el cupo lleno y la tabla en el ancho de un teléfono.
+
+*Consecuencias.*
+- (+) Una institución nueva queda lista desde el panel, con su administrador invitado, sin tocar el servidor.
+- (+) El plazo se lee igual en cualquier equipo, y una fecha mala cierra en vez de abrir.
+- (−) Sin `NEXT_PUBLIC_SERVER_URL` no se puede crear ninguna: el enlace de la invitación no tendría adónde llevar.
+- (−) El cupo incluye al administrador: una institución contratada para treinta alumnos necesita un cupo de treinta y uno, o más con docentes.
+- (−) La pantalla cuenta las cuentas de cada institución con una consulta por institución. Con cientos habrá que juntarlas en una.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -18149,7 +18176,10 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - el disparador del último administrador, que cuenta solo los de TraumaHub, y `restaurar.sh`, que crea el rol antes de restaurar;
     - comprobado: `typecheck` limpio, `lint` con los avisos de siempre, la suite unitaria sin fallos nuevos, `test:integration` entera y `build`;
     - y una prueba de humo contra el servidor compilado: la pantalla de cuentas, que aún no tiene filtro, desde una institución no muestra las de otra;
-  - E5.5 · la pestaña «Instituciones», con «Crear institución», el plazo y el cupo;
+  - E5.5 · la pestaña «Instituciones», con «Crear institución», el plazo y el cupo. *Hecho en local el 2026-11-16, con los detalles en D-400:*
+    - crear deja la institución y la cuenta de su administrador en una transacción, y le manda la invitación a su subdominio;
+    - el plazo como último día entero en Chile, el aviso desde cinco días antes, y el cupo de cuentas activas de cualquier rol;
+    - «Editar» y «Enviar invitación»; la institución no se borra desde aquí (E5.8);
   - E5.6 · los tres roles de institución en el panel, y el contenido propio con sus revisores;
   - E5.7 · el enlace de invitación y el cupo;
   - E5.8 · el bloqueo, con sus 12 meses, y la exportación;

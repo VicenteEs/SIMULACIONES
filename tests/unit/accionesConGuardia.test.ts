@@ -289,6 +289,16 @@ const AVANCE = {
   instantanea: { sesion: '{"v":3}', colocado: '' },
   guardadoEn: '2026-11-04T10:00:00.000Z',
 }
+const INSTITUCION = {
+  nombre: 'Hospital de prueba',
+  subdominio: 'hprueba',
+  modalidad: 'piloto',
+  inicio: '2026-11-16',
+  vence: '2026-12-01',
+  cupo: '30',
+  correoDelAdministrador: 'admin-hprueba@prueba.invalid',
+  nombreDelAdministrador: 'Ana Prueba',
+}
 const DIFUSION = { asunto: 'Aviso', mensaje: 'Un aviso para todas las cuentas.', audiencia: 'todas' }
 
 const GUARDIAS: Record<string, Clasificacion> = {
@@ -458,6 +468,10 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'requisitos.ts:editarRequisito': { guardia: 'editor', soloCentral: true, argumentos: () => ['5', 'Otro título', 'Otra descripción'] },
   'requisitos.ts:responderRequisito': { guardia: 'admin', soloCentral: true, argumentos: () => ['5', 'aceptado', 'Lo hacemos.'] },
   'requisitos.ts:eliminarRequisito': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
+  // Las instituciones (P-016 E5.5): su plazo y su cupo son lo que se contrató.
+  'instituciones.ts:crearInstitucion': { guardia: 'admin', soloCentral: true, argumentos: () => [INSTITUCION] },
+  'instituciones.ts:actualizarInstitucion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5', INSTITUCION] },
+  'instituciones.ts:invitarAdministrador': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
   // Las cotizaciones de la portada (P-007 E3): traen datos de alguien de fuera.
   'cotizaciones.ts:actualizarCotizacion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5', { estado: 'cerrada' }] },
   'cotizaciones.ts:eliminarCotizacion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
@@ -561,6 +575,7 @@ const ARCHIVOS_CENTRALES = [
   'cotizaciones.ts',
   'difusion.ts',
   'estructuras.ts',
+  'instituciones.ts',
   'instrumental.ts',
   'mediosPagina.ts',
   'modelos.ts',

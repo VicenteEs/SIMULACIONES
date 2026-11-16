@@ -73,6 +73,49 @@ export function mensajeDeBienvenida(datos: { nombre: string; enlace: string; hor
   }
 }
 
+/**
+ * A quien va a administrar una institución recién creada (P-016 E5.5). Es la
+ * bienvenida, con lo que solo él necesita saber: la dirección propia de su
+ * institución, que es la única donde su cuenta vale (D-396), y el plazo.
+ *
+ * El nombre de la institución y el del administrador los escribió TraumaHub,
+ * pero van igual sin enlaces: el correo lleva el logotipo y el remitente de la
+ * plataforma, y nada de lo que se teclea en un formulario sale pulsable.
+ */
+export function mensajeDeInstitucionLista(datos: {
+  nombre: string
+  institucion: string
+  direccion: string
+  enlace: string
+  horas: number
+  vence: string | null
+}): Correo {
+  return {
+    asunto: `TraumaHub · ${datos.institucion} ya tiene su espacio`,
+    resumen: 'Su institución ya está en TraumaHub. Elija su contraseña para administrarla.',
+    titulo: 'Su institución está lista',
+    bloques: [
+      saludo(datos.nombre),
+      {
+        tipo: 'parrafo',
+        texto: `El equipo de TraumaHub creó el espacio de ${datos.institucion} y le dejó a usted como su administrador. Desde ahí da de alta a sus docentes y alumnos, y ve su actividad.`,
+        sinEnlaces: true,
+      },
+      {
+        tipo: 'parrafo',
+        texto: `Su institución tiene su propia dirección, y su cuenta vale solo en ella: ${datos.direccion}`,
+      },
+      ...(datos.vence
+        ? [{ tipo: 'parrafo' as const, texto: `El plazo acordado termina el ${datos.vence}.` }]
+        : []),
+      { tipo: 'parrafo', texto: 'Para entrar, elija su contraseña con el botón.' },
+    ],
+    boton: { texto: 'Elegir mi contraseña', enlace: datos.enlace },
+    nota: `El enlace sirve una sola vez y caduca en ${datos.horas} horas. Si caduca, use «¿Olvidó su contraseña?» en la dirección de su institución, con este mismo correo.`,
+    motivoDelEnvio: MOTIVO_CUENTA,
+  }
+}
+
 export function mensajeDeSolicitudRecibida(datos: { nombre: string }): Correo {
   return {
     asunto: 'TraumaHub · Recibimos su solicitud',

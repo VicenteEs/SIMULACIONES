@@ -188,6 +188,8 @@ const NIVEL_DE_PAGINA: Record<string, Nivel> = {
   'cotizaciones/[id]/page.tsx': 'adminCentral',
   'respaldos/page.tsx': 'adminCentral',
   'sistema/page.tsx': 'adminCentral',
+  // Las instituciones (P-016 E5.5): su plazo y su cupo son lo que se contrató.
+  'instituciones/page.tsx': 'adminCentral',
   'estadisticas/page.tsx': 'admin',
   'actividad/page.tsx': 'admin',
   // La revisión del contenido (D-142): la cola es de quien revisa; la
@@ -264,7 +266,7 @@ describe('las pantallas del panel', () => {
   it('las de toda la plataforma son del administrador de TraumaHub, no del de una institución', () => {
     // Igual, fijado aparte (D-396): con `admin` en la tabla, la matriz pasaría
     // con la pantalla abierta al administrador de una institución.
-    for (const pagina of ['respaldos/page.tsx', 'sistema/page.tsx', 'difusion/page.tsx', 'medios-pagina/page.tsx', 'cotizaciones/page.tsx', 'cotizaciones/[id]/page.tsx']) {
+    for (const pagina of ['respaldos/page.tsx', 'sistema/page.tsx', 'difusion/page.tsx', 'medios-pagina/page.tsx', 'cotizaciones/page.tsx', 'cotizaciones/[id]/page.tsx', 'instituciones/page.tsx']) {
       expect(NIVEL_DE_PAGINA[pagina], pagina).toBe('adminCentral')
     }
     for (const pagina of ['atlas/page.tsx', 'estructuras/page.tsx']) {

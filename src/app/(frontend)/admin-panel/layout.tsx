@@ -184,6 +184,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         // institución administra sus cuentas, y nada más de esta sección.
         ...(esCentral
           ? [
+              // Las instituciones y su plazo (P-016 E5.5): junto a las cuentas,
+              // porque crear una es dar de alta a su administrador.
+              { ruta: '/admin-panel/instituciones', etiqueta: 'Instituciones', icono: 'instituciones' },
               // Debajo de las solicitudes de cuenta: las dos son alguien de
               // fuera que espera respuesta.
               {
