@@ -1,5 +1,6 @@
 import config from '@payload-config'
 import { REST_GET, REST_OPTIONS } from '@payloadcms/next/routes'
+import { conEtiqueta } from '@/lib/etiquetaDeArchivo'
 
 /**
  * De la API REST de Payload solo queda lo que el navegador pide de verdad:
@@ -45,6 +46,8 @@ import { REST_GET, REST_OPTIONS } from '@payloadcms/next/routes'
  * los `<video>` y el cargador de glTF de toda la plataforma, porque el campo
  * `url` que arma Payload apunta ahí. Cerrarla dejaría toda ficha sin
  * ilustraciones. Ejecuta `checkFileAccess`, así que sigue pidiendo sesión.
+ * Lo que sale de ella lleva además su `ETag`, que Payload no pone, y contesta
+ * 304 a quien ya tiene el archivo (D-394, `etiquetaDeArchivo.ts`).
  *
  * Se comprobó antes de cerrar que el repositorio no usa nada más de esta API:
  * las únicas direcciones `/api/…` escritas a mano —`/api/salud`,
@@ -95,7 +98,9 @@ const cerrada = (): Response =>
 
 export async function GET(peticion: Request, contexto: Contexto): Promise<Response> {
   const { slug } = await contexto.params
-  return esArchivoSubido(slug) ? listaDeArchivos(peticion, contexto) : cerrada()
+  if (!esArchivoSubido(slug)) return cerrada()
+  const [coleccion, , nombre] = slug as string[]
+  return conEtiqueta(peticion, await listaDeArchivos(peticion, contexto), coleccion, nombre)
 }
 
 export async function OPTIONS(peticion: Request, contexto: Contexto): Promise<Response> {

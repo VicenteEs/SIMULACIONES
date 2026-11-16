@@ -102,3 +102,79 @@ describe('lo demás está cerrado', () => {
     expect((await cuerpo).errors[0].message).toContain('panel de TraumaHub')
   })
 })
+
+describe('la etiqueta del archivo (D-394)', () => {
+  /** Lo que contesta Payload por un archivo de siete bytes, con las cabeceras de `cacheDeArchivoPrivado`. */
+  const archivo = (estado = 200, extra: Record<string, string> = {}) =>
+    new Response(estado === 403 ? 'prohibido' : 'archivo', {
+      status: estado,
+      headers: {
+        'Content-Type': 'image/png',
+        'Content-Length': '7',
+        'Cache-Control': 'private, max-age=3600, must-revalidate',
+        Vary: 'Cookie',
+        ...extra,
+      },
+    })
+  const pedirCon = (cabeceras: Record<string, string> = {}) =>
+    new Request('https://ved.example.net/api/medios/file/radiografia.png', { headers: cabeceras })
+
+  it('sale con su etiqueta, la misma cada vez y otra para otro archivo', async () => {
+    atendido.mockImplementation(async () => archivo())
+    const una = await GET(pedirCon(), contexto('medios', 'file', 'radiografia.png'))
+    const otra = await GET(pedirCon(), contexto('medios', 'file', 'radiografia.png'))
+    const distinta = await GET(pedirCon(), contexto('medios', 'file', 'radiografia-1.png'))
+    expect(una.headers.get('ETag')).toMatch(/^"[\w-]{27}"$/)
+    expect(otra.headers.get('ETag')).toBe(una.headers.get('ETag'))
+    expect(distinta.headers.get('ETag')).not.toBe(una.headers.get('ETag'))
+    expect(await una.text()).toBe('archivo')
+  })
+
+  it('a quien ya lo tiene le contesta 304, sin cuerpo y con las cabeceras de caché', async () => {
+    atendido.mockImplementation(async () => archivo())
+    const etiqueta = (await GET(pedirCon(), contexto('medios', 'file', 'radiografia.png'))).headers.get('ETag')!
+    // Como la manda el navegador detrás de Cloudflare: débil y entre otras.
+    const respuesta = await GET(
+      pedirCon({ 'If-None-Match': `"otra", W/${etiqueta}` }),
+      contexto('medios', 'file', 'radiografia.png'),
+    )
+    expect(respuesta.status).toBe(304)
+    expect(await respuesta.text()).toBe('')
+    expect(respuesta.headers.get('ETag')).toBe(etiqueta)
+    expect(respuesta.headers.get('Cache-Control')).toBe('private, max-age=3600, must-revalidate')
+    expect(respuesta.headers.get('Vary')).toBe('Cookie')
+    expect(respuesta.headers.get('Content-Length')).toBeNull()
+  })
+
+  it('con otra etiqueta, el archivo entero', async () => {
+    atendido.mockImplementation(async () => archivo())
+    const respuesta = await GET(pedirCon({ 'If-None-Match': '"vieja"' }), contexto('medios', 'file', 'radiografia.png'))
+    expect(respuesta.status).toBe(200)
+    expect(await respuesta.text()).toBe('archivo')
+  })
+
+  it('el 304 pasa antes por la sesión: sin acceso, el 403 de siempre y sin etiqueta', async () => {
+    atendido.mockImplementation(async () => archivo())
+    const etiqueta = (await GET(pedirCon(), contexto('medios', 'file', 'radiografia.png'))).headers.get('ETag')!
+    atendido.mockClear()
+    atendido.mockImplementation(async () => archivo(403))
+    const respuesta = await GET(pedirCon({ 'If-None-Match': etiqueta }), contexto('medios', 'file', 'radiografia.png'))
+    expect(atendido).toHaveBeenCalledTimes(1)
+    expect(respuesta.status).toBe(403)
+    expect(respuesta.headers.get('ETag')).toBeNull()
+  })
+
+  it('un trozo lleva la etiqueta del archivo entero, y nunca es un 304', async () => {
+    atendido.mockImplementation(async () => archivo())
+    const etiqueta = (await GET(pedirCon(), contexto('medios', 'file', 'radiografia.png'))).headers.get('ETag')!
+    atendido.mockImplementation(async () =>
+      archivo(206, { 'Content-Length': '3', 'Content-Range': 'bytes 0-2/7' }),
+    )
+    const trozo = await GET(
+      pedirCon({ Range: 'bytes=0-2', 'If-None-Match': etiqueta }),
+      contexto('medios', 'file', 'radiografia.png'),
+    )
+    expect(trozo.status).toBe(206)
+    expect(trozo.headers.get('ETag')).toBe(etiqueta)
+  })
+})

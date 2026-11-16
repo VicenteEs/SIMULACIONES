@@ -11786,6 +11786,23 @@ D-392 midió que un solo proceso de Node usaba poco más de uno de los seis núc
 - (−) El aviso de una publicación puede tardar hasta 20 s en vez de 15.
 - (−) Un trabajador de difusión atascado, y no muerto, más de la pausa y dos minutos, que alguien reanuda, puede mandar un correo más antes de ver que ya no es el suyo: una persona lo recibe dos veces, como mucho.
 
+### D-394 · 2026-11-16 · vigente · P-016 E4 · paso 4 de D-376 y tercero de D-392
+**Los archivos subidos salen con su `ETag`, y a quien ya tiene el archivo se le contesta 304 sin cuerpo, después de comprobar su sesión como siempre.**
+
+Payload sirve las imágenes, los vídeos y los modelos 3D sin `ETag`. Con la caché de una hora de `cacheDeArchivoPrivado`, pasada esa hora el navegador vuelve a preguntar y, sin etiqueta, baja el archivo entero otra vez. Un modelo de varios megas se bajaba de nuevo cada hora de estudio.
+
+- **La etiqueta** (`etiquetaDeArchivo.ts`) es una huella de la colección, el nombre y el tamaño, sin leer el archivo. Un archivo subido no cambia: para cambiarlo se sube otro, con otro nombre. El tamaño va por si alguien reemplaza uno a mano en el disco.
+- **La pone el comodín de la API** (`(payload)/api/[...slug]/route.ts`) sobre la respuesta de Payload, y solo sobre una buena: un 403 o un 404 salen como venían.
+- **El 304 se decide después de Payload**, que ya comprobó la sesión. Quien no puede ver el archivo recibe su 403 aunque mande la etiqueta correcta: un 304 le diría que el archivo existe.
+- **La comparación ignora el `W/`** que pone Cloudflare al comprimir. Sin eso, ningún navegador que llegue por el túnel acertaría nunca.
+- **Un trozo (206)** lleva la etiqueta del archivo entero y nunca es 304.
+
+*Consecuencias.*
+- (+) Pasada la hora, volver a una ficha o a un caso cuesta una pregunta y no los megas.
+- (+) No toca a quién se le enseña qué: la caché sigue `private`, con `Vary: Cookie`.
+- (−) El 304 sigue costando la petición entera hasta Payload, sesión incluida. Lo que se ahorra es el cuerpo.
+- (−) Si un archivo se reemplazara en el disco con el mismo nombre y el mismo tamaño, el navegador seguiría con el viejo. No hay forma de hacerlo desde la plataforma.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17921,7 +17938,8 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
   - *la prueba de carga, hecha el 2026-11-16 (D-392):* con 300 personas el servidor no se cae ni da errores, pero se satura a unas 29 peticiones por segundo, porque un solo proceso usa poco más de uno de los seis núcleos;
   - *hechos en local el 2026-11-16 (D-393):* varios procesos, cuatro en Contabo, con lo que vivía en la memoria de uno pasado antes a la base. Migración `20261116_033200_estado_compartido`. Los guiones de la prueba, en `scripts/carga`;
-  - *pendiente, en el orden de D-392:* desplegar D-393; la caché del contenido publicado; ETag y Cloudflare para lo estático; y repetir la prueba con fichas publicadas y con el PDF.
+  - *hecho en local el 2026-11-16 (D-394):* el `ETag` de los archivos subidos, con su 304;
+  - *pendiente, en el orden de D-392:* desplegar D-393 y D-394; la caché del contenido publicado; Cloudflare para lo estático; y repetir la prueba con fichas publicadas y con el PDF.
 - [ ] **E5 · Las instituciones (D-371).**
   - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;
   - el subdominio, con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381);
