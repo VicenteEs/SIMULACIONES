@@ -11508,6 +11508,23 @@ En el registro salieron dos ruidos que no eran del ensayo: el aviso de Docker de
 - (−) Abrir un desplegable de relación es, como mucho cada medio minuto, una acción de servidor más.
 - (−) Los archivos ya subidos conservan su nombre; la marca solo la llevan los nuevos.
 
+*Comprobado antes de subir.*
+- `typecheck` limpio, y `lint` sin errores, con los 15 avisos de siempre;
+- `test:integration`, 283 de 283, con las 6 nuevas de `usosDeUnModelo.test.ts`. La primera exige que las 15 columnas de modelo de la base se sepan leer;
+- la suite: 6625 bien y una omitida. Fallan las 3 de siempre en Windows, las dos de `directorioDeRespaldos` y una de `respaldoEnWindows`. La cobertura queda en 86,8 % de sentencias, 78,9 % de ramas, 87,7 % de funciones y 88,1 % de líneas;
+- `build` con `/traumahub`, bien. Se compiló en un worktree aparte con solo este commit, porque otra sesión tenía a medio editar `LienzoQuirurgico.tsx` en el mismo checkout y su `tsc` no pasaba.
+
+*Mirado en el navegador*, con esa compilación servida en el puerto 3200 contra la base desechable, con una cuenta de administración de prueba, dos modelos de prueba y un caso que usaba uno de ellos:
+- la ficha del modelo enseña «Dónde se usa», con «Lo usa 1 sitio», el caso enlazado y «Reemplazar por…»;
+- «Eliminar» se niega con «No se borró: lo usa «Caso de prueba D-387» (Cirugía simulada)…», y el modelo sigue ahí;
+- en el desplegable de «Reemplazar por…», el otro modelo sale como «Tibia de prueba · del atlas · #596 · 15 nov 2026 · sin usar». Al reemplazar dice «Se cambió el modelo en 1 sitio», y el recuadro pasa a «Nada usa este modelo»;
+- en la base, el caso y su última versión quedan con el 596 y con su `updated_at` movido. El registro tiene la línea «Modelo 3D cambiado de … (#595) a … (#596) con «Reemplazar por…»»;
+- después, «Eliminar» borra el 595 sin quejarse;
+- en el editor del caso, el campo del modelo dice «Tibia de prueba · del atlas · #596 · 15 nov 2026», sin «sin usar» porque ese caso lo usa;
+- los dos modelos se subieron con el mismo nombre de archivo, y quedaron guardados como `tibia-de-prueba-5ee3cbee.glb` y `tibia-de-prueba-93611f48.glb`.
+
+Para servirla hubo que recompilar con `NEXT_PUBLIC_SERVER_URL=http://localhost:3200`. Con la dirección del `.env`, Payload no daba por válida la cookie en las acciones, porque el origen no estaba en su lista de CSRF, y el borrado salía como «Acceso denegado». Es del entorno de prueba, no del cambio.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
