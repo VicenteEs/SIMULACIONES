@@ -86,6 +86,11 @@ export function ejesDelPaciente(eje: EjeDelHueso): { hueso: Vec3; frente: Vec3; 
  * En las dos tumbadas la cámara queda un poco inclinada hacia un lado: perfectamente cenital se pierde el
  * relieve y todo parece plano. La inclinación va **solo hacia el lado** y no hacia la cabeza, a propósito: así
  * el hueso sigue exactamente horizontal en la pantalla.
+ *
+ * Y va hacia el lado que queda **abajo** en la pantalla, como quien está de pie junto a la mesa y mira hacia el
+ * otro lado. Antes iba hacia el de arriba: con doce grados no se notaba en la imagen, pero el horizonte de esa vista
+ * quedaba cabeza abajo respecto de la sala, y la órbita de la sala (`orbitarEnLaSala`), que lo endereza, daba media
+ * vuelta a la imagen en el primer arrastre.
  */
 export function poseDeLaPosicion(posicion: PosicionDelPaciente, eje: EjeDelHueso): PoseDeLaVista {
   const { hueso, frente, lado } = ejesDelPaciente(eje)
@@ -96,7 +101,18 @@ export function poseDeLaPosicion(posicion: PosicionDelPaciente, eje: EjeDelHueso
   // (supino), el «arriba» que lo cumple es hueso × frente; para el lado contrario (prono), frente × hueso.
   const arriba: Vec3 = posicion === 'supino' ? cruz(hueso, frente) : cruz(frente, hueso)
   const mirada: Vec3 = posicion === 'supino' ? frente : escala(frente, -1)
-  return ortogonalizar({ direccion: unitario(suma(mirada, escala(arriba, 0.22))), arriba })
+  return ortogonalizar({ direccion: unitario(suma(mirada, escala(arriba, -0.22))), arriba })
+}
+
+/**
+ * La vertical de la sala en cada decúbito, sin camilla: hacia donde queda la cámara de esa posición. Con camilla la
+ * da el colchón (`campo.arriba()`), que además sigue a la vuelta del paciente. De pie no hay sala: el paciente se mira
+ * como una pieza, y la órbita es la de siempre.
+ */
+export function verticalDeLaPosicion(posicion: PosicionDelPaciente, eje: EjeDelHueso): Vec3 | null {
+  if (posicion === 'de-pie') return null
+  const { frente } = ejesDelPaciente(eje)
+  return posicion === 'supino' ? frente : escala(frente, -1)
 }
 
 /**
@@ -156,4 +172,95 @@ export function rodarLaVista(entrada: PoseDeLaVista, grados: number): PoseDeLaVi
     direccion: pose.direccion,
     arriba: unitario(girarAlrededor(pose.arriba, pose.direccion, (grados * Math.PI) / 180)),
   }
+}
+
+// --- la órbita de la sala ------------------------------------------------------------------------------------
+
+/**
+ * Lo más alto que sube la cámara en la órbita de la sala: casi cenital. En el polo mismo no hay «hacia dónde» y el
+ * horizonte se indetermina; a un grado de él la vista ya es la de quien se asoma por encima de la mesa.
+ */
+export const ELEVACION_MAXIMA = (89 * Math.PI) / 180
+
+/**
+ * Lo más bajo, con camilla: dos grados sobre el plano del colchón. Más abajo solo se vería el colchón por dentro, y
+ * con él delante el cursor no toca nada (`queTapa`): quien llega ahí cree que el simulador se colgó.
+ */
+export const ELEVACION_MINIMA_CON_CAMILLA = (2 * Math.PI) / 180
+
+/** Sin camilla no hay nada debajo que tape: se deja mirar casi desde abajo, para la cara posterior sin dar la vuelta. */
+export const ELEVACION_MINIMA_SIN_CAMILLA = (-80 * Math.PI) / 180
+
+/**
+ * Cuánto se endereza el horizonte por píxel arrastrado: media vuelta en unos 240 px. Rápido para que la vista quede
+ * a nivel en el primer gesto, y no de golpe, que es perder de vista lo que se miraba.
+ */
+export const NIVELADO_POR_PIXEL = Math.PI / 240
+
+/**
+ * El «arriba» de la pantalla con el horizonte a nivel: la vertical de la sala vista desde `direccion`. Con la
+ * dirección escrita como `cos e · horizontal + sin e · vertical` es `cos e · vertical − sin e · horizontal`, que mide
+ * uno siempre y no se indetermina ni mirando a plomo (ahí es −horizontal: lo de arriba de la pantalla es lo que queda
+ * más allá).
+ */
+function arribaANivel(vertical: Vec3, horizontal: Vec3, elevacion: number): Vec3 {
+  return suma(escala(vertical, Math.cos(elevacion)), escala(horizontal, -Math.sin(elevacion)))
+}
+
+/**
+ * La órbita de quien opera (pedido del dueño: «no puedo ponerme en la posición de cirujano»): con el paciente
+ * acostado, el arrastre lleva la cámara **alrededor de la mesa y de arriba abajo**, como se mueve un cirujano, y no
+ * alrededor del arriba de la pantalla.
+ *
+ * El orbitar de siempre (`OrbitControls`) gira alrededor de `camera.up`, y en «Supino» ese arriba es el **lado** del
+ * paciente, porque así el hueso queda horizontal en la pantalla. El lado era entonces el polo de la órbita, y el polo
+ * es justo lo que no se alcanza: mirar el tobillo de lado y en diagonal, que es desde donde se opera, quedaba a un
+ * grado del tope. Aquí el polo es la vertical de la sala, que nadie necesita alcanzar:
+ *
+ * - **A los lados**, la cámara rodea la mesa: gira alrededor de la vertical, sin tope.
+ * - **Arriba y abajo**, cambia la altura de la mirada, entre casi a plomo (`ELEVACION_MAXIMA`) y a ras del colchón
+ *   (`elevacionMinima`). Hacia abajo de la pantalla sube, como en el orbitar de siempre.
+ * - **El horizonte se endereza** mientras se arrastra (`NIVELADO_POR_PIXEL`): de pie junto a la mesa, la cabeza va
+ *   derecha y el suelo queda abajo. Una vista que llega torcida —el encuadre de un paso grabado antes de esto, «De
+ *   pie» con camilla, «Girar 90°»— se pone a nivel en el primer gesto, poco a poco, y no de un salto.
+ *
+ * Una altura fuera de los límites (un encuadre antiguo desde debajo de la mesa) no salta a ellos: se deja volver hacia
+ * dentro y no alejarse más.
+ */
+export function orbitarEnLaSala(
+  entrada: PoseDeLaVista,
+  verticalDeLaSala: Vec3,
+  dxPx: number,
+  dyPx: number,
+  elevacionMinima: number,
+): PoseDeLaVista {
+  const vertical = unitario(verticalDeLaSala)
+  const pose = ortogonalizar(entrada)
+  const altura = Math.max(-1, Math.min(1, punto(pose.direccion, vertical)))
+  const elevacion = Math.asin(altura)
+  let horizontal = suma(pose.direccion, escala(vertical, -altura))
+  if (largo(horizontal) < 1e-6) {
+    // A plomo, el «hacia dónde» lo pone la pantalla: la cámara está del lado que queda abajo, y así el horizonte a
+    // nivel es el arriba que ya tiene la imagen.
+    horizontal = suma(escala(pose.arriba, -1), escala(vertical, punto(pose.arriba, vertical)))
+    if (largo(horizontal) < 1e-6) horizontal = cruz(vertical, Math.abs(vertical[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0])
+  }
+  horizontal = unitario(horizontal)
+
+  // Cuánto está torcida ahora la imagen respecto de la sala: el ángulo, alrededor de la mirada, que lleva el arriba
+  // a nivel al arriba de la pantalla.
+  const nivel = arribaANivel(vertical, horizontal, elevacion)
+  const torcido = Math.atan2(punto(cruz(nivel, pose.arriba), pose.direccion), punto(nivel, pose.arriba))
+
+  // Un arrastre a la derecha lleva la cámara hacia la izquierda del modelo, como en el orbitar de siempre.
+  const horizontalNueva = unitario(girarAlrededor(horizontal, vertical, -dxPx * RADIANES_POR_PIXEL))
+  const deseada = elevacion + dyPx * RADIANES_POR_PIXEL
+  const elevacionNueva =
+    dyPx >= 0 ? Math.min(deseada, Math.max(ELEVACION_MAXIMA, elevacion)) : Math.max(deseada, Math.min(elevacionMinima, elevacion))
+
+  const enderezado = Math.max(0, Math.abs(torcido) - NIVELADO_POR_PIXEL * Math.hypot(dxPx, dyPx))
+  const torcidoNuevo = Math.sign(torcido) * enderezado
+  const direccion = unitario(suma(escala(horizontalNueva, Math.cos(elevacionNueva)), escala(vertical, Math.sin(elevacionNueva))))
+  const arriba = girarAlrededor(arribaANivel(vertical, horizontalNueva, elevacionNueva), direccion, torcidoNuevo)
+  return ortogonalizar({ direccion, arriba })
 }

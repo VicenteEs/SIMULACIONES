@@ -11621,6 +11621,60 @@ Comprobado después:
 - las 5 cuentas siguen ahí (D-384);
 - la salud por fuera da 200, y `salud.sh` solo marca lo de siempre, los respaldos sin cifrar.
 
+### D-389 · 2026-11-16 · vigente · pedido del dueño · amplía D-173 y D-356
+**La vista llega a donde se pone quien opera: con el paciente acostado, el arrastre gira alrededor de la vertical de la sala y no del «arriba» de la pantalla. Y la sala se amuebla: paredes de pabellón, la base de la camilla y la mesa de la arsenalera, que se pincha para pedir instrumental.**
+
+- **Por qué no se llegaba al lado.** En «Supino» y «Prono» el «arriba» de la cámara es el costado del paciente (+X del colchón), para que el hueso salga horizontal (D-173). `OrbitControls` orbita alrededor de su «arriba», así que el costado era su polo, y al polo no se llega: el arrastre se frenaba justo antes de ver el tobillo de lado y en diagonal, que es la vista de quien opera.
+- **La órbita de la sala** (`orbitarEnLaSala`, en `posicionDelPaciente.ts`). Con el paciente acostado, el arrastre izquierdo ya no es de `OrbitControls`: es un giro de plato alrededor de la vertical de la sala, que es la normal del colchón (`campo.arriba()`) o, sin camilla, `±frente` de la posición (`verticalDeLaPosicion`).
+  - El arrastre horizontal da la vuelta entera a la camilla, sin polos. El vertical sube o baja la mirada entre 2° sobre el plano del colchón y 89°, casi cenital. Sin camilla baja hasta −80°, porque no hay colchón que atravesar.
+  - El tope solo frena en la dirección del movimiento. Una vista que viene de fuera del margen, porque se acaba de poner una posición, puede volver hacia dentro.
+  - El horizonte se pone a nivel poco a poco con el arrastre (`NIVELADO_POR_PIXEL`, media vuelta cada 240 px) y no de golpe. La pose de «Supino» deja la sala de canto en la pantalla, y nivelarla en el primer píxel era media vuelta de la imagen por un movimiento mínimo.
+  - «De pie» sigue con la órbita de siempre, y «Giro libre» con `girarLaVista` (D-173): ahí no hay una sala que mantener derecha.
+  - De quién es el arrastre lo decide `rotanLosControles` en la fase de captura del `pointerdown`, antes de que `OrbitControls` lo lea. El desplazamiento y el zoom siguen siendo suyos.
+- **La inclinación de «Supino» y «Prono» se dio la vuelta.** Antes inclinaba la mirada hacia lo alto de la pantalla, y eso dejaba el suelo de la sala arriba: al empezar a nivelar, la imagen daba la vuelta de campana. Ahora se inclina hacia abajo (`−0,22·arriba`), como mira quien está de pie junto a la mesa.
+- **El fondo es la pared de un pabellón** y no negro: verde quirófano, `--c-lienzo-1/2/3` de #466f66 a #12211e en los temas oscuros, y de #eef6f3 a #a9c7be en «clara».
+  - Lo claro que puede ser lo fija `temas.test.ts`: el texto del lienzo pide 4,5:1 contra cada parada del degradado. Un verde de pared de verdad (alrededor de #5d8c80) no lo cumple con el texto claro, así que la parte alta es algo más oscura que una pared real.
+  - Las grabaciones de los pasos leen el degradado del estilo calculado (`grabacionDelPaso.ts`), así que el fondo nuevo les llega sin tocarlas.
+- **La sala** (`mesaEnLaEscena.ts`): la base de la camilla (`mesa-quirurgica.glb`), la mesa de la arsenalera (`mesa-arsenalera.glb`) y un suelo de 7 × 7 m que se desvanece hacia los bordes.
+  - Cuelga del colchón y no del grupo de la camilla, porque ese grupo se esconde durante la fluoroscopia. Cuando el paciente rueda, el colchón rueda y la sala con él, como en la realidad: la mesa no se queda donde estaba, sigue a la camilla.
+  - El suelo no para clics. De la sala, solo la mesa tapa lo que hay detrás (`sinTapar` mira `arsenalera.distancia`), y contra sus cajas, no contra las mallas, para que pinchar entre dos pinzas siga siendo pinchar la mesa.
+  - Los metales toman el mapa de entorno del pabellón. Las sombras pintadas en el suelo (`sombra*`) no proyectan ni reciben, o la sombra saldría doble.
+- **Cuatro sitios fijos y uno libre** (`mesaDeArsenalera.ts`, geometría pura con sus pruebas):
+  - «Derecha» e «Izquierda»: al lado del colchón y paralela a él, a la altura de lo que se opera (el centro del modelo, en el marco del colchón), sin pasarse de los extremos de la camilla. «Derecha» es la del paciente: en el atlas está en X negativa, y boca abajo al revés (`ladoDerecho`).
+  - «A los pies»: atravesada al final de la camilla.
+  - «Sobre el paciente»: la mesa de Mayo de verdad. El poste queda fuera del colchón por la derecha, con la base metida bajo la camilla, y la bandeja sube 35 cm sobre el paciente, entre la mitad de la camilla y la zona, para no taparla. Son 35 cm, el tope del poste, porque la funda cuelga hasta 25 cm bajo el borde en las esquinas: con 30 cm quedaban a 10 cm del colchón, dentro del muslo.
+  - «Libre»: se arrastra por el suelo y queda donde se suelta, como mucho a 2,4 m del centro, con el giro del último sitio fijo. Si la bandeja cae sobre el colchón, sube. Elegir «Libre» sin haberla movido nunca la deja donde está: elegirlo es decir «ahora la muevo yo», no mandarla a otra parte.
+  - Se arrastra en el plano horizontal que pasa por donde se la pinchó, no en el del suelo (`alturaDelToque`, `enElPlano`). Se agarra por la bandeja, a un metro del suelo, y en perspectiva el suelo avanza más que el cursor: en la primera prueba en el navegador la mesa se escapaba de la mano.
+  - Al cambiar de sitio se desliza en 650 ms y gira por el camino corto.
+  - El sitio se guarda en el navegador de quien mira (`traumahub:simulador:mesa-de-la-arsenalera`) y no en el caso. Es una costumbre de quien opera, como el lado en que se pone la mesa de verdad, y no cambia lo que el caso enseña.
+- **Pinchar la mesa es pulsar «I»**: abre «Pedir instrumento», con las mismas condiciones que la tecla (en juego, y no terminado salvo en repaso). En «Libre», arrastrar la mueve y un clic sin mover sigue abriendo el pedido. Al pasar por encima, el puntero es la mano.
+- **Pantalla completa** en la consola del editor y en la del residente. «Pantalla completa» pide la API del navegador sobre la consola entera (`requestFullscreen`), y Esc sale. El botón de antes, que solo llenaba la ventana, queda como icono al lado, y es el único donde el navegador no tiene la API (Safari del iPhone). Si el navegador la niega, lo dice el registro y remite a «Ocupar la ventana». La demostración en grande ya se montaba dentro de `.consola` (`DemostracionDelPaso`), así que también se ve.
+- **Los muebles, de Blender** (`scripts/pabellon/mobiliario.py`, `--pieza arsenalera | quirurgica | todo` y `--vistas`; cómo se corre, en `scripts/pabellon/LEEME.md`).
+  - La arsenalera es una mesa de Mayo: base de cuatro ruedas, poste telescópico y bandeja de 60 × 40 cm. Encima van la funda, la compresa, 13 piezas de `ejemplos/instrumental/` (tijeras de Mayo y de Metzenbaum, portaagujas, pinza de reducción, pinzas de disección, dos bisturíes, Freer, periostótomo, dos Farabeuf y un Hohmann), cuatro gasas con su hilo radiopaco, una riñonera y una cápsula. Pesa 1,4 MB y tiene 144 000 triángulos.
+  - La funda es tela simulada en Blender, y no una caja con textura: lo que la hace creíble son los pliegues que cuelgan por los lados. No lleva textura de color, porque la escena la tiñe del color del paño del caso.
+  - La mesa quirúrgica, en los ejes del colchón: tablero de tres secciones con rieles, columna, base y un mando colgado del riel. Pesa 145 KB y tiene 32 000 triángulos.
+  - Las dos van con Draco y texturas WebP, y salen iguales byte a byte en dos pasadas.
+  - El contrato entre el guion y la escena lo vigila `mueblesDelPabellon.test.ts`. Lee los `.glb` sin descomprimirlos, porque la jerarquía, los nombres y la caja de cada malla van en claro. Comprueba que estén los nodos que se buscan por nombre, que la bandeja y la base midan lo que suponen los sitios, que ningún sitio fijo meta la base de la arsenalera en la de la camilla, en los dos decúbitos y a cualquier altura de la zona, y que el peso no se dispare.
+
+*Qué se probó.* `posicionDelPaciente.test.ts` (32): el horizonte a nivel al salir de «Supino» y «Prono», llegar al lado y a la diagonal, los topes, bajar sin camilla, la vuelta entera que vuelve a la misma pose, el nivelado gradual, la vista cenital sin degenerar y el sentido del arrastre. `mesaDeArsenalera.test.ts` (12): la base no entra en el colchón en ningún sitio fijo ni decúbito, «Derecha» boca arriba y boca abajo, los topes de la camilla y del alcance libre, y la bandeja que va sobre el paciente. `temas.test.ts`, con los colores nuevos. `mueblesDelPabellon.test.ts` (8), arriba. En el navegador, con una cuenta de prueba sobre una copia desechable de la base de desarrollo (PostgreSQL en 55433, sin correo), en el caso de la tibia 42-A2, residente y editor:
+- «Supino» y «Mirar»: arrastrar hacia arriba baja hasta el costado de la camilla con el horizonte a nivel, y en diagonal se ve el miembro desde los pies, que era lo pedido. En «Trazar» el arrastre sigue trazando, como antes.
+- Los cinco sitios en supino, y «Derecha» en prono, a la derecha del paciente boca abajo. «Sobre el paciente» no tapa la tibia. «Libre» se arrastra sin trazar nada en la incisión, que se queda en 0 mm, y el sitio y el punto vuelven al recargar.
+- Pinchar la mesa abre «Pida un instrumento».
+- El fondo verde, la base de la camilla y la mesa con la funda del color del paño: todos los `.glb` del pabellón con 200 y ningún error ni en el servidor ni en la consola.
+- «Pantalla completa» está en la consola del residente y en la del editor, y llama a `requestFullscreen` sobre `.consola`. Entrar no se pudo ver: el panel del navegador de la app de escritorio deja la petición sin responder (el clic simulado no cuenta como gesto del usuario). Falta que alguien lo pulse en Chrome, Edge o Firefox.
+
+*Consecuencias.*
+- (+) Se mira el tobillo de lado y en diagonal, de pie junto a la camilla, que era lo que no dejaba avanzar.
+- (+) Con el paciente acostado la vista no da vueltas de campana: el suelo queda abajo.
+- (+) La mesa es donde se pide el instrumental, como en el pabellón.
+- (−) Acostado ya no se mira desde debajo del plano del colchón. Para eso está «Giro libre».
+- (−) Dos maneras de girar: «De pie» orbita como antes y las posiciones acostadas como una sala.
+- (−) Dos archivos más que bajar al abrir un caso con camilla: 1,6 MB entre los dos.
+- (−) La sombra de la arsenalera está horneada con la bandeja abajo. Al subirla sobre el paciente, la sombra de la bandeja se queda donde estaba.
+- (−) El guion de Blender lee el instrumental de `ejemplos/instrumental/`, que no va a git. Rehacer la mesa pide tener esos modelos.
+- (−) El sitio de la mesa no viaja entre navegadores, y el autor del caso no lo fija.
+- (−) Si un navegador deja la petición de pantalla completa sin responder, como el panel de la app de escritorio, no pasa nada y no se dice nada: solo se avisa cuando la rechaza.
+
 ### D-390 · 2026-11-16 · vigente · P-016 E3 · sigue a D-388
 **Las entradas de una cuenta se ven en «Usuarios y permisos»: «Entradas a la plataforma», en el menú de cada fila, enseña las últimas 50 con su equipo, su IP, su país y cómo terminó, y encima las alertas de la cuenta.**
 

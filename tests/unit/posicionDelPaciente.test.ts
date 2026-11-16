@@ -4,10 +4,15 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import {
   derechaDeLaVista,
   ejesDelPaciente,
+  ELEVACION_MAXIMA,
+  ELEVACION_MINIMA_CON_CAMILLA,
+  ELEVACION_MINIMA_SIN_CAMILLA,
   girarLaVista,
+  orbitarEnLaSala,
   ortogonalizar,
   poseDeLaPosicion,
   rodarLaVista,
+  verticalDeLaPosicion,
   type EjeDelHueso,
   type PoseDeLaVista,
   type Vec3,
@@ -125,6 +130,105 @@ describe('girarLaVista (el giro libre)', () => {
       expect(igual.direccion[i]).toBeCloseTo(pose.direccion[i], 9)
       expect(igual.arriba[i]).toBeCloseTo(pose.arriba[i], 9)
     }
+  })
+})
+
+describe('orbitarEnLaSala (la órbita de quien opera)', () => {
+  /** La elevación de la cámara sobre el plano de la mesa, en grados. */
+  const elevacion = (p: PoseDeLaVista, vertical: Vec3) => (Math.asin(punto(p.direccion, vertical)) * 180) / Math.PI
+  /** Cuánto se parece el arriba de la pantalla a la vertical de la sala: 1 es el horizonte perfecto. */
+  const aNivel = (p: PoseDeLaVista, vertical: Vec3) => {
+    const d = p.direccion
+    const plano = vertical.map((v, i) => v - punto(vertical, d) * d[i]) as Vec3
+    return punto(plano, p.arriba) / norma(plano)
+  }
+
+  it.each(EJES)('«Supino» y «Prono» ya salen con el horizonte a nivel: el primer arrastre no gira la imagen (eje %s)', (eje) => {
+    for (const posicion of ['supino', 'prono'] as const) {
+      const pose = poseDeLaPosicion(posicion, eje)
+      const vertical = verticalDeLaPosicion(posicion, eje)!
+      expect(aNivel(pose, vertical)).toBeGreaterThan(0.999)
+      // Arrastrar un poco hacia arriba no endereza nada porque no había nada que enderezar: el arriba es el mismo.
+      const despues = orbitarEnLaSala(pose, vertical, 0, -1, ELEVACION_MINIMA_CON_CAMILLA)
+      expect(punto(despues.arriba, pose.arriba)).toBeGreaterThan(0.999)
+      expect(aNivel(despues, vertical)).toBeGreaterThan(0.999)
+    }
+  })
+
+  it('deja mirar el tobillo de lado y en diagonal, que es lo que el orbitar de siempre no alcanzaba', () => {
+    const { lado, hueso } = ejesDelPaciente('y')
+    const vertical = verticalDeLaPosicion('supino', 'y')!
+    let pose = poseDeLaPosicion('supino', 'y')
+    // Hacia arriba de la pantalla la cámara baja hasta casi ras del colchón: del lado.
+    for (let i = 0; i < 60; i++) pose = orbitarEnLaSala(pose, vertical, 0, -5, ELEVACION_MINIMA_CON_CAMILLA)
+    esUnaPoseValida(pose)
+    expect(Math.abs(punto(pose.direccion, lado))).toBeGreaterThan(0.99)
+    // Y el suelo abajo: el arriba de la pantalla es la vertical de la sala.
+    expect(punto(pose.arriba, vertical)).toBeGreaterThan(0.99)
+    // A los lados rodea la mesa hacia los pies: la diagonal, a media altura.
+    for (let i = 0; i < 10; i++) pose = orbitarEnLaSala(pose, vertical, 9, 4, ELEVACION_MINIMA_CON_CAMILLA)
+    esUnaPoseValida(pose)
+    expect(Math.abs(punto(pose.direccion, hueso))).toBeGreaterThan(0.4)
+    expect(Math.abs(punto(pose.direccion, lado))).toBeGreaterThan(0.4)
+    expect(elevacion(pose, vertical)).toBeGreaterThan(10)
+    expect(aNivel(pose, vertical)).toBeGreaterThan(0.999)
+  })
+
+  it('no baja de la mesa ni pasa por encima del polo', () => {
+    const vertical = verticalDeLaPosicion('supino', 'y')!
+    let pose = poseDeLaPosicion('supino', 'y')
+    for (let i = 0; i < 300; i++) pose = orbitarEnLaSala(pose, vertical, 0, -9, ELEVACION_MINIMA_CON_CAMILLA)
+    expect(elevacion(pose, vertical)).toBeCloseTo((ELEVACION_MINIMA_CON_CAMILLA * 180) / Math.PI, 6)
+    for (let i = 0; i < 300; i++) pose = orbitarEnLaSala(pose, vertical, 0, 9, ELEVACION_MINIMA_CON_CAMILLA)
+    expect(elevacion(pose, vertical)).toBeCloseTo((ELEVACION_MAXIMA * 180) / Math.PI, 6)
+    esUnaPoseValida(pose)
+  })
+
+  it('sin camilla se puede bajar hasta casi mirar desde abajo', () => {
+    const vertical = verticalDeLaPosicion('supino', 'y')!
+    let pose = poseDeLaPosicion('supino', 'y')
+    for (let i = 0; i < 300; i++) pose = orbitarEnLaSala(pose, vertical, 0, -9, ELEVACION_MINIMA_SIN_CAMILLA)
+    expect(elevacion(pose, vertical)).toBeCloseTo((ELEVACION_MINIMA_SIN_CAMILLA * 180) / Math.PI, 6)
+  })
+
+  it('una vuelta entera alrededor de la mesa vuelve a la misma vista y no cambia la altura', () => {
+    const vertical = verticalDeLaPosicion('supino', 'y')!
+    const antes = orbitarEnLaSala(poseDeLaPosicion('supino', 'y'), vertical, 0, -150, ELEVACION_MINIMA_CON_CAMILLA)
+    let pose = antes
+    for (let i = 0; i < 70; i++) pose = orbitarEnLaSala(pose, vertical, 10, 0, ELEVACION_MINIMA_CON_CAMILLA)
+    expect(elevacion(pose, vertical)).toBeCloseTo(elevacion(antes, vertical), 6)
+    for (let i = 0; i < 3; i++) {
+      expect(pose.direccion[i]).toBeCloseTo(antes.direccion[i], 6)
+      expect(pose.arriba[i]).toBeCloseTo(antes.arriba[i], 6)
+    }
+  })
+
+  it('una vista que llega torcida se endereza poco a poco mientras se arrastra, no de golpe', () => {
+    const vertical = verticalDeLaPosicion('supino', 'y')!
+    // El encuadre de un paso grabado antes, con la cámara del lado de arriba de la pantalla: cabeza abajo.
+    const torcida = rodarLaVista(poseDeLaPosicion('supino', 'y'), 180)
+    expect(aNivel(torcida, vertical)).toBeLessThan(-0.99)
+    const unPoco = orbitarEnLaSala(torcida, vertical, 4, 0, ELEVACION_MINIMA_CON_CAMILLA)
+    // Cuatro píxeles enderezan tres grados: casi igual que antes.
+    expect(aNivel(unPoco, vertical)).toBeLessThan(-0.99)
+    let pose = unPoco
+    for (let i = 0; i < 40; i++) pose = orbitarEnLaSala(pose, vertical, 8, 0, ELEVACION_MINIMA_CON_CAMILLA)
+    expect(aNivel(pose, vertical)).toBeGreaterThan(0.999)
+  })
+
+  it('mirando a plomo no se indetermina', () => {
+    const vertical: Vec3 = [0, 0, 1]
+    const pose = orbitarEnLaSala({ direccion: [0, 0, 1], arriba: [1, 0, 0] }, vertical, 30, -40, ELEVACION_MINIMA_CON_CAMILLA)
+    esUnaPoseValida(pose)
+    expect(pose.direccion.every(Number.isFinite)).toBe(true)
+  })
+
+  it('un arrastre a la derecha lleva la cámara hacia la izquierda del modelo, como el orbitar de siempre', () => {
+    const vertical = verticalDeLaPosicion('supino', 'y')!
+    const antes = orbitarEnLaSala(poseDeLaPosicion('supino', 'y'), vertical, 0, -120, ELEVACION_MINIMA_CON_CAMILLA)
+    const derecha = derechaDeLaVista(antes)
+    const despues = orbitarEnLaSala(antes, vertical, 40, 0, ELEVACION_MINIMA_CON_CAMILLA)
+    expect(punto(despues.direccion, derecha)).toBeLessThan(punto(antes.direccion, derecha))
   })
 })
 

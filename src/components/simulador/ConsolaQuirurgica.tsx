@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { piezasConLasDelModelo } from '@/lib/piezasDelCaso'
@@ -62,6 +62,7 @@ import {
 import { largoDelTrazo, medidasDeLaLectura, medirReduccion, porcentajeDelDiametro, type EjeLargo, type Medidas } from '@/lib/reduccion'
 import { describirLectura, LECTURA_NULA } from '@/atlas/lecturaClinica'
 import { POSICIONES_DEL_PACIENTE, type PosicionDelPaciente } from '@/lib/posicionDelPaciente'
+import { LUGARES_DE_LA_MESA, lugarDeLaMesa, type LugarDeLaMesa } from '@/lib/mesaDeArsenalera'
 import type { EncuadreDelPaso } from '@/lib/encuadreDelPaso'
 import { apilar, INSTANTANEA_VACIA, type AvanceDelCaso, type InstantaneaDelLienzo, type ModoDeJuego } from '@/lib/avanceDelCaso'
 import { instruccionBreve, listaDelPaso, MEDIDAS_DEL_OBJETIVO } from '@/lib/listaDelPaso'
@@ -198,8 +199,10 @@ import {
   HandGrab,
   Info,
   Crosshair,
+  Expand,
   Maximize2,
   Minimize2,
+  Shrink,
   Move,
   PanelLeftClose,
   PanelLeftOpen,
@@ -866,6 +869,56 @@ function instrumentoPorId(bandeja: readonly InstrumentoDeBandeja[], id: string |
   return placa ? instrumentoDeLaPlacaRecta(placa) : null
 }
 
+/** La mesa de la arsenalera tal como se guarda: el sitio, y el punto del suelo si se dejó en «Libre». */
+interface MesaGuardada {
+  lugar: LugarDeLaMesa
+  libre: { x: number; z: number } | null
+}
+
+const CLAVE_DE_LA_MESA = 'traumahub:simulador:mesa-de-la-arsenalera'
+
+/**
+ * Lo guardado en este navegador, o «Derecha» si no hay nada o no se entiende. `localStorage` puede no estar (una
+ * ventana privada, el servidor al pintar la primera vez) o lanzar al tocarlo: entonces vale lo de siempre.
+ */
+function leerLaMesaGuardada(): MesaGuardada {
+  try {
+    const dato = JSON.parse(window.localStorage.getItem(CLAVE_DE_LA_MESA) ?? 'null') as Partial<MesaGuardada> | null
+    const libre = dato?.libre
+    const valido = libre && Number.isFinite(libre.x) && Number.isFinite(libre.z) ? { x: libre.x, z: libre.z } : null
+    return { lugar: lugarDeLaMesa(dato?.lugar), libre: valido }
+  } catch {
+    return { lugar: 'derecha', libre: null }
+  }
+}
+
+function guardarLaMesa(mesa: MesaGuardada) {
+  try {
+    window.localStorage.setItem(CLAVE_DE_LA_MESA, JSON.stringify(mesa))
+  } catch {
+    // Sin almacenamiento, la mesa se queda donde está hasta cerrar la pestaña: no es algo que haya que avisar.
+  }
+}
+
+/** Avisa cuando el navegador pone o quita la pantalla completa: Esc, F11 o el botón de la consola. */
+function escucharLaPantallaCompleta(avisar: () => void) {
+  document.addEventListener('fullscreenchange', avisar)
+  return () => document.removeEventListener('fullscreenchange', avisar)
+}
+
+/**
+ * Si lo que ocupa la pantalla es una consola. Se pregunta por la clase y no por «hay algo en pantalla completa»: el vídeo
+ * de una demostración puede ponerse en pantalla completa solo, y la consola no tiene que repartirse por eso.
+ */
+function laConsolaOcupaLaPantalla(): boolean {
+  return document.fullscreenElement?.classList.contains('consola') ?? false
+}
+
+/** Lo que no cambia mientras la página está abierta no necesita avisar. */
+function sinAvisos() {
+  return () => {}
+}
+
 export function ConsolaQuirurgica({
   caso,
   documentoId,
@@ -1042,6 +1095,16 @@ export function ConsolaQuirurgica({
   // portátil de referencia, y lo primero que se hacía siempre era pulsar «Ampliar». El editor no, que la tiene dentro
   // de su formulario.
   const [pantallaCompleta, setPantallaCompleta] = useState(() => !editor)
+  // La pantalla completa del navegador (pedido del dueño, en el editor y para el residente): sin pestañas, sin barra de
+  // direcciones y sin la del sistema. «Pantalla completa» ocupaba solo la ventana, y en un portátil la ventana es lo que
+  // le queda a la pantalla después de todo eso. La pone y la quita el navegador —Esc la quita sin preguntarle a nadie—,
+  // así que el estado se lee de su aviso y no se supone.
+  const enLaPantalla = useSyncExternalStore(escucharLaPantallaCompleta, laConsolaOcupaLaPantalla, () => false)
+  // `fullscreenEnabled` es falso en el iPhone (solo deja los vídeos) y dentro de un marco sin permiso: ahí el botón no
+  // sale, y queda «Ocupar la ventana», que funciona en todas partes.
+  const sePuedePantallaCompleta = useSyncExternalStore(sinAvisos, () => !!document.fullscreenEnabled, () => false)
+  /** Con la pantalla completa del navegador la consola se reparte como al ocupar la ventana: es la misma pantalla, más grande. */
+  const ocupaLaVentana = pantallaCompleta || enLaPantalla
   // Ampliada, el área de trabajo mide la ventana menos la barra y la franja de pasos. Eso se suponía de 124 px, y con
   // títulos de paso en dos líneas son 147: el pie de las columnas —«Deshacer», «Repetir este paso», «Ver todas las
   // medidas»— quedaba fuera de la ventana. Se mide, y se vuelve a medir si cambia (otra anchura, otro caso).
@@ -1049,7 +1112,7 @@ export function ConsolaQuirurgica({
     const raiz = raizDeLaConsola.current
     const barra = raiz?.querySelector<HTMLElement>('.consola-barra')
     const pasos = raiz?.querySelector<HTMLElement>('.consola-pasos')
-    if (!pantallaCompleta || !raiz || !barra || !pasos) return
+    if (!ocupaLaVentana || !raiz || !barra || !pasos) return
     const medir = () => raiz.style.setProperty('--alto-de-arriba', `${Math.ceil(barra.offsetHeight + pasos.offsetHeight)}px`)
     medir()
     const observador = new ResizeObserver(medir)
@@ -1059,7 +1122,7 @@ export function ConsolaQuirurgica({
       observador.disconnect()
       raiz.style.removeProperty('--alto-de-arriba')
     }
-  }, [pantallaCompleta])
+  }, [ocupaLaVentana])
   // La incisión en recta es la de siempre: la mano alzada sale temblorosa.
   const [tipoDeTrazo, setTipoDeTrazo] = useState<TipoDeTrazo>('recto')
   // «Mover todo junto» o un trozo de hueso. Sin elegir (`null`), manda el paso: reducir mueve un trozo.
@@ -1365,6 +1428,13 @@ export function ConsolaQuirurgica({
   // El campo quirúrgico (P-014): lo que el lienzo dice de él —si lo hay, cómo está acostado el paciente— y si el
   // residente tiene puesto el paño. Quitarlo es cosa suya y de esta sesión: el caso no lo recuerda.
   const [campoMontado, setCampoMontado] = useState<EstadoDelCampo | null>(null)
+  // Dónde está la mesa de la arsenalera (pedido del dueño). Es un gusto de quien mira, como el ancho de las columnas, y
+  // no del caso: se guarda en este navegador y vale para todos los casos.
+  const [mesaDeLaArsenalera, setMesaDeLaArsenalera] = useState<MesaGuardada>(leerLaMesaGuardada)
+  const cambiarLaMesa = useCallback((nueva: MesaGuardada) => {
+    setMesaDeLaArsenalera(nueva)
+    guardarLaMesa(nueva)
+  }, [])
   const [panoPuesto, setPanoPuesto] = useState(true)
   // Con el marco del editor abierto el paño va puesto diga lo que diga «Capas»: no se ajusta la ventana de una
   // tela que no se ve. Es un valor derivado y no un cambio del interruptor, para que al cerrar el marco vuelva
@@ -1429,6 +1499,21 @@ export function ConsolaQuirurgica({
     setRegistro((previo) => conLaAnotacion(previo, { texto, clase }))
     setResultado({ texto, clase })
   }, [])
+
+  const alternarLaPantallaCompleta = useCallback(() => {
+    const raiz = raizDeLaConsola.current
+    if (!raiz) return
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {})
+      return
+    }
+    // Lo que va dentro de la consola se ve en la pantalla completa, y lo demás de la página no: los cuadros del simulador
+    // (pedir instrumento, el cierre, la demostración en grande) se montan todos dentro de ella por eso.
+    raiz.requestFullscreen().catch(() => {
+      // El navegador puede negarla (una política, un marco): no pasa nada visible, y se dice.
+      anotar('El navegador no dejó poner la pantalla completa: «Ocupar la ventana» hace lo mismo dentro de ella.', 'atencion')
+    })
+  }, [anotar])
 
   // ------------------------------------------------------------- los relojes
   /**
@@ -5992,7 +6077,7 @@ instrumentoElegido ? (
       ref={raizDeLaConsola}
       // `consola-completa` es lo que hace «Ampliar»: el botón cambiaba de rótulo desde D-172 sin que nada pusiera la
       // clase, y la consola seguía del tamaño de la página (visto el 2026-11-03, grabando el instrumental).
-      className={`consola mod-4${terminado ? ' consola-terminada' : ''}${editor ? ' consola-editor' : ''}${pantallaCompleta ? ' consola-completa' : ''}${!editor && mesaPlegada ? ' izq-plegada' : ''}${!editor && pasoPlegado ? ' der-plegada' : ''}`}
+      className={`consola mod-4${terminado ? ' consola-terminada' : ''}${editor ? ' consola-editor' : ''}${ocupaLaVentana ? ' consola-completa' : ''}${!editor && mesaPlegada ? ' izq-plegada' : ''}${!editor && pasoPlegado ? ' der-plegada' : ''}`}
       aria-labelledby="consola-titulo"
     >
       {/* --------------------------------------------------------- barra */}
@@ -6262,6 +6347,36 @@ instrumentoElegido ? (
             </button>
           </div>
         </div>
+
+        {/* La mesa de la arsenalera (pedido del dueño): cuatro sitios fijos alrededor de la camilla y uno libre, que se
+            arrastra por el suelo. Solo con camilla, que es cuando hay sala: sin colchón no hay mesa. Pincharla en el
+            lienzo pide un instrumento, como la tecla I. */}
+        {campoMontado?.hay ? (
+          <div className="consola-paciente-bloque consola-arsenalera-bloque">
+            <h3 className="consola-subtitulo" id="consola-arsenalera">
+              Mesa de la arsenalera
+            </h3>
+            <div className="consola-segmentado consola-arsenalera-sitios" role="group" aria-labelledby="consola-arsenalera">
+              {LUGARES_DE_LA_MESA.map((l) => (
+                <button
+                  key={l.valor}
+                  type="button"
+                  className={`consola-modo consola-posicion${mesaDeLaArsenalera.lugar === l.valor ? ' activo' : ''}`}
+                  aria-pressed={mesaDeLaArsenalera.lugar === l.valor}
+                  title={l.ayuda}
+                  onClick={() => cambiarLaMesa({ ...mesaDeLaArsenalera, lugar: l.valor })}
+                >
+                  <span>{l.etiqueta}</span>
+                </button>
+              ))}
+            </div>
+            <p className="consola-ayuda">
+              {mesaDeLaArsenalera.lugar === 'libre'
+                ? 'Arrastre la mesa por el suelo. Un clic sobre ella, sin arrastrar, pide un instrumento.'
+                : 'Un clic sobre la mesa pide un instrumento, como la tecla I.'}
+            </p>
+          </div>
+        ) : null}
 
         {herida && (herida.capas.length > 0 || herida.aviso) ? (
           <div className="consola-herida-bloque" role="status">
@@ -6742,6 +6857,15 @@ instrumentoElegido ? (
             fluoroscopia={fluoroscopiaEncendida}
             giroLibre={giroLibre}
             alGirarLaVista={() => setPosicion(null)}
+            lugarDeLaMesa={mesaDeLaArsenalera.lugar}
+            puntoLibreDeLaMesa={mesaDeLaArsenalera.libre}
+            // Pinchar la mesa es pedirle un instrumento a la arsenalera: lo mismo que la I y que «Pedir instrumento».
+            alPincharLaMesa={() => {
+              if (!modoDeJuego || (terminado && !repaso)) return
+              setMenuRadial(null)
+              setPidiendo(true)
+            }}
+            alMoverLaMesa={(punto) => cambiarLaMesa({ lugar: 'libre', libre: punto })}
             planoDelSeparador={planoDeSeparador}
             separadoresEnPareja={separadoresEnPareja}
             acompanarAlBisturi={acompanarAlBisturi}
@@ -7125,17 +7249,40 @@ instrumentoElegido ? (
             {/* «El simulador excede el tamaño de la pantalla»: con esto ocupa la pantalla entera y los mandos
                 caben a la vista. En una pantalla pequeña es lo que hace falta; el modo normal queda para leer
                 la página. Se llamaba «Ampliar» y «Reducir» (P-012 E5): en este simulador reducir es la maniobra
-                de la fractura, y el residente que buscaba el modo «Reducir» encontraba antes este botón. */}
-            <button
-              type="button"
-              className="consola-lienzo-boton"
-              aria-pressed={pantallaCompleta}
-              title={pantallaCompleta ? 'Volver al tamaño de la página' : 'Ocupar toda la pantalla, con todos los mandos a la vista'}
-              onClick={() => setPantallaCompleta((v) => !v)}
-            >
-              {pantallaCompleta ? <Minimize2 size={16} aria-hidden /> : <Maximize2 size={16} aria-hidden />}
-              {pantallaCompleta ? 'Tamaño de la página' : 'Pantalla completa'}
-            </button>
+                de la fractura, y el residente que buscaba el modo «Reducir» encontraba antes este botón.
+
+                Desde que hay pantalla completa de verdad (la del navegador), este es «Ocupar la ventana», y va solo
+                con su icono: dos botones que dijeran «pantalla completa» serían una adivinanza. Sin la del navegador
+                (el iPhone) vuelve a llamarse como antes, porque entonces es lo más grande que hay. */}
+            {!enLaPantalla ? (
+              <button
+                type="button"
+                className={`consola-lienzo-boton${sePuedePantallaCompleta ? ' consola-lienzo-boton-icono' : ''}`}
+                aria-pressed={pantallaCompleta}
+                aria-label={pantallaCompleta ? 'Volver al tamaño de la página' : sePuedePantallaCompleta ? 'Ocupar la ventana' : 'Pantalla completa'}
+                title={pantallaCompleta ? 'Volver al tamaño de la página' : 'Ocupar toda la ventana, con todos los mandos a la vista'}
+                onClick={() => setPantallaCompleta((v) => !v)}
+              >
+                {pantallaCompleta ? <Minimize2 size={16} aria-hidden /> : <Maximize2 size={16} aria-hidden />}
+                {sePuedePantallaCompleta ? null : pantallaCompleta ? 'Tamaño de la página' : 'Pantalla completa'}
+              </button>
+            ) : null}
+            {sePuedePantallaCompleta ? (
+              <button
+                type="button"
+                className="consola-lienzo-boton"
+                aria-pressed={enLaPantalla}
+                title={
+                  enLaPantalla
+                    ? 'Salir de la pantalla completa (también con Esc)'
+                    : 'Pantalla completa: el simulador ocupa la pantalla entera, sin las barras del navegador ni del sistema'
+                }
+                onClick={alternarLaPantallaCompleta}
+              >
+                {enLaPantalla ? <Shrink size={16} aria-hidden /> : <Expand size={16} aria-hidden />}
+                {enLaPantalla ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              </button>
+            ) : null}
             {/* «Rayos X» se llama fluoroscopia, que es lo que se hace en pabellón, y abre un menú con las tres
                 proyecciones del arco en C. Al elegir una, la vista pasa a radiografía y se abre al lado la imagen
                 de la fluoroscopia, en círculo. */}

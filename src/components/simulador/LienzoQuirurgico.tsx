@@ -163,9 +163,13 @@ import {
 import { esRectaValida, muestrasEntre, type TipoDeTrazo } from '@/lib/trazoRecto'
 import {
   ejesDelPaciente,
+  ELEVACION_MINIMA_CON_CAMILLA,
+  ELEVACION_MINIMA_SIN_CAMILLA,
   girarLaVista,
+  orbitarEnLaSala,
   poseDeLaPosicion,
   rodarLaVista,
+  verticalDeLaPosicion,
   type EjeDelHueso,
   type PoseDeLaVista,
   type PosicionDelPaciente,
@@ -282,6 +286,8 @@ import { restaurarLoColocado, serializarLoColocado } from './sesionDeLoColocado'
 import { crearAspectoDelModelo, soltarElAspecto, velloAlDia, vestirElModelo } from './aspectoDelPaciente'
 import { crearEntornoDePabellon, crearOclusion, montarElPabellon, ponerLaSala, prepararElRenderizador, type Oclusion } from './pabellon'
 import { crearElCampo, type CampoEnLaEscena } from './campoEnLaEscena'
+import { crearLaMesaEnLaEscena, type MesaEnLaEscena } from './mesaEnLaEscena'
+import { colocarLaMesa, type LugarDeLaMesa } from '@/lib/mesaDeArsenalera'
 import { esSistemaDeFascia } from '@/atlas/fascias'
 import {
   asasDelMarco,
@@ -294,6 +300,7 @@ import {
   decubitoDeLaPosicion,
   decubitoDeLaVista,
   despejeParaGirar,
+  COLORES_DEL_PANO,
   type AsaDelMarco,
   type CampoDelCaso,
   type Decubito,
@@ -1112,6 +1119,10 @@ export function LienzoQuirurgico({
   fluoroscopia,
   giroLibre = false,
   alGirarLaVista,
+  lugarDeLaMesa = 'derecha',
+  puntoLibreDeLaMesa = null,
+  alPincharLaMesa,
+  alMoverLaMesa,
   planoDelSeparador = 'auto',
   separadoresEnPareja = true,
   acompanarAlBisturi = false,
@@ -1191,6 +1202,14 @@ export function LienzoQuirurgico({
   giroLibre?: boolean
   /** Se giró la vista con el giro libre: la consola deja de marcar ninguna de las tres posiciones. */
   alGirarLaVista?: () => void
+  /** Dónde está la mesa de la arsenalera junto a la camilla (`mesaDeArsenalera.ts`). Sin camilla no hay mesa. */
+  lugarDeLaMesa?: LugarDeLaMesa
+  /** El punto del suelo, en el marco del colchón, donde se dejó la mesa en «Libre». */
+  puntoLibreDeLaMesa?: { x: number; z: number } | null
+  /** Se pinchó la mesa sin arrastrarla: es pedirle un instrumento a la arsenalera, como la tecla I. */
+  alPincharLaMesa?: () => void
+  /** Se terminó de arrastrar la mesa en «Libre»: el punto del suelo donde quedó, para guardarlo. */
+  alMoverLaMesa?: (punto: { x: number; z: number }) => void
   /**
    * En qué plano se apoyan los separadores que se pongan a partir de ahora. `auto` (por omisión desde P-004 E5) lo decide el
    * clic —lo que se ve bajo el cursor y la herida más cercana—; `piel` y `musculo` lo fuerzan, como antes.
@@ -1544,6 +1563,16 @@ export function LienzoQuirurgico({
     darLaVuelta?: (hasta: Decubito, destino: VistaDeLaCamara) => boolean
     /** Vuelve a mirar lo que el caso dice de su campo: lo monta, lo retira o le cambia el paño. */
     acostarAlPaciente?: () => void
+    /**
+     * La vertical de la sala si el paciente está acostado, o `null` si se le mira de pie: con ella el arrastre rodea la
+     * mesa (`orbitarEnLaSala`) en vez de orbitar con `OrbitControls`. Va en el taller porque la pregunta también la
+     * hace el efecto de los modos, que vive fuera del montaje.
+     */
+    verticalDeLaSala?: () => Vec3 | null
+    /** La mesa de la arsenalera, la base de la camilla y el suelo (`mesaEnLaEscena.ts`). Cuelgan del colchón. */
+    arsenalera?: MesaEnLaEscena
+    /** Lleva la mesa de la arsenalera al sitio elegido, según cómo esté acostado el paciente y por dónde se opera. */
+    colocarLaArsenalera?: (ms?: number) => void
     /** El lienzo va a desmontarse para volver a un estado guardado (P-009): ya no guarda nada en la pestaña. */
     sinGuardar?: boolean
     /** Quita la placa de cristal y la línea de la broca (P-009): las vistas previas de antes de actuar. */
@@ -1639,6 +1668,10 @@ export function LienzoQuirurgico({
     fluoroscopia,
     giroLibre,
     alGirarLaVista,
+    lugarDeLaMesa,
+    puntoLibreDeLaMesa,
+    alPincharLaMesa,
+    alMoverLaMesa,
     planoDelSeparador,
     separadoresEnPareja,
     acompanarAlBisturi,
@@ -1710,6 +1743,10 @@ export function LienzoQuirurgico({
       fluoroscopia,
       giroLibre,
       alGirarLaVista,
+      lugarDeLaMesa,
+      puntoLibreDeLaMesa,
+      alPincharLaMesa,
+      alMoverLaMesa,
       planoDelSeparador,
       separadoresEnPareja,
       acompanarAlBisturi,
@@ -1783,6 +1820,12 @@ export function LienzoQuirurgico({
   useEffect(() => {
     taller.current.campo?.mostrarElPano(panoALaVista)
   }, [panoALaVista])
+  // Otro sitio para la mesa de la arsenalera, o el mismo «Libre» en otro punto. Va después de poner al día `ultimas`,
+  // que es de donde lo lee quien la coloca.
+  const claveDeLaMesa = `${lugarDeLaMesa}|${puntoLibreDeLaMesa?.x ?? ''}|${puntoLibreDeLaMesa?.z ?? ''}`
+  useEffect(() => {
+    taller.current.colocarLaArsenalera?.()
+  }, [claveDeLaMesa])
 
   // Solo en desarrollo: lo que las pruebas de extremo a extremo y las grabaciones del instrumental necesitan medir
   // desde fuera —dónde cae una pieza en pantalla, si un separador está sobre su labio— (`sondaDelLienzo`).
@@ -2994,6 +3037,7 @@ export function LienzoQuirurgico({
       entorno = crearEntornoDePabellon(pmrem)
       ponerLaSala(escena, entorno)
       taller.current.entorno = entorno
+      taller.current.arsenalera?.ponerElEntorno(entorno)
       escena.traverse((o) => {
         const m = o as THREE.Mesh
         if (!m.isMesh) return
@@ -3272,6 +3316,41 @@ export function LienzoQuirurgico({
     taller.current.campo = campo
     /** La caja del modelo recién cargado: sobre ella cuelga la lámpara. */
     let cajaDelModelo: THREE.Box3 | null = null
+
+    // --- la sala alrededor de la camilla: la mesa de la arsenalera, la base de la camilla y el suelo -----------------
+    const arsenalera = crearLaMesaEnLaEscena({
+      cargador,
+      sombras: calidad.sombras,
+      pedirDibujo,
+      alFallar: (motivo) => console.warn('[simulador] la mesa de la arsenalera no se pudo montar:', motivo),
+    })
+    arsenalera.ponerElEntorno(entorno)
+    taller.current.arsenalera = arsenalera
+    /** El giro del último sitio fijo: «Libre» arrastra la mesa sin girarla. */
+    let giroDelUltimoSitio: number | undefined
+    /**
+     * La mesa, a su sitio. Solo hay mesa con camilla: sin colchón no hay suelo ni sala, y una mesa de pabellón junto a
+     * un hueso suelto en el aire no tiene a qué estar al lado.
+     */
+    const colocarLaArsenaleraDeAhora = (ms?: number) => {
+      const decubito = campo.decubito()
+      const colchon = campo.colchon()
+      if (!decubito || !colchon) return
+      arsenalera.montar(colchon)
+      // A la altura de lo que se opera: el centro de lo que se ve del modelo, a lo largo del colchón.
+      colchon.updateWorldMatrix(true, false)
+      const zona = cajaDelModelo && !cajaDelModelo.isEmpty() ? colchon.worldToLocal(cajaDelModelo.getCenter(new THREE.Vector3())).z : 0.5
+      const u = ultimas.current
+      // «Libre» sin un punto guardado deja la mesa donde está: elegirlo es decir «ahora la muevo yo», no mandarla a otro sitio.
+      const ahora = arsenalera.colocacion()
+      const libre = u.puntoLibreDeLaMesa ?? (ahora ? { x: ahora.x, z: ahora.z } : null)
+      const sitio = colocarLaMesa(u.lugarDeLaMesa, { decubito, zDeLaZona: zona, libre, giroAnterior: giroDelUltimoSitio })
+      if (u.lugarDeLaMesa !== 'libre') giroDelUltimoSitio = sitio.giro
+      arsenalera.colocar(sitio, ms)
+      const color = COLORES_DEL_PANO.find((c) => c.valor === u.campo?.pano.color) ?? COLORES_DEL_PANO[0]
+      arsenalera.colorDeLaFunda(color.tela)
+    }
+    taller.current.colocarLaArsenalera = colocarLaArsenaleraDeAhora
     /** Lo que el lienzo corrió el modelo para centrarlo: con el centro que dice el archivo, da dónde cae el cuerpo en la escena. */
     let corridoAlCentrar: THREE.Vector3 | null = null
     /**
@@ -3322,6 +3401,8 @@ export function LienzoQuirurgico({
       if (campo.decubito()) {
         // Ya está acostado: lo que cambió es el paño —el autor movió la ventana o eligió otro color—.
         campo.ponerElPano(delCaso.pano)
+        // La funda de la mesa es del mismo juego que el paño.
+        colocarLaArsenaleraDeAhora()
         avisarDelCampo()
         return
       }
@@ -3351,6 +3432,8 @@ export function LienzoQuirurgico({
         if (querido !== campo.decubito() && (await campo.preparar(querido)) && vivo) campo.ponerElDecubito(querido)
         if (!vivo) return
         iluminar()
+        // Con el paciente ya en la camilla, la mesa aparece en su sitio, sin deslizarse desde ninguna parte.
+        colocarLaArsenaleraDeAhora(0)
         avisarDelCampo()
         pedirDibujo()
         // El otro decúbito se trae con calma, para que la primera vuelta no tenga que esperarlo.
@@ -3387,6 +3470,8 @@ export function LienzoQuirurgico({
       campo.ponerElDecubito(hasta)
       if (controlesActivos) controles.enabled = true
       iluminar()
+      // Boca abajo, la derecha del paciente está al otro lado del colchón: la arsenalera lleva la mesa adonde se le pidió.
+      colocarLaArsenaleraDeAhora()
       avisarDelCampo()
       pedirDibujo()
     }
@@ -3830,9 +3915,14 @@ export function LienzoQuirurgico({
     const sinTapar = <G extends THREE.Intersection>(golpe: G | null | undefined): G | null => {
       if (!golpe) return null
       const que = campo.queTapa(rayo.ray, golpe.distance)
-      if (!que) return golpe
-      tapadoEnEsteGesto = que
-      return null
+      if (que) {
+        tapadoEnEsteGesto = que
+        return null
+      }
+      // La mesa de la arsenalera también tapa, pero sin aviso: pincharla es pedir un instrumento, y eso ya se ve.
+      const aLaMesa = arsenalera.distancia(rayo.ray)
+      if (aLaMesa !== null && aLaMesa < golpe.distance) return null
+      return golpe
     }
 
     /** Primer punto de la superficie visible bajo el cursor. */
@@ -7914,16 +8004,47 @@ export function LienzoQuirurgico({
     superficie.addEventListener('pointerup', alSoltarConElDerecho)
     superficie.addEventListener('pointercancel', alSoltarConElDerecho)
 
-    // --- el giro libre ---------------------------------------------------------------------------------
+    // --- el giro libre y la órbita de la sala -----------------------------------------------------------
     // `OrbitControls` orbita con el «arriba» fijo, y por eso el miembro no se podía acostar. Con el giro libre
     // el arrastre gira la cámara alrededor del modelo con los ejes de la pantalla (`girarLaVista`) y no tiene
     // polos. Se hace aparte y no tocando los controles: ellos siguen haciendo el zoom y los demás gestos.
-    let girando: { x: number; y: number; id: number } | null = null
-    const giraLaVista = (m: Modo) => m === 'orbitar' || m === 'coser' || m === 'fijar'
+    //
+    // Con el paciente acostado, el arrastre de siempre tampoco es de los controles: rodea la mesa
+    // (`orbitarEnLaSala`). Su polo era el lado del paciente, y desde el lado es justo desde donde se opera.
+    /**
+     * La vertical de la sala, si el paciente está acostado. Con camilla es la normal del colchón, que sigue a la
+     * vuelta del paciente; sin ella, la de «Supino» o «Prono». «De pie» pedido con su botón conserva el orbitar de
+     * siempre, alrededor del hueso: es la vista anatómica, y se pide para eso.
+     */
+    const verticalDeLaSala = (): Vec3 | null => {
+      const posicion = taller.current.posicion
+      if (posicion === 'de-pie') return null
+      const delColchon = campo.arriba()
+      if (delColchon) return delColchon.toArray() as Vec3
+      return posicion ? verticalDeLaPosicion(posicion, ultimas.current.ejeLargo) : null
+    }
+    taller.current.verticalDeLaSala = verticalDeLaSala
+    let girando: { x: number; y: number; id: number; sala: Vec3 | null } | null = null
+    // Antes que `OrbitControls`, que decide al bajar si ese arrastre gira (`enableRotate`), y en la fase de captura,
+    // que es la única que llega antes que él: está colgado del lienzo, dentro de esta superficie. Se pregunta en cada
+    // gesto porque lo que lo decide —el colchón que llega, el botón de posición— no avisa al efecto de los modos.
+    const alBajarAntesQueLosControles = () => {
+      controles.enableRotate = rotanLosControles(ultimas.current.modo, ultimas.current.giroLibre, verticalDeLaSala())
+    }
+    superficie.addEventListener('pointerdown', alBajarAntesQueLosControles, { capture: true })
     const alBajarParaGirar = (evento: PointerEvent) => {
       const u = ultimas.current
-      if (!u.giroLibre || evento.button !== 0 || !giraLaVista(u.modo)) return
-      girando = { x: evento.clientX, y: evento.clientY, id: evento.pointerId }
+      if (evento.button !== 0 || !arrastreGiraLaVista(u.modo)) return
+      // Un segundo dedo es el pellizco de los controles, que acercan y desplazan: el giro del primero se acaba ahí.
+      // Antes el segundo tomaba el relevo y pellizcar giraba la vista a la vez.
+      if (girando) {
+        girando = null
+        return
+      }
+      const sala = u.giroLibre ? null : verticalDeLaSala()
+      // Mientras el paciente rueda (`darLaVuelta`) los controles están apagados y la cámara es de la vuelta.
+      if (!u.giroLibre && (!sala || !controles.enabled)) return
+      girando = { x: evento.clientX, y: evento.clientY, id: evento.pointerId, sala }
       // Seguir al puntero aunque salga del lienzo; si el navegador no lo deja (puntero ya soltado), el giro sigue igual.
       try {
         render.domElement.setPointerCapture(evento.pointerId)
@@ -7937,6 +8058,13 @@ export function LienzoQuirurgico({
       const dy = evento.clientY - girando.y
       girando = { ...girando, x: evento.clientX, y: evento.clientY }
       if (dx === 0 && dy === 0) return
+      if (girando.sala) {
+        // Rodear la mesa no cambia la posición del paciente, como no la cambiaba orbitar: el botón sigue marcado.
+        const minima = campo.decubito() ? ELEVACION_MINIMA_CON_CAMILLA : ELEVACION_MINIMA_SIN_CAMILLA
+        aplicarLaPose(camara, controles, orbitarEnLaSala(poseActual(camara, controles), girando.sala, dx, dy, minima))
+        pedirDibujo()
+        return
+      }
       aplicarLaPose(camara, controles, girarLaVista(poseActual(camara, controles), dx, dy))
       taller.current.posicion = undefined
       ultimas.current.alGirarLaVista?.()
@@ -7955,6 +8083,122 @@ export function LienzoQuirurgico({
     superficie.addEventListener('pointermove', alMoverParaGirar)
     superficie.addEventListener('pointerup', alSoltarParaGirar)
     superficie.addEventListener('pointercancel', alSoltarParaGirar)
+
+    // --- la mesa de la arsenalera: pincharla pide un instrumento, y en «Libre» se arrastra ----------------------------
+    const rayoDeLaArsenalera = new THREE.Raycaster()
+    const punteroDeLaArsenalera = new THREE.Vector2()
+    /** El rayo del cursor hasta la mesa, si la toca antes que al paciente; `null` si no la toca o algo del modelo la tapa. */
+    const rayoALaArsenalera = (evento: PointerEvent): THREE.Ray | null => {
+      if (!arsenalera.lista()) return null
+      const caja = render.domElement.getBoundingClientRect()
+      punteroDeLaArsenalera.set(((evento.clientX - caja.left) / caja.width) * 2 - 1, -((evento.clientY - caja.top) / caja.height) * 2 + 1)
+      rayoDeLaArsenalera.setFromCamera(punteroDeLaArsenalera, camara)
+      const distancia = arsenalera.distancia(rayoDeLaArsenalera.ray)
+      if (distancia === null) return null
+      // Lo de delante manda: con la pierna entre la cámara y la mesa, el clic es para la pierna.
+      const raiz = taller.current.raiz
+      const delModelo = raiz
+        ? rayoDeLaArsenalera.intersectObject(raiz, true).find((g) => g.object.visible && !esDeInterfazDelModelo(g.object))
+        : undefined
+      return delModelo && delModelo.distance < distancia ? null : rayoDeLaArsenalera.ray
+    }
+    /**
+     * Lo que pasa desde que se pulsó sobre la mesa. En los sitios fijos no se adueña del gesto —arrastrar desde ella
+     * sigue girando la vista, que es lo que espera quien arrastra—, y solo un clic sin moverse pide el instrumento. En
+     * «Libre» sí: arrastrarla la lleva por el suelo, y para girar la vista se arrastra desde otra parte.
+     */
+    let sobreLaArsenalera: {
+      x: number
+      y: number
+      id: number
+      libre: boolean
+      movida: boolean
+      agarre: { x: number; z: number } | null
+      altura?: number
+    } | null = null
+    const alBajarSobreLaArsenalera = (evento: PointerEvent) => {
+      if (evento.button !== 0 || sobreLaArsenalera) return
+      const rayoDeAhora = rayoALaArsenalera(evento)
+      if (!rayoDeAhora) return
+      const libre = ultimas.current.lugarDeLaMesa === 'libre'
+      let agarre: { x: number; z: number } | null = null
+      let altura: number | undefined
+      if (libre) {
+        // Se agarra por donde se pinchó, y a su altura: la mesa no salta a ponerse con su centro bajo el cursor, y lo
+        // pinchado sigue bajo él mientras se arrastra.
+        altura = arsenalera.alturaDelToque(rayoDeAhora) ?? undefined
+        const agarrado = arsenalera.enElPlano(rayoDeAhora, altura)
+        const sitio = arsenalera.colocacion()
+        agarre = agarrado && sitio ? { x: sitio.x - agarrado.x, z: sitio.z - agarrado.z } : null
+        // En la fase de captura y antes que nadie: ni los controles ni las herramientas se enteran de este gesto.
+        evento.stopPropagation()
+        try {
+          superficie.setPointerCapture(evento.pointerId)
+        } catch {
+          // sin captura, el arrastre sigue mientras el cursor esté sobre el lienzo
+        }
+      }
+      sobreLaArsenalera = { x: evento.clientX, y: evento.clientY, id: evento.pointerId, libre, movida: false, agarre, altura }
+    }
+    let puntoArrastrado: { x: number; z: number } | null = null
+    let cursorAntesDeLaArsenalera: string | null = null
+    const alMoverSobreLaArsenalera = (evento: PointerEvent) => {
+      const s = sobreLaArsenalera
+      if (!s) {
+        // Sin pulsar, el cursor dice que la mesa se puede pinchar. Solo si nadie más está cambiando el cursor.
+        if (evento.buttons !== 0) return
+        const encima = !!rayoALaArsenalera(evento)
+        const estilo = render.domElement.style
+        if (encima && cursorAntesDeLaArsenalera === null) {
+          cursorAntesDeLaArsenalera = estilo.cursor
+          estilo.cursor = 'pointer'
+        } else if (!encima && cursorAntesDeLaArsenalera !== null) {
+          if (estilo.cursor === 'pointer') estilo.cursor = cursorAntesDeLaArsenalera
+          cursorAntesDeLaArsenalera = null
+        }
+        return
+      }
+      if (evento.pointerId !== s.id) return
+      if (Math.hypot(evento.clientX - s.x, evento.clientY - s.y) > MARGEN_PARA_ARRASTRAR_PX) s.movida = true
+      if (!s.libre || !s.movida) return
+      // Con la captura del puntero en la superficie, el evento ya no baja al lienzo: llega a ella misma, y ahí
+      // `stopPropagation` no frena a sus otros oyentes. Los de las herramientas no tienen nada que hacer con este gesto.
+      evento.stopImmediatePropagation()
+      const caja = render.domElement.getBoundingClientRect()
+      punteroDeLaArsenalera.set(((evento.clientX - caja.left) / caja.width) * 2 - 1, -((evento.clientY - caja.top) / caja.height) * 2 + 1)
+      rayoDeLaArsenalera.setFromCamera(punteroDeLaArsenalera, camara)
+      const bajoElCursor = arsenalera.enElPlano(rayoDeLaArsenalera.ray, s.altura)
+      if (!bajoElCursor || !s.agarre) return
+      puntoArrastrado = { x: bajoElCursor.x + s.agarre.x, z: bajoElCursor.z + s.agarre.z }
+      const decubito = campo.decubito() ?? 'supino'
+      arsenalera.colocar(colocarLaMesa('libre', { decubito, zDeLaZona: 0, libre: puntoArrastrado, giroAnterior: giroDelUltimoSitio }), 0)
+    }
+    const alSoltarSobreLaArsenalera = (evento: PointerEvent) => {
+      const s = sobreLaArsenalera
+      if (!s || evento.pointerId !== s.id) return
+      sobreLaArsenalera = null
+      if (s.libre) {
+        evento.stopImmediatePropagation()
+        try {
+          superficie.releasePointerCapture(evento.pointerId)
+        } catch {
+          // ya estaba suelto
+        }
+      }
+      if (evento.type === 'pointercancel') return
+      if (!s.movida) {
+        ultimas.current.alPincharLaMesa?.()
+        return
+      }
+      if (s.libre && puntoArrastrado) {
+        ultimas.current.alMoverLaMesa?.(puntoArrastrado)
+        puntoArrastrado = null
+      }
+    }
+    superficie.addEventListener('pointerdown', alBajarSobreLaArsenalera, { capture: true })
+    superficie.addEventListener('pointermove', alMoverSobreLaArsenalera, { capture: true })
+    superficie.addEventListener('pointerup', alSoltarSobreLaArsenalera, { capture: true })
+    superficie.addEventListener('pointercancel', alSoltarSobreLaArsenalera, { capture: true })
 
     superficie.addEventListener('pointerdown', alBajar)
     superficie.addEventListener('pointerdown', alBajarParaCoser)
@@ -8347,6 +8591,11 @@ export function LienzoQuirurgico({
       window.removeEventListener('pointerup', alSoltarElPuntero, true)
       window.removeEventListener('pointercancel', alSoltarElPuntero, true)
       taller.current.esconderLasVistasPrevias?.()
+      superficie.removeEventListener('pointerdown', alBajarAntesQueLosControles, { capture: true })
+      superficie.removeEventListener('pointerdown', alBajarSobreLaArsenalera, { capture: true })
+      superficie.removeEventListener('pointermove', alMoverSobreLaArsenalera, { capture: true })
+      superficie.removeEventListener('pointerup', alSoltarSobreLaArsenalera, { capture: true })
+      superficie.removeEventListener('pointercancel', alSoltarSobreLaArsenalera, { capture: true })
       superficie.removeEventListener('pointerdown', alBajarParaGirar)
       superficie.removeEventListener('pointermove', alMoverParaGirar)
       superficie.removeEventListener('pointerup', alSoltarParaGirar)
@@ -8436,6 +8685,10 @@ export function LienzoQuirurgico({
       soltarElAspecto(aspectoDelMontaje)
       oclusion?.liberar()
       pabellon.liberar()
+      // La sala cuelga del colchón: se suelta antes que él, o se iría con el campo sin soltar su instrumental.
+      arsenalera.liberar()
+      taller.current.arsenalera = undefined
+      taller.current.colocarLaArsenalera = undefined
       // El campo suelta lo suyo —sus dos telas por decúbito, sus mapas— y sale de la escena antes de que `liberar` la recorra.
       campo.liberar()
       // Liberar a mano: aquí hay decenas de megabytes en la tarjeta y pasear
@@ -8609,8 +8862,9 @@ export function LienzoQuirurgico({
       taller.current.decir?.('')
       ultimas.current.alDisecar?.({ capa: diseccion.capa, aperturas: diseccion.aperturas, apoyada: false, evento: 'cierre' })
     }
-    // Con el giro libre el arrastre lo gira el propio lienzo (`girarLaVista`), no los controles.
-    controles.enableRotate = (modo === 'orbitar' || modo === 'coser' || modo === 'fijar') && !giroLibre
+    // Con el giro libre el arrastre lo gira el propio lienzo (`girarLaVista`), no los controles, y con el paciente
+    // acostado tampoco (`orbitarEnLaSala`). Se vuelve a preguntar al bajar cada gesto: lo de aquí es lo de este momento.
+    controles.enableRotate = rotanLosControles(modo, giroLibre, taller.current.verticalDeLaSala?.() ?? null)
     // La rueda acerca siempre (P-009); el arrastre con el derecho es del instrumento cuando el instrumento lo usa.
     controles.enableZoom = true
     controles.enablePan = !capturaLaRueda
@@ -8659,6 +8913,19 @@ export function LienzoQuirurgico({
  * arrastre entero, en cualquier dirección, y se lo queda (`none`); ahí el modo
  * lo ha pedido quien lo eligió, y la página se mueve fuera del modelo.
  */
+/** Los modos en que arrastrar sobre el lienzo gira la vista: los de mirar, y coser y fijar, que son de clic (D-171). */
+function arrastreGiraLaVista(modo: Modo): boolean {
+  return modo === 'orbitar' || modo === 'coser' || modo === 'fijar'
+}
+
+/**
+ * Si el arrastre lo gira `OrbitControls`. No con el giro libre ni con el paciente acostado: esos los gira el propio
+ * lienzo, y con los dos a la vez cada arrastre giraría dos veces.
+ */
+export function rotanLosControles(modo: Modo, giroLibre: boolean, verticalDeLaSala: Vec3 | null): boolean {
+  return arrastreGiraLaVista(modo) && !giroLibre && !verticalDeLaSala
+}
+
 export function gestoTactil(modo: Modo, giroLibre = false): 'pan-y' | 'none' {
   // Con el giro libre el arrastre vertical gira al paciente: la página no puede quedarse con él.
   return modo === 'orbitar' && !giroLibre ? 'pan-y' : 'none'

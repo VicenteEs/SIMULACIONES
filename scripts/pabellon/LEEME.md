@@ -71,3 +71,43 @@ npx vitest run tests/unit/campoEnLaEscena.test.ts tests/unit/campoQuirurgico.tes
 Todo va en las coordenadas del cuerpo del atlas: metros, Y hacia la cabeza, +Z hacia delante. El `.glb` sale ya
 en las coordenadas en que el taller exporta el recorte, y el simulador solo le resta el mismo centro. Por qué se
 trabaja así, y por qué el paño se simula y la sábana no, está al principio de `comun.py` y de `generar.py`.
+
+## Los muebles: la arsenalera y la mesa quirúrgica
+
+`mobiliario.py` hace los dos muebles que el simulador pone junto a la camilla. No dependen del atlas ni de la
+tela caída de `generar.py`: solo del instrumental de `ejemplos/instrumental/` y del `colchon.glb`, que se trae
+para hornear su sombra y para la foto de conjunto, y no se exporta.
+
+| Archivo | Qué es | Lo hace |
+|---|---|---|
+| `mesa-arsenalera.glb` | la mesa de Mayo: base de cuatro ruedas, poste telescópico y bandeja de 60 × 40 cm con su funda caída, la compresa, el instrumental, las gasas, la riñonera y la cápsula | `mobiliario.py --pieza arsenalera` |
+| `mesa-quirurgica.glb` | el tablero de tres secciones con sus rieles, la columna, la base y el mando colgado del riel, en los mismos ejes que `colchon.glb` | `mobiliario.py --pieza quirurgica` |
+
+```bash
+blender --background --factory-startup --python scripts/pabellon/mobiliario.py -- --pieza todo --vistas
+```
+
+- `--pieza arsenalera | quirurgica | todo`. Las dos juntas tardan poco más de un minuto con las fotos; la funda,
+  que es lo único que se simula, unos veinte segundos.
+- `--vistas` deja en `salida/vistas/` cada mueble solo desde dos o tres lados y, con `--pieza todo`, los dos
+  juntos con el colchón puesto (`conjunto-*.png`). `--muestras` baja la calidad de esas fotos para probar.
+- Para probar sin pisar lo bueno, `--destino` con otra carpeta: los `.glb` salen ahí y no en `public/pabellon/`.
+- Sale igual byte a byte en dos pasadas: la tela parte siempre de la misma forma, y los horneados de Cycles
+  llevan semilla fija. Si un `.glb` cambia sin haber tocado el guion, algo de fuera cambió (Blender, el
+  instrumental, el colchón).
+
+Lo que el simulador busca por su nombre, y que un cambio aquí no debe renombrar: en la arsenalera, `base`,
+`elevable` (todo lo que sube con el poste, que el simulador traslada en +Y de 0 a 35 cm), `funda` (sin textura
+de color: el simulador la tiñe con el color del paño del caso), `compresa` y `sombra`; en la mesa quirúrgica,
+`tablero`, `columna`, `base` y `sombra`; el mando y su cable van aparte, en `mando`, para que no estiren la caja
+del tablero hasta medio metro del suelo. La arsenalera tiene el origen en el suelo bajo el centro de la bandeja,
+con el poste hacia −X y la cara de arriba de la bandeja a 98 cm; la mesa quirúrgica, el del colchón. Por qué
+cada pieza es como es está en los comentarios de `mobiliario.py`.
+
+Lo vigila `tests/unit/mueblesDelPabellon.test.ts`, que lee los `.glb` de `public/pabellon/` sin descomprimirlos:
+que estén esos nombres, que la bandeja y la base midan lo que suponen los sitios de `src/lib/mesaDeArsenalera.ts`,
+que ningún sitio fijo meta la base de la arsenalera en la de la camilla y que el peso no se dispare.
+
+Hay que rehacer la arsenalera si cambia algún instrumento de `ejemplos/instrumental/` (se recoloca solo, pero si
+uno crece puede dejar de caber en la compresa: el guion se para y dice cuál), y la mesa quirúrgica si cambian
+las medidas del colchón.

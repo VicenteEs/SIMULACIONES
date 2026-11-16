@@ -77,10 +77,14 @@
   --tono-fondo: rgba(255, 255, 255, 0.04);
   /* Lo que separa dos mandos dentro de un mismo recuadro. */
   --c-separador: rgba(255, 255, 255, 0.2);
-  /* El fondo del lienzo, del centro al borde: un foco de luz bajo la lámpara. */
-  --c-lienzo-1: #2b3b5e;
-  --c-lienzo-2: #16213a;
-  --c-lienzo-3: #0b1120;
+  /* El fondo del lienzo, del centro al borde: un foco de luz bajo la lámpara. Es el verde de las paredes de un
+     pabellón y no el azul marino de la consola (pedido del dueño: «el entorno que es negro, que sea como de
+     pabellón»), igual en las tres paletas oscuras: la sala no cambia con el gusto de quien mira, y la camilla y la
+     mesa de la arsenalera tienen que verse dentro de ella. El centro es el más claro que deja leer encima, a 4,5:1,
+     el texto de cada paleta (`temas.test.ts`); por eso el foco no puede ser más blanco. */
+  --c-lienzo-1: #466f66;
+  --c-lienzo-2: #2a4a43;
+  --c-lienzo-3: #12211e;
 
   display: grid;
   /* `--col-*` manda sobre `--ancho-*` cuando la columna está plegada (P-012 E5): el ancho elegido con el asa se escribe en
@@ -133,9 +137,9 @@
   --c-acento: #7cc7f2;
   --c-acento-solido: #1b6ea8;
   --c-acento-tenue: rgba(124, 199, 242, 0.14);
-  --c-lienzo-1: #3a4654;
-  --c-lienzo-2: #1c232b;
-  --c-lienzo-3: #0b0e12;
+  --c-lienzo-1: #466f66;
+  --c-lienzo-2: #2a4a43;
+  --c-lienzo-3: #12211e;
 }
 
 /* Verde quirófano: el de la ropa de pabellón, sobre fondo oscuro. */
@@ -152,9 +156,9 @@
   --c-acento: #6fd6bd;
   --c-acento-solido: #0e7562;
   --c-acento-tenue: rgba(111, 214, 189, 0.14);
-  --c-lienzo-1: #2f4f48;
-  --c-lienzo-2: #152824;
-  --c-lienzo-3: #091210;
+  --c-lienzo-1: #466f66;
+  --c-lienzo-2: #2a4a43;
+  --c-lienzo-3: #12211e;
 }
 
 /* Clara: blanco y gris frío con azul, como un monitor clínico de día. Es la única clara, y por eso la única que
@@ -177,9 +181,9 @@
   --c-grave: #9e2e27;
   --tono-fondo: rgba(15, 28, 46, 0.04);
   --c-separador: rgba(15, 28, 46, 0.18);
-  --c-lienzo-1: #ffffff;
-  --c-lienzo-2: #e6edf4;
-  --c-lienzo-3: #cbd7e3;
+  --c-lienzo-1: #eef6f3;
+  --c-lienzo-2: #cfe2dc;
+  --c-lienzo-3: #a9c7be;
 }
 
 .consola-rotulo {
@@ -638,6 +642,9 @@
   cursor: pointer;
 }
 .consola-lienzo-boton:hover { border-color: var(--c-acento); }
+/* «Ocupar la ventana», solo con su icono desde que está «Pantalla completa» (la del navegador) al lado: redondo y del
+   mismo alto que los demás, para que no parezca un botón a medio pintar. */
+.consola-lienzo-boton-icono { width: 36px; padding: 0; justify-content: center; }
 .consola-fluoro.activo { background: var(--c-texto); color: var(--c-fondo); border-color: var(--c-texto); }
 
 /* ---------- medidas: tarjetas de instrumento ---------- */
@@ -1662,6 +1669,11 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 .consola-paciente-bloque { display: grid; gap: var(--e-2); }
 .consola-paciente-bloque .consola-posicion { min-height: 34px; flex-direction: row; }
 .consola-paciente-giro { display: flex; align-items: center; justify-content: space-between; gap: var(--e-2); }
+/* Los cinco sitios de la mesa de la arsenalera: en dos filas de tres y no en una de cinco, que en la columna de 248 px
+   partía «Sobre el paciente» en tres renglones. */
+.consola-arsenalera-sitios { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.consola-arsenalera-sitios .consola-modo { min-height: 34px; padding: var(--e-1); text-align: center; line-height: 1.15; }
+.consola-arsenalera-bloque .consola-ayuda { margin: 0; font-size: var(--t-xs); }
 .consola-separador-plano {
   grid-area: plano;
   justify-self: start;

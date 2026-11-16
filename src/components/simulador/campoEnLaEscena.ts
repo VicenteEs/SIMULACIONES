@@ -115,6 +115,11 @@ export interface CampoEnLaEscena {
   /** Hacia dónde queda «arriba» para el paciente acostado, y hacia dónde su cabeza, en la escena. */
   arriba(): THREE.Vector3 | null
   cabeza(): THREE.Vector3 | null
+  /**
+   * El colchón en la escena, para colgarle lo que es de la sala —la base de la camilla, el suelo, la mesa de la
+   * arsenalera (`mesaEnLaEscena.ts`)—: rueda con él cuando al paciente se le da la vuelta. `null` hasta que llega.
+   */
+  colchon(): THREE.Object3D | null
   /** La distancia de un punto de la escena al plano del colchón, medida hacia el paciente. */
   alturaSobreElColchon(punto: THREE.Vector3): number | null
   /** Trae el otro decúbito. Se cumple cuando se le puede dar la vuelta al paciente. */
@@ -678,6 +683,7 @@ export function crearElCampo(opciones: OpcionesDelCampo): CampoEnLaEscena {
       if (!colchon || !grupo.visible) return null
       return new THREE.Vector3(0, 0, -1).applyQuaternion(colchon.quaternion)
     },
+    colchon: () => colchon,
 
     alturaSobreElColchon(punto) {
       if (!manifiesto || !actual || !grupo.visible) return null
