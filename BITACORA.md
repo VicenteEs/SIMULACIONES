@@ -11525,6 +11525,16 @@ En el registro salieron dos ruidos que no eran del ensayo: el aviso de Docker de
 
 Para servirla hubo que recompilar con `NEXT_PUBLIC_SERVER_URL=http://localhost:3200`. Con la dirección del `.env`, Payload no daba por válida la cookie en las acciones, porque el origen no estaba en su lista de CSRF, y el borrado salía como «Acceso denegado». Es del entorno de prueba, no del cambio.
 
+*Desplegado en ved el 2026-11-16 (`28bb000`).* `actualizar.sh` pasó ved de `d2da12c` a `28bb000`, y el ensayo aplicó la migración nueva en la copia y abrió los 2 casos publicados con 0 errores. Siguen los 2 avisos de antes: ninguno tiene aún su resolución de referencia.
+
+Comprobado después:
+- la base de verdad tiene la migración `20261115_234719_modelo_con_su_preparacion` (lote 26);
+- de los 82 modelos, la migración enlazó 3 con su preparación: los tres «ejemplo_vicente · del atlas» (112 a 114), con la preparación 29, que sigue existiendo;
+- los modelos del cuerpo que nada usa son el 101 a 105, el 108, el 109 y los tres del 112 al 114. El 110 lo usa el caso 10, y el 111, el caso 11;
+- las 5 cuentas siguen ahí (D-384), y no quedó ni la base ni la imagen del ensayo. `salud.sh` solo marca lo de siempre: los respaldos salen sin cifrar hasta tener la llave (D-295).
+
+*Pendiente:* la limpieza de los modelos sin usar de ved, con el OK del dueño y su elección del «ejemplo_vicente» que se queda.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17643,6 +17653,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - la relación `preparacion`, con su migración `20261115_234719_modelo_con_su_preparacion`, y el borrado de los modelos sin usar al borrar la preparación;
       - el desplegable con número, fecha y «sin usar», que vuelve a pedir la lista al abrirse, y la marca única en el nombre de cada archivo subido;
       - pruebas: `usosDeUnModelo.test.ts` (unitaria) y `tests/integration/usosDeUnModelo.test.ts`, que exige que toda columna de modelo de la base se sepa leer;
+      - desplegado en ved el 2026-11-16 (`28bb000`): la migración enlazó los tres «ejemplo_vicente» con su preparación;
       - *pendiente:* la limpieza de los modelos sobrantes de ved, con el OK del dueño;
   - las sesiones: una por cuenta, con alertas de entradas imposibles (D-374).
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
