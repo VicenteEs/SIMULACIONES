@@ -207,6 +207,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               { ruta: '/admin-panel/medios-pagina', etiqueta: 'Medios de la página', icono: 'mediosPagina' },
               { ruta: '/admin-panel/difusion', etiqueta: 'Difusión', icono: 'difusion' },
               { ruta: '/admin-panel/respaldos', etiqueta: 'Respaldos', icono: 'respaldos' },
+              // El servidor, las visitas y Cloudflare (P-016 E7, D-408). En
+              // todos los servidores, aunque solo la producción tenga con qué
+              // llenarla: en ved dice qué le falta, y eso también sirve.
+              { ruta: '/admin-panel/monitoreo', etiqueta: 'Monitoreo', icono: 'monitoreo' },
               { ruta: '/admin-panel/sistema', etiqueta: 'Sistema', icono: 'sistema' },
             ]
           : []),

@@ -23,6 +23,8 @@ import { AvisoDeSoporte } from '@/components/AvisoDeSoporte'
 import { esFantasma } from '@/access/payload'
 import { estaBloqueada } from '@/lib/instituciones'
 import { direccionDelLugar } from '@/collections/Usuarios'
+import { ContadorDeVisitas } from '@/components/ContadorDeVisitas'
+import { configuracionDelContador } from '@/lib/contador'
 
 const TITULO = 'Plataforma docente de traumatología'
 
@@ -84,6 +86,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
   // nada, salía con la paleta original un instante antes de cada caso: marino, y luego blanco. Con dos sitios,
   // además, podían no decir lo mismo. No lanza nunca: sin base, la de fábrica.
   const tema = await temaDeLaPlataforma()
+  const contador = configuracionDelContador()
 
   return (
     <html lang="es">
@@ -120,6 +123,12 @@ export default async function Layout({ children }: { children: React.ReactNode }
         {/* Ni para el soporte de TraumaHub (D-404): su tiempo saldría en las
             estadísticas de la institución, y entra sin aparecer en ellas. */}
         {dentro && !fantasma ? <LatidoDeActividad /> : null}
+        {/* Las visitas por página (D-408), solo donde hay Umami: Contabo. Cuenta
+            también a quien no ha entrado, porque no lo ata a ninguna cuenta.
+            El soporte no se cuenta, igual que no se le cuenta el tiempo. */}
+        {/* Solo el sitio: la configuración trae la clave de Umami, y un
+            componente que mañana fuera de cliente la mandaría al navegador. */}
+        {contador && !fantasma ? <ContadorDeVisitas configuracion={{ sitio: contador.sitio }} /> : null}
         {/* Los diálogos de confirmación y los avisos flotantes, para el sitio y
             el panel: los dos se montan dentro de este mismo layout. */}
         <ProveedoresDeUI>

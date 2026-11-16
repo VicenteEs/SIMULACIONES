@@ -11232,14 +11232,14 @@ El trazo hondo se apoya en lo que el ratón encuentra —un músculo, un vaso, e
 
 *Comprobado el 2026-11-16, para el paso 5:* Cloudflare ya guarda lo estático sin ninguna regla. Un archivo de `_next/static` sale con `cf-cache-status: HIT` y un año de `immutable`, y un paquete del atlas pasa de `MISS` a `HIT` a la segunda petición. El catálogo del atlas no se guarda (`DYNAMIC`), a propósito: es `max-age=0` para que nunca quede uno viejo frente a geometría nueva, y contesta 304 con su `ETag`. La portada sale `DYNAMIC` y un archivo subido sin sesión `BYPASS`: ninguna respuesta con sesión queda en la caché de Cloudflare. No hace falta tocar nada.
 
-### D-377 · 2026-11-15 · vigente · P-016
+### D-377 · 2026-11-15 · vigente · P-016 · llevada al código en D-408
 **Una pestaña de monitoreo en el panel del administrador de TraumaHub, solo para la producción en Contabo: el estado del servidor, las visitas por página, y el tráfico y los ataques que ve Cloudflare.**
 
 - **Hoy** «Sistema» revisa la base, los respaldos, el correo, el disco y la memoria del propio proceso. No mira la CPU, la memoria del servidor ni los contenedores, y nada cuenta visitas por página.
 - **El estado del servidor:** CPU, memoria, disco y contenedores, en vivo.
 - **Las visitas por página:** Umami, instalado en el propio Contabo y sin cookies.
 - **El tráfico y los ataques:** lo que Cloudflare da de la zona.
-- El dueño marcó además «otra cosa» sin decir cuál: queda pendiente.
+- El dueño marcó además «otra cosa» sin decir cuál: ~~queda pendiente~~ la marcó sin querer, y no hay nada más (D-408).
 
 *Consecuencias.*
 - (+) Umami sin cookies no pide consentimiento ni manda datos fuera del servidor.
@@ -12405,6 +12405,92 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) Publicar el aviso nuevo obliga a todas las cuentas a aceptarlo otra vez. Conviene hacerlo una sola vez, ya revisado.
 - (−) Ninguna pantalla pide hoy aceptar los términos; cómo se aceptan está por decidir.
 - (−) Una institución recibe los datos de sus cuentas de a uno. Un archivo por institución es trabajo nuevo, si lo pide.
+
+### D-408 · 2026-11-16 · vigente · P-016 E7 · lleva D-377 al código y cierra su «otra cosa»
+**La pestaña «Monitoreo» del panel de TraumaHub: el servidor, las visitas por página y lo que ve Cloudflare. Cada parte llega por su lado, y fuera de la producción las tres dicen qué les falta.**
+
+Decisiones del dueño, el 2026-11-16:
+- el estado del servidor, por un guion del anfitrión que escribe un archivo cada minuto; la aplicación no toca Docker;
+- Umami escondido: su pantalla no se abre a internet, y sus cifras se ven solo en el panel;
+- Umami cuenta todas las páginas: la portada, la central y los subdominios de las instituciones;
+- el «otra cosa» de D-377 lo marcó sin querer: no hay nada más.
+
+*Cómo queda.*
+- **El servidor.** `scripts/estado-del-servidor.sh` corre cada minuto desde el cron del usuario que despliega. Deja en `estado/` la foto (`servidor.json`: CPU, carga, memoria, disco y contenedores) y el historial de 24 horas (`historial.csv`). La aplicación monta esa carpeta de solo lectura (`ESTADO_DIR=/estado`). La pestaña pinta:
+  - las cifras de CPU, memoria, disco y tiempo encendido;
+  - una línea de CPU y memoria, en tramos de 10 minutos;
+  - la tabla de contenedores.
+
+  Avisa si la foto tiene más de 3 minutos o si Docker no respondió al guion.
+- **Las visitas.** Umami 3.4.1 con su propia base, en dos contenedores del perfil `monitoreo` del compose. No publican puerto y no están en la red `proxy`. El navegador pide el guion a `/api/visitas/guion.js` y manda cada visita a `/api/visitas/api/send`. La plataforma la limpia (`contador.ts`) y se la pasa a Umami:
+  - sin consulta, fragmento ni título;
+  - con `/clave/:testigo`, los números del panel como `:id` y los testigos largos como `:testigo`;
+  - del origen, solo el sitio, y nada si viene de la propia plataforma o de otra institución;
+  - el sitio y el dominio los pone la plataforma, la IP sale de la conexión y el país, de Cloudflare;
+  - solo visitas: ni `identify` ni eventos con nombre;
+  - solo desde la propia plataforma, y hasta 60 por minuto por dirección y proceso.
+- **Umami se prepara solo.** Al minuto de arrancar, el primer proceso cambia la clave de fábrica por `UMAMI_CLAVE` y crea el sitio con `UMAMI_SITIO`. Si Umami no responde, reintenta hasta los diez minutos (`contadorProgramado.ts`). La pestaña lo repite al abrirse.
+- **Los periodos** son 24 horas, 7 días y 30 días del calendario de Chile, comparados con el periodo anterior.
+- **Cloudflare.** Su API de análisis, con un token de solo lectura (`CLOUDFLARE_TOKEN` y `CLOUDFLARE_ZONA`):
+  - el tráfico de 30 días, por día y por país;
+  - los eventos de seguridad de 7 días, hasta 1000.
+
+  No se pide la IP, la red ni el navegador de nadie. Las respuestas se guardan cinco minutos en memoria.
+- **`scripts/preparar-monitoreo.sh`** lo enciende en un servidor:
+  - escribe en el `.env` las claves de Umami, sin enseñarlas, y enciende el perfil;
+  - toma la primera foto y pone el cron;
+  - antes guarda copias del `.env` y del cron.
+
+  No levanta contenedores. La plantilla del override sigue siendo una para ved y Contabo, como exige `salud.sh`. En ved no hay perfil ni claves, y la pestaña dice qué falta.
+- **El aviso nuevo de E8** dice ya que se cuentan las visitas (§2). Hay una pregunta más para el abogado: si contarlas en las instituciones es tratamiento propio de Chesscore SpA, y cuánto se guardan.
+
+*Por qué así.*
+- **Un archivo y no el socket de Docker.** Quien tiene el socket manda en el servidor entero, y la aplicación abre imágenes que suben los editores. A cambio, la foto llega con hasta un minuto de retraso.
+- **Las visitas pasan por la plataforma.** No se abre nada nuevo a internet, la página no carga nada de otro sitio, y lo que Umami guarda se limpia antes.
+- **La aplicación prepara Umami** porque hacerlo a mano pedía abrir su pantalla.
+- **Un perfil y no otra plantilla.** Dos plantillas se separan con el tiempo: la de ved acabaría levantando Umami, o la de Contabo, sin él.
+- **Sin `:?falta` en las claves de Umami.** Compose sustituye las variables de todo el archivo antes de mirar los perfiles, y en ved eso tumbaba también la aplicación.
+- **Los días del calendario.** Con «7 días» contados desde la hora de hace 7 días, el gráfico pintaba ocho barras, la primera a medias.
+
+*Lo que salió al probarlo.*
+- Desde una institución, una visita que venía de la portada central contaba como «de fuera». Corregido, con su prueba.
+- Bajo un prefijo (`/traumahub/admin-panel/7`), los números del panel no se quitaban. Corregido.
+- El día que Chile adelanta la hora no tiene medianoche, y el primer cálculo del inicio del día caía en el anterior. Ahora se busca de hora en hora.
+- La pestaña decía «los últimos 24 horas». Ahora, «las últimas».
+
+*Comprobado.*
+- **Las pruebas nuevas.**
+  - `monitoreo` (27): la foto y el historial que deja el guion, los tramos de diez minutos, y los periodos con los dos cambios de hora de Chile.
+  - `contadorDeVisitas` (30): qué se quita de cada visita, el guion y el envío con un `fetch` de mentira, y la preparación al arrancar con un reloj de mentira.
+  - `monitoreoServidor` (15): un Umami de mentira recién nacido, preparado dos veces, con otra clave y caído; la caché y los errores de Cloudflare; la carpeta del guion.
+  - `panelPorRol` (221) sabe que la pestaña es solo del administrador central.
+- **En el navegador**, con un Umami y una carpeta `estado/` de mentira:
+  - las tres partes se pintan;
+  - a 375 px no se desborda nada;
+  - al arrancar sale «[umami] Listo».
+- **Una visita de punta a punta.** Umami recibió la ruta como `/clave/:testigo`, el origen, la pantalla y el idioma. No le llegaron la consulta, el título ni los datos.
+- **La CSP** de `next.config.mjs` no tiene `script-src` ni `connect-src`. El guion y el envío son del mismo origen, así que pasan en producción.
+- **Las cinco de «Antes de subir»**, en un worktree:
+  - `typecheck`, `lint`, `test:integration` (406 de 406) y `build` pasan;
+  - `test:coverage` dio 14 fallos de 7344, todos ya conocidos en esta máquina.
+
+  Los 14 fallos se reparten así:
+  - 6 leen el código del simulador con CRLF;
+  - 1 de `tableroDeRevision` falla por la zona horaria;
+  - 2 de `directorioDeRespaldos` fallan por los permisos de Windows;
+  - 5 vencen bajo carga (2 de `autoria`, 2 de `crearComentarioDelTaller` y 1 de `privacidad`): solas pasan, 21 de 21, y `privacidad` pasa en la integración.
+
+  Las advertencias del build son las de siempre, de respaldos y subidas.
+- **Los guiones del anfitrión** solo pasaron `bash -n`. Se prueban en Contabo.
+
+*Consecuencias.*
+- (+) Se ve en una pantalla si el servidor va ahogado, si se cayó un contenedor, qué páginas se usan y si hay un ataque.
+- (+) No se abre nada nuevo a internet, y Umami solo ve lo limpio.
+- (−) Dos contenedores más en Contabo, de hasta 768 MB entre los dos. Se mira la memoria antes de encenderlos.
+- (−) Lo de Umami se guarda sin plazo hasta que el abogado diga otra cosa (E8).
+- (−) La forma de dos respuestas de Umami, la serie y los activos, no está en su documentación. Se leen con holgura y se confirman en Contabo.
+- (−) Ninguna prueba corre el guion del anfitrión, que necesita `/proc` y Docker. Una prueba fija que escribe lo que la aplicación lee; el resto se comprueba en Contabo.
+- (−) Falta desplegarlo en Contabo, un paso a la vez, y que el dueño cree el token de Cloudflare.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -18384,7 +18470,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6 y E9 hechas y desplegadas; E8 en borrador, con el abogado; faltan E7 y repetir la carga de E4
+### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6 y E9 hechas y desplegadas; E7 hecha, falta desplegarla en Contabo; E8 en borrador, con el abogado; falta repetir la carga de E4
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -18608,7 +18694,11 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - la campana de la barra, que abre sola los avisos nuevos, y «Retirar el aviso»;
   - el enlace del botón, al lugar de cada cuenta;
   - las lecturas, con su barrera, en la descarga de datos y fuera del ensayo;
-- [ ] **E7 · El monitoreo (D-377).**
+- [ ] **E7 · El monitoreo (D-377).** *Hecha el 2026-11-16 (D-408); falta desplegarla en Contabo:*
+  - la pestaña «Monitoreo», con el servidor, las visitas por página y Cloudflare;
+  - Umami escondido tras la plataforma, que limpia cada visita y lo prepara sola;
+  - `scripts/preparar-monitoreo.sh`, que lo enciende en un servidor;
+  - el token de Cloudflare, que crea el dueño.
 - [ ] **E8 · Lo legal, antes del primer piloto.** Todo con el abogado. *Los tres borradores, hechos el 2026-11-16 (D-407); faltan la revisión del abogado, las decisiones del dueño y publicarlos:*
   - un aviso nuevo, que diga:
     - que Cloudflare es encargado;

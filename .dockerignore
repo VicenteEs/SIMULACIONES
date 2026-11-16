@@ -11,6 +11,7 @@ node_modules
 
 # Datos y artefactos que viven fuera de la imagen.
 backups
+estado
 coverage
 test-results
 playwright-report

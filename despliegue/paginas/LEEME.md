@@ -269,3 +269,40 @@ dice por qué: quién es el proceso, de quién es la carpeta y con qué permisos
 Lo corriente será un `RESPALDOS_GID` que no coincide con el `id -g` del usuario
 que lanza los guiones, o un override copiado de una plantilla anterior a este
 cambio.
+
+## Monitoreo (solo la producción)
+
+La pestaña «Monitoreo» del panel de TraumaHub (P-016 E7, D-408) junta tres
+cosas, y cada una llega por su lado:
+
+- **El servidor**: CPU, memoria, disco y contenedores. Los anota cada minuto
+  `scripts/estado-del-servidor.sh`, desde el cron del usuario que despliega, en
+  `estado/`; la aplicación monta esa carpeta de solo lectura. No se le da el
+  socket de Docker a la aplicación: quien lo tiene manda en el servidor entero.
+- **Las visitas por página**: Umami, en dos contenedores (`umami` y
+  `umami-db`) que solo levanta el perfil `monitoreo`. No publican puerto ni
+  están en la red `proxy`. El navegador le habla a la aplicación
+  (`/api/visitas/…`), que limpia cada visita —sin título, sin parámetros, sin
+  los números del panel ni los testigos de las direcciones— y se la pasa.
+- **Cloudflare**: el tráfico de 30 días y los eventos de seguridad de 7, con un
+  token de solo lectura.
+
+En ved no hay nada de esto, a propósito: la pestaña sale y dice qué le falta.
+
+Para encenderlo en un servidor, una sola vez:
+
+```bash
+./scripts/preparar-monitoreo.sh   # claves de Umami en el .env, carpeta estado/ y cron
+docker compose up -d              # levanta Umami y le pasa sus claves a la aplicación
+```
+
+Al minuto de arrancar, la aplicación entra a Umami con su clave de fábrica, la
+cambia por `UMAMI_CLAVE` y crea el sitio con `UMAMI_SITIO`; en su registro sale
+«[umami] Listo». Si `UMAMI_CLAVE` se cambia después en el `.env`, Umami se queda
+con la anterior y la pestaña dice que no puede entrar: hay que volver a la de
+antes, o borrar el volumen `umami-datos` y empezar de cero.
+
+Para Cloudflare, el dueño crea en su panel un token con el permiso
+**Zone · Analytics · Read** sobre la zona y nada más, y escribe en el `.env`
+`CLOUDFLARE_TOKEN` y `CLOUDFLARE_ZONA` (el Zone ID). Después, otra vez
+`docker compose up -d`.

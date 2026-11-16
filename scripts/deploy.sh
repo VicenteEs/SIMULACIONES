@@ -76,6 +76,10 @@ verde "    configuracion completa"
 paso "Preparando directorios"
 mkdir -p backups
 chmod 770 backups 2>/dev/null || true
+# La foto del servidor para la pestaña «Monitoreo» (D-408). La crea aquí el
+# usuario que despliega y no Docker al montarla: si la creara Docker, seria de
+# root y el cron de este usuario no podria escribir en ella. En ved queda vacia.
+mkdir -p estado
 
 paso "Respaldando la base antes de tocar nada"
 if servicio_en_marcha db; then

@@ -1,11 +1,13 @@
 /**
  * Lo que el servidor hace al arrancar, antes de atender la primera petición.
  *
- * Hoy es una sola cosa: programar la pasada diaria de los plazos de
- * conservación (D-290, `src/lib/conservacionProgramada.ts`), y solo en el primero
- * de los procesos de la aplicación (D-393). Next llama a
+ * Dos cosas, y solo en el primero de los procesos de la aplicación (D-393):
+ * programar la pasada diaria de los plazos de conservación (D-290,
+ * `src/lib/conservacionProgramada.ts`), y dejar Umami listo para contar las
+ * visitas donde lo haya (D-408, `src/lib/contadorProgramado.ts`). Next llama a
  * `register` una vez por servidor y espera a que termine, así que aquí solo se
- * programa: la pasada misma corre minutos después, fuera de este camino.
+ * programa: lo de verdad corre segundos o minutos después, fuera de este
+ * camino.
  *
  * Solo en el entorno de Node: Next también la llama para el de Edge, que no
  * tiene ni base de datos ni relojes que duren. Y nunca durante `next build`:
@@ -17,5 +19,8 @@ export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   if (process.env.NEXT_PHASE === 'phase-production-build') return
   const { programaEsteProceso, programarLaConservacion } = await import('./lib/conservacionProgramada')
-  if (programaEsteProceso()) programarLaConservacion()
+  if (!programaEsteProceso()) return
+  programarLaConservacion()
+  const { programarUmami } = await import('./lib/contadorProgramado')
+  programarUmami()
 }

@@ -1,0 +1,30 @@
+/* ==========================================================================
+   Monitoreo (P-016 E7, D-408).
+
+   Lo común —las secciones como titulares, las tarjetas blancas, el selector
+   de periodo— viene de `estadisticas.css`, porque esta pestaña es un tablero
+   de la misma familia y debe leerse igual. Aquí solo va lo suyo: el detalle de
+   Docker bajo el nombre de cada contenedor y las rutas de los eventos.
+   ========================================================================== */
+
+/* «Up 3 hours (healthy)» y la regla que actuó: debajo del nombre y en gris,
+   porque se leen solo cuando el estado ya dijo que algo anda mal. */
+.monitoreo-detalle {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-xs);
+  font-weight: 400;
+  color: var(--pizarra);
+}
+
+/* Una ruta atacada puede ser una cadena larguísima sin espacios
+   (`/wp-admin/…?a=AAAA…`): sin el corte, ensanchaba la tabla y con ella la
+   página entera en el teléfono. */
+.monitoreo-ruta {
+  font-family: var(--mono);
+  font-size: var(--t-xs);
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+
+.monitoreo-contenedores td { white-space: nowrap; }

@@ -108,11 +108,27 @@ services:
       # y como mucho cuatro (`scripts/arrancar.mjs`); `PROCESOS=1` deja uno
       # solo, como antes.
       PROCESOS: ${PROCESOS:-}
+      # El monitoreo (P-016 E7, D-408). Vacías en ved y en cualquier servidor
+      # sin `scripts/preparar-monitoreo.sh`: la pestaña «Monitoreo» dice
+      # entonces qué falta y las páginas no llevan el contador de visitas.
+      # `UMAMI_SITIO` y `UMAMI_CLAVE` las escribe ese guion; `CLOUDFLARE_TOKEN`
+      # y `CLOUDFLARE_ZONA`, el dueño, con un token de solo lectura.
+      UMAMI_SITIO: ${UMAMI_SITIO:-}
+      UMAMI_CLAVE: ${UMAMI_CLAVE:-}
+      CLOUDFLARE_TOKEN: ${CLOUDFLARE_TOKEN:-}
+      CLOUDFLARE_ZONA: ${CLOUDFLARE_ZONA:-}
+      ESTADO_DIR: /estado
     volumes:
       # Los archivos subidos sobreviven a cada despliegue.
       - medios:/app/medios
       # Los respaldos, fuera del contenedor: los ve el panel y los ve el cron.
       - ./backups:/backups
+      # La foto del servidor que deja cada minuto el cron del anfitrión
+      # (`scripts/estado-del-servidor.sh`). De solo lectura: la aplicación no
+      # habla con Docker ni ve el anfitrión, solo lee lo que el guion quiso
+      # escribir. Darle el socket de Docker para que mirara ella misma habría
+      # sido darle el servidor entero (D-408).
+      - ./estado:/estado:ro
     # No se publica ningún puerto en el anfitrión: la única entrada es el proxy,
     # igual que las demás páginas de este servidor.
     networks:
@@ -122,8 +138,82 @@ services:
           - traumahub
     logging: *registro
 
+  # Umami, el contador de visitas (P-016 E7, D-408), y su base. Solo con el
+  # perfil `monitoreo`, que enciende `COMPOSE_PROFILES=monitoreo` en el .env:
+  # así esta plantilla sigue siendo una sola para ved y para Contabo, como
+  # exige `salud.sh`, y solo la producción levanta los dos contenedores.
+  #
+  # Ninguno publica puerto ni está en la red `proxy`: el túnel no los ve. Las
+  # visitas entran por la aplicación (`/api/visitas/…`), que las limpia antes
+  # de pasárselas, y lo que cuentan se mira en la pestaña «Monitoreo» del
+  # panel. La aplicación no depende de ellos (`depends_on`): si Umami cae, se
+  # deja de contar, y nada más.
+  umami:
+    image: ghcr.io/umami-software/umami:3.4.1
+    container_name: traumahub-umami
+    profiles: [monitoreo]
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      umami-db:
+        condition: service_healthy
+    environment:
+      # Con `:-` y no con `:?falta`: Compose sustituye las variables de todo el
+      # archivo antes de mirar los perfiles, y en ved, que no tiene estas
+      # claves, un `:?` tumbaba también la aplicación. Sin ellas, la base de
+      # Umami se niega a arrancar (no inicia sin contraseña) y Umami con ella.
+      DATABASE_URL: postgresql://umami:${UMAMI_DB_CLAVE:-}@umami-db:5432/umami
+      APP_SECRET: ${UMAMI_SECRETO:-}
+      # La IP de cada visita la pone la aplicación en esta cabecera; sin ella
+      # Umami vería la del contenedor de la aplicación y todas las visitas
+      # serían la misma persona. Umami no la guarda: la mezcla con el
+      # navegador y una sal que cambia cada mes para distinguir visitantes.
+      CLIENT_IP_HEADER: x-ip-de-la-visita
+      DISABLE_TELEMETRY: "1"
+      DISABLE_UPDATES: "1"
+      TZ: ${TZ:-America/Santiago}
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:3000/api/heartbeat >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks: [default]
+    logging: *registro
+
+  umami-db:
+    image: postgres:17-alpine
+    container_name: traumahub-umami-db
+    profiles: [monitoreo]
+    restart: unless-stopped
+    # Aparte de la base de TraumaHub y no una base más dentro de ella: la
+    # cuenta de Umami no alcanza ni a ver los datos de la plataforma, y los
+    # respaldos de cada noche siguen siendo solo de la plataforma.
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      POSTGRES_USER: umami
+      POSTGRES_PASSWORD: ${UMAMI_DB_CLAVE:-}
+      POSTGRES_DB: umami
+      LANG: es_ES.UTF-8
+    volumes:
+      - umami-datos:/var/lib/postgresql/data
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U umami -d umami"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [default]
+    logging: *registro
+
 volumes:
   medios:
+  umami-datos:
 
 networks:
   proxy:

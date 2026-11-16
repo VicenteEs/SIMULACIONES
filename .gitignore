@@ -48,6 +48,12 @@ build/
 *.sql
 *.dump
 /backups/
+
+# La foto del servidor que escribe cada minuto scripts/estado-del-servidor.sh
+# (D-408). Sin esta linea, la primera foto ensuciaba el arbol y
+# actualizar.sh, que exige un arbol limpio, se negaba a desplegar.
+/estado/
+
 playwright/.cache/
 
 # modelos 3D subidos por usuarios (viven en el volumen, no en git)
