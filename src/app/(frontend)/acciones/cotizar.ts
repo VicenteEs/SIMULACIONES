@@ -53,7 +53,7 @@ export async function pedirCotizacion(datos: unknown): Promise<Respuesta<null>> 
     }
 
     const direccion = direccionDeQuienLlama(await headers())
-    if (!LIMITE_POR_DIRECCION.permitir(direccion) || !LIMITE_GLOBAL.permitir('todas')) {
+    if (!(await LIMITE_POR_DIRECCION.permitir(direccion)) || !(await LIMITE_GLOBAL.permitir('todas'))) {
       throw new Error('Se recibieron demasiadas solicitudes en poco tiempo. Espera una hora y vuelve a intentarlo, o escríbenos por correo.')
     }
 

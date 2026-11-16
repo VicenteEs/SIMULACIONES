@@ -88,7 +88,7 @@ export async function proponerRequisito(titulo: unknown, descripcion: unknown): 
   return accion(async () => {
     const { payload, usuario, usuarioId } = await exigirEditor()
     const datos = exigirRequisito(titulo, descripcion)
-    if (!LIMITE_DE_PROPUESTAS.permitir(usuarioId)) {
+    if (!(await LIMITE_DE_PROPUESTAS.permitir(usuarioId))) {
       throw new Error('Propuso varios requisitos en pocos minutos. Espere un poco antes del siguiente.')
     }
     const creado = await payload.create({

@@ -50,7 +50,7 @@ export async function enviarCorreoDePrueba(): Promise<Respuesta<{ para: string }
     if (!para) throw new Error('Su cuenta no tiene correo al que enviar la prueba.')
 
     if (!hayCorreo()) throw new SinServidorDeCorreo()
-    if (!limitador.permitir(usuarioId)) {
+    if (!(await limitador.permitir(usuarioId))) {
       throw new Error('Ya envió varias pruebas en los últimos minutos. Espere un poco antes de volver a intentarlo.')
     }
 

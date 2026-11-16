@@ -1,5 +1,6 @@
 import { sql } from '@payloadcms/db-postgres'
 import type { Payload, PayloadRequest } from 'payload'
+import { adaptadorDe, ejecutorDe, type Consulta } from './sqlDirecto'
 import {
   clasificarColumnas,
   tablaDe,
@@ -20,35 +21,6 @@ import {
  * es justo lo que no se puede hacer bien: el adaptador no distingue la pestaña
  * (ver el comentario de `documentosQueUsanLaPreparacion`).
  */
-
-type Consulta = ReturnType<typeof sql>
-interface Ejecutor {
-  execute: (consulta: Consulta) => Promise<{ rows: Record<string, unknown>[] }>
-}
-interface BaseConTransacciones extends Ejecutor {
-  transaction: <T>(trabajo: (tx: Ejecutor) => Promise<T>) => Promise<T>
-}
-interface Adaptador {
-  drizzle: BaseConTransacciones
-  sessions?: Record<string | number, { db?: Ejecutor } | undefined>
-}
-
-const adaptadorDe = (payload: Payload): Adaptador => payload.db as unknown as Adaptador
-
-/**
- * La conexión de la petición, si va dentro de una transacción.
- *
- * Es lo que hace `getTransaction` de `@payloadcms/drizzle`, que el paquete no
- * exporta. Importa en el gancho del borrado: con otra conexión, una operación
- * que en la misma transacción hubiera quitado el modelo de un caso y luego lo
- * borrara seguiría viendo el caso con el modelo puesto, porque eso aún no está
- * confirmado.
- */
-async function ejecutorDe(payload: Payload, req?: Partial<PayloadRequest>): Promise<Ejecutor> {
-  const adaptador = adaptadorDe(payload)
-  const transaccion = req?.transactionID ? await req.transactionID : undefined
-  return (transaccion !== undefined && adaptador.sessions?.[transaccion]?.db) || adaptador.drizzle
-}
 
 const idDe = (valor: unknown, que: string): number => {
   const n = Number(valor)

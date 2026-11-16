@@ -12,15 +12,17 @@
  * lejos llega y la que menos se puede deshacer.
  */
 
+import { randomUUID } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 import { AUDIENCIAS_DE_DIFUSION, type AudienciaDeDifusion } from '@/collections/Difusiones'
-import { destinatariosDe, enCurso, lanzarDifusion, reservarInicioDeDifusion } from '@/correo/difusion'
+import { CANDADO_DEL_INICIO, destinatariosDe, lanzarDifusion, seEstaEnviando } from '@/correo/difusion'
 import { enviarCorreo, explicarFalloDeCorreo, hayCorreo, SinServidorDeCorreo } from '@/correo/enviar'
 import { mensajeDeDifusion, type DatosDeDifusion } from '@/correo/mensajes'
 import { esEnlaceSeguro } from '@/correo/plantilla'
 import { accion, exigirAdmin, type Respuesta } from '@/lib/guardias'
 import { crearLimitador } from '@/lib/ritmo'
+import { conCandado } from '@/lib/sqlDirecto'
 import { ErrorDeValidacion, exigirIdentificador, exigirTexto } from '@/lib/validacion'
 
 const RUTA = '/admin-panel/difusion'
@@ -80,23 +82,26 @@ function validarAudiencia(valor: unknown): AudienciaDeDifusion {
 }
 
 /**
- * La difusión que este proceso está mandando ahora, si hay una.
+ * La difusión que se está mandando ahora, en cualquier proceso, si hay una.
  *
  * Una sola a la vez: dos trabajadores en paralelo duplican el ritmo, y la pausa
  * entre correos existe justamente para no pasarse de la cuota por hora del
  * hosting. Las que están `enviando` sin trabajador —cortadas por un reinicio—
  * no cuentan: no mandan nada y no deben bloquear la pantalla hasta que alguien
- * las reanude.
+ * las reanude. Se pregunta al latido que deja el trabajador en la difusión y
+ * no a la memoria de este proceso, porque el trabajador puede ser de otro
+ * (D-393).
  */
-async function difusionEnCurso(payload: Payload): Promise<string | null> {
+async function difusionEnCurso(payload: Payload, req: Partial<PayloadRequest>): Promise<string | null> {
   const { docs } = await payload.find({
     collection: 'difusiones',
     where: { estado: { equals: 'enviando' } },
     pagination: false,
     depth: 0,
     overrideAccess: true,
+    req,
   })
-  const activa = docs.find((d) => enCurso(d.id))
+  const activa = docs.find((d) => seEstaEnviando(d))
   return activa ? String(activa.id) : null
 }
 
@@ -125,7 +130,7 @@ export async function enviarPruebaDeDifusion(datos: unknown): Promise<Respuesta<
     })
     if (!cuenta?.email) throw new Error('No se encontró el correo de su cuenta.')
     if (!hayCorreo()) throw new SinServidorDeCorreo()
-    if (!limitadorDePruebas.permitir(usuarioId)) {
+    if (!(await limitadorDePruebas.permitir(usuarioId))) {
       throw new Error('Ya envió varias pruebas en los últimos minutos. Espere un poco antes de volver a intentarlo.')
     }
 
@@ -150,11 +155,13 @@ export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: s
     const difusion = validarDatos(datos)
     const audiencia = validarAudiencia((datos as { audiencia?: unknown } | null)?.audiencia)
 
-    // La reserva va antes de la primera espera. Ver `reservarInicioDeDifusion`.
-    const soltar = reservarInicioDeDifusion()
-    if (!soltar) throw new Error(YA_HAY_UNA)
-    try {
-      if (await difusionEnCurso(payload)) throw new Error(YA_HAY_UNA)
+    // Mirar si hay otra y crear la nueva van bajo el mismo candado de la base:
+    // ver `CANDADO_DEL_INICIO`. Se suelta al confirmar la creación, y para
+    // entonces la difusión nueva ya tiene su latido y es ella la que bloquea a
+    // la siguiente.
+    const trabajador = randomUUID()
+    const { creada, total } = await conCandado(payload, CANDADO_DEL_INICIO, async (req) => {
+      if (await difusionEnCurso(payload, req)) throw new Error(YA_HAY_UNA)
 
       const destinatarios = await destinatariosDe(payload, audiencia)
       if (destinatarios.length === 0) {
@@ -168,6 +175,7 @@ export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: s
         collection: 'difusiones',
         depth: 0,
         overrideAccess: true,
+        req,
         data: {
           asunto: difusion.asunto,
           mensaje: difusion.mensaje,
@@ -181,15 +189,18 @@ export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: s
           fallidos: 0,
           pendientes: destinatarios.map((d) => d.id),
           fallos: [],
+          trabajador,
+          latidoDelTrabajador: new Date().toISOString(),
         },
       })
+      return { creada, total: destinatarios.length }
+    })
 
-      lanzarDifusion(payload, creada.id)
-      revalidatePath(RUTA)
-      return { id: String(creada.id), total: destinatarios.length }
-    } finally {
-      soltar()
-    }
+    // Después de confirmar: el trabajador lee la difusión de la base, y dentro
+    // de la transacción todavía no existiría para él.
+    lanzarDifusion(payload, creada.id, { trabajador })
+    revalidatePath(RUTA)
+    return { id: String(creada.id), total }
   })
 }
 
@@ -218,32 +229,32 @@ export async function reanudarDifusion(id: unknown): Promise<Respuesta<{ pendien
 
     const pendientes = Array.isArray(difusion.pendientes) ? difusion.pendientes.length : 0
     if (pendientes === 0) throw new Error('A esta difusión no le queda nadie por recibirla.')
-    if (difusion.estado === 'enviando' && enCurso(difusion.id)) {
+    if (seEstaEnviando(difusion)) {
       throw new Error('Esta difusión ya se está enviando.')
     }
     if (difusion.estado !== 'detenida' && difusion.estado !== 'enviando') {
       throw new Error('Solo se puede reanudar una difusión detenida o interrumpida.')
     }
 
-    const soltar = reservarInicioDeDifusion()
-    if (!soltar) throw new Error(YA_HAY_UNA)
-    try {
-      if (await difusionEnCurso(payload)) throw new Error(YA_HAY_UNA)
+    const trabajador = randomUUID()
+    await conCandado(payload, CANDADO_DEL_INICIO, async (req) => {
+      if (await difusionEnCurso(payload, req)) throw new Error(YA_HAY_UNA)
       if (!hayCorreo()) throw new SinServidorDeCorreo()
 
+      // Una marca nueva: si el trabajador de antes no estaba muerto sino
+      // atascado, al volver ve que ya no es la suya y para.
       await payload.update({
         collection: 'difusiones',
         id: idDifusion,
         depth: 0,
         overrideAccess: true,
-        data: { estado: 'enviando', terminadaEn: null },
+        req,
+        data: { estado: 'enviando', terminadaEn: null, trabajador, latidoDelTrabajador: new Date().toISOString() },
       })
-      lanzarDifusion(payload, difusion.id)
-      revalidatePath(RUTA)
-      return { pendientes }
-    } finally {
-      soltar()
-    }
+    })
+    lanzarDifusion(payload, difusion.id, { trabajador })
+    revalidatePath(RUTA)
+    return { pendientes }
   })
 }
 

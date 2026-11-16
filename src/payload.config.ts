@@ -9,6 +9,7 @@ import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
 import { TECHO_DE_MEDIOS_BYTES, TECHO_DE_MODELOS_3D_BYTES } from '@/admin/esquema'
 import { origenDe } from '@/lib/rutas'
+import { agregarTablasInternas } from '@/lib/tablasInternas'
 import { migrations } from './migrations'
 import { editorClinico } from '@/blocks'
 
@@ -208,6 +209,10 @@ export default buildConfig({
     // pruebas, y el mismo día en que se creyó cerrada.
     push: process.env.NODE_ENV === 'development',
     prodMigrations: migrations,
+    // Las tablas que comparten los procesos de la aplicación y que no son
+    // colecciones (D-393, `src/lib/tablasInternas.ts`): declaradas aquí entran
+    // en el `push` y en `migrate:create` como las de Payload.
+    beforeSchemaInit: [agregarTablasInternas],
   }),
   // sharp genera las miniaturas de las imagenes subidas.
   sharp,

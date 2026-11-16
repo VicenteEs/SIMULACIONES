@@ -104,6 +104,10 @@ services:
       # en Contabo no está, y no sale. Como las dos de arriba: sin esta línea,
       # ponerla en el .env no haría nada.
       SERVIDOR_DE_PRUEBAS: ${SERVIDOR_DE_PRUEBAS:-}
+      # Cuántos procesos de la aplicación (D-393). Vacía, los núcleos menos dos
+      # y como mucho cuatro (`scripts/arrancar.mjs`); `PROCESOS=1` deja uno
+      # solo, como antes.
+      PROCESOS: ${PROCESOS:-}
     volumes:
       # Los archivos subidos sobreviven a cada despliegue.
       - medios:/app/medios

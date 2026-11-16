@@ -98,9 +98,13 @@ describe('el Dockerfile la pone donde compila y copia lo que sale', () => {
     expect(ordenDeCompilar()).toMatch(/npm run build\s+&&\s+if \[ ! -f \.next\/standalone\/server\.js \]/)
   })
 
-  it('la etapa final sigue copiando `.next/standalone` y arrancando su `server.js`', () => {
+  it('la etapa final sigue copiando `.next/standalone`, cuyo `server.js` lanza `arrancar.mjs`', () => {
+    // Desde D-393 la imagen no arranca `server.js` directamente: lo lanza el
+    // proceso principal de `arrancar.mjs` una vez por proceso, desde la misma
+    // carpeta. Lo que se vigila de ese guion está en `variosProcesos.test.ts`.
     expect(DOCKERFILE).toContain('COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./')
-    expect(DOCKERFILE).toContain('CMD ["node", "server.js"]')
+    expect(DOCKERFILE).toContain('COPY --from=builder --chown=nextjs:nodejs /app/scripts/arrancar.mjs ./arrancar.mjs')
+    expect(DOCKERFILE).toContain('CMD ["node", "arrancar.mjs"]')
   })
 
   it('ninguna otra orden del Dockerfile enciende la salida para la imagen final', () => {

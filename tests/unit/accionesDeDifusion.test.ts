@@ -14,6 +14,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * está en `difusion.test.ts`). `destinatariosDe` sí es el de verdad, sobre un
  * `find` falso.
  *
+ * Desde D-393, «se está enviando» es una difusión «enviando» con el latido de
+ * su trabajador reciente (`seEstaEnviando`), y el candado de la base que separa
+ * dos «Enviar» cruzados se sustituye por uno en memoria que hace lo mismo
+ * dentro de un proceso: lo que el candado hace entre procesos se prueba en
+ * `tests/integration/estadoCompartido.test.ts`.
+ *
  * Al final se pinta la pantalla una vez con los mismos dobles: no hay entorno
  * de navegador para probar el formulario, pero sí para ver que el historial
  * dice «Interrumpida» donde toca y que sin correo los botones no se ofrecen.
@@ -22,8 +28,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { estado, payload, lanzar } = vi.hoisted(() => ({
   estado: {
     rolReal: 'admin',
-    enCurso: new Set<string>(),
-    difusionesEnviando: [] as Array<{ id: number; estado: string }>,
+    difusionesEnviando: [] as Array<{ id: number; estado: string; latidoDelTrabajador?: string }>,
     cuentas: [] as Array<{ id: number; email: string; nombre: string }>,
     difusion: null as Record<string, unknown> | null,
   },
@@ -61,9 +66,30 @@ vi.mock('next/navigation', async (original) => ({
 }))
 vi.mock('@/correo/difusion', async (original) => ({
   ...((await original()) as object),
-  enCurso: (id: number | string) => estado.enCurso.has(String(id)),
   lanzarDifusion: lanzar,
 }))
+vi.mock('@/lib/sqlDirecto', () => {
+  // Un candado por nombre, en fila: el siguiente entra cuando el anterior
+  // termina, salga bien o mal. Es lo que hace `pg_advisory_xact_lock`.
+  const filas = new Map<string, Promise<unknown>>()
+  return {
+    conCandado: (_payload: unknown, nombre: string, trabajo: (req: object) => Promise<unknown>) => {
+      const turno = (filas.get(nombre) ?? Promise.resolve()).then(() => trabajo({}))
+      filas.set(
+        nombre,
+        turno.catch(() => undefined),
+      )
+      return turno
+    },
+  }
+})
+
+/** Una difusión con su trabajador vivo: «enviando» y con un latido de ahora. */
+const latiendo = <T extends object>(difusion: T) => ({
+  ...difusion,
+  estado: 'enviando',
+  latidoDelTrabajador: new Date().toISOString(),
+})
 
 import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -93,7 +119,6 @@ const smtpOriginal = process.env.SMTP_HOST
 
 beforeEach(() => {
   estado.rolReal = 'admin'
-  estado.enCurso = new Set()
   estado.difusionesEnviando = []
   estado.cuentas = [
     { id: 3, email: 'ana@hospital.cl', nombre: 'Ana' },
@@ -106,7 +131,13 @@ beforeEach(() => {
   payload.findByID.mockReset().mockImplementation(async ({ collection }: { collection: string }) =>
     collection === 'usuarios' ? { id: 1, email: 'jefe@hospital.cl', nombre: 'Jefe' } : estado.difusion,
   )
-  payload.create.mockReset().mockResolvedValue({ id: 77 })
+  // La creada queda en la base como cualquier otra: es la que tiene que ver el
+  // segundo de dos «Enviar» cruzados.
+  payload.create.mockReset().mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+    const creada = { id: 77, ...data } as { id: number; estado: string }
+    estado.difusionesEnviando.push(creada)
+    return creada
+  })
   payload.update.mockReset().mockResolvedValue({})
   payload.sendEmail.mockReset().mockResolvedValue(undefined)
   payload.count.mockClear()
@@ -209,8 +240,7 @@ describe('sin servidor de correo', () => {
 
 describe('una difusión a la vez', () => {
   it('no empieza otra mientras una se está enviando', async () => {
-    estado.difusionesEnviando = [{ id: 9, estado: 'enviando' }]
-    estado.enCurso.add('9')
+    estado.difusionesEnviando = [latiendo({ id: 9 })]
 
     const respuesta = await iniciarDifusion(DATOS)
 
@@ -220,7 +250,11 @@ describe('una difusión a la vez', () => {
   })
 
   it('una interrumpida por un reinicio no bloquea empezar otra', async () => {
-    estado.difusionesEnviando = [{ id: 9, estado: 'enviando' }]
+    // «Enviando» sin latido, o con uno de hace rato: su trabajador murió.
+    estado.difusionesEnviando = [
+      { id: 9, estado: 'enviando' },
+      { id: 8, estado: 'enviando', latidoDelTrabajador: new Date(Date.now() - 60 * 60_000).toISOString() },
+    ]
 
     const respuesta = await iniciarDifusion(DATOS)
 
@@ -238,16 +272,19 @@ describe('una difusión a la vez', () => {
           fallidos: 0,
           pendientes: [3, 4],
           fallos: [],
+          trabajador: expect.any(String),
+          latidoDelTrabajador: expect.any(String),
         }),
       }),
     )
-    expect(lanzar).toHaveBeenCalledWith(payload, 77)
+    // El trabajador sale con la misma marca que se guardó en la difusión.
+    const { trabajador } = (payload.create.mock.calls[0] as [{ data: { trabajador: string } }])[0].data
+    expect(lanzar).toHaveBeenCalledWith(payload, 77, { trabajador })
   })
 
   it('reanudar tampoco arranca si otra está saliendo', async () => {
     estado.difusion = { id: 5, estado: 'detenida', pendientes: [3, 4] }
-    estado.difusionesEnviando = [{ id: 9, estado: 'enviando' }]
-    estado.enCurso.add('9')
+    estado.difusionesEnviando = [latiendo({ id: 9 })]
 
     const respuesta = await reanudarDifusion('5')
 
@@ -304,19 +341,42 @@ describe('la prueba', () => {
 })
 
 describe('reanudar y detener', () => {
-  it('reanudar pone la detenida a enviar y lanza el trabajador', async () => {
-    estado.difusion = { id: 5, estado: 'detenida', pendientes: [3, 4] }
+  it('reanudar pone la detenida a enviar y lanza el trabajador con una marca nueva', async () => {
+    estado.difusion = { id: 5, estado: 'detenida', pendientes: [3, 4], trabajador: 'la-de-antes' }
     const respuesta = await reanudarDifusion('5')
     expect(respuesta).toEqual({ exito: true, datos: { pendientes: 2 } })
     expect(payload.update).toHaveBeenCalledWith(
-      expect.objectContaining({ id: '5', data: { estado: 'enviando', terminadaEn: null } }),
+      expect.objectContaining({
+        id: '5',
+        data: {
+          estado: 'enviando',
+          terminadaEn: null,
+          trabajador: expect.any(String),
+          latidoDelTrabajador: expect.any(String),
+        },
+      }),
     )
-    expect(lanzar).toHaveBeenCalledWith(payload, 5)
+    // Una marca nueva: si el trabajador de antes estaba atascado y no muerto, al
+    // volver ve que ya no es la suya y para.
+    const { trabajador } = (payload.update.mock.calls[0] as [{ data: { trabajador: string } }])[0].data
+    expect(trabajador).not.toBe('la-de-antes')
+    expect(lanzar).toHaveBeenCalledWith(payload, 5, { trabajador })
+  })
+
+  it('reanuda una «enviando» cuyo trabajador dejó de latir, la de un proceso que se cayó', async () => {
+    estado.difusion = {
+      id: 5,
+      estado: 'enviando',
+      pendientes: [3, 4],
+      latidoDelTrabajador: new Date(Date.now() - 60 * 60_000).toISOString(),
+    }
+    expect((await reanudarDifusion('5')).exito).toBe(true)
+    expect(lanzar).toHaveBeenCalledTimes(1)
   })
 
   it('reanudar no toca una que ya se está enviando, ni una terminada', async () => {
-    estado.difusion = { id: 5, estado: 'enviando', pendientes: [3] }
-    estado.enCurso.add('5')
+    // Su trabajador puede estar en otro proceso: lo que se mira es el latido.
+    estado.difusion = latiendo({ id: 5, pendientes: [3] })
     expect((await reanudarDifusion('5')).mensaje).toMatch(/ya se está enviando/)
 
     // Terminada pero con cola: si llevara la cola vacía, el rechazo saldría por
@@ -329,7 +389,7 @@ describe('reanudar y detener', () => {
 
   it('dos «Enviar» cruzados no lanzan dos trabajadores', async () => {
     // El primero se queda esperando la lista de destinatarios; mientras tanto
-    // llega el segundo. Sin la reserva, los dos pasaban la pregunta a la base.
+    // llega el segundo. Sin el candado, los dos pasaban la pregunta a la base.
     let soltarLista: () => void = () => {}
     const listaRetenida = new Promise<void>((listo) => {
       soltarLista = listo
@@ -340,16 +400,20 @@ describe('reanudar y detener', () => {
     })
 
     const primero = iniciarDifusion(DATOS)
-    const segundo = await iniciarDifusion(DATOS)
+    const segundo = iniciarDifusion(DATOS)
+    // El segundo espera el candado del primero, que espera la lista: se suelta
+    // la lista antes de esperar a ninguno.
     soltarLista()
+    const [uno, dos] = await Promise.all([primero, segundo])
 
-    expect(segundo.exito).toBe(false)
-    expect(segundo.mensaje).toMatch(/Ya hay una difusión enviándose/)
-    expect((await primero).exito).toBe(true)
+    expect(dos.exito).toBe(false)
+    expect(dos.mensaje).toMatch(/Ya hay una difusión enviándose/)
+    expect(uno.exito).toBe(true)
     expect(payload.create).toHaveBeenCalledTimes(1)
     expect(lanzar).toHaveBeenCalledTimes(1)
 
-    // Y la reserva se suelta: terminada la primera, se puede empezar otra.
+    // Y el candado se suelta: terminada la primera, se puede empezar otra.
+    estado.difusionesEnviando = estado.difusionesEnviando.map((d) => ({ ...d, estado: 'enviada' }))
     expect((await iniciarDifusion(DATOS)).exito).toBe(true)
   })
 
@@ -501,7 +565,7 @@ describe('la pantalla', () => {
     expect(html).toContain('Con fallos')
     expect(html).toContain('viejo@hospital.cl')
 
-    estado.enCurso.add('31')
+    ;(estado.difusionesEnviando[0] as { latidoDelTrabajador?: string }).latidoDelTrabajador = new Date().toISOString()
     const enMarcha = await pintar()
     expect(enMarcha).toContain('>Enviando<')
     expect(enMarcha).toContain('>Detener<')

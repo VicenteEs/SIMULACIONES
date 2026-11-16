@@ -240,6 +240,8 @@ bien un mes después, sin que nadie marcara que superaba a ésta. Queda marcado.
 El transporte por SSE sí es cierto; lo que no existe es el empujón desde la
 base. Hará falta cuando haya más de una instancia del servidor, y no antes.
 
+*Resuelto el 2026-11-16 en D-393:* con varios procesos, la versión de cada módulo se guarda en la tabla `publicaciones` y cada proceso la relee. Sin `LISTEN/NOTIFY`.
+
 ### D-016 · 2026-08-28 · vigente
 **La plataforma nace con la base de datos vacía. Las cuatro fichas del prototipo no se migran.**
 El traumatólogo redacta todo el contenido desde el CMS, sin material precargado.
@@ -408,6 +410,7 @@ Guardar un borrador no avisa a nadie: solo la publicación.
 *Límite conocido:* el contador vive en memoria del proceso. Con una sola
 instancia basta; si algún día hay varias, hará falta un canal compartido y el
 `LISTEN/NOTIFY` de PostgreSQL es el camino natural.
+*Resuelto el 2026-11-16 en D-393:* el canal compartido es la tabla `publicaciones`, no `LISTEN/NOTIFY`.
 
 ### D-033 · 2026-08-29 · vigente
 **El instrumental del simulador se deduce de los pasos.**
@@ -4374,6 +4377,7 @@ Mientras la aplicación corra en un solo contenedor, es exacto; **si algún día
 hay varias instancias detrás del proxy**, cada una verá solo a quien le cayó y
 la banda dirá la mitad: hará falta un almacén compartido. Un reinicio la borra y
 se rehace en el siguiente latido. No cambia el esquema ni hay migración.
+*Resuelto el 2026-11-16 en D-393:* con varios procesos, el almacén es la tabla `presencias`, y el nombre y el rol se leen de la cuenta.
 
 ### D-152 · 2026-10-05 · parcialmente superada por D-153
 **El taller anatómico abre en «Cuerpo», guarda solo y lista lo que está en pantalla.**
@@ -11748,6 +11752,40 @@ La pidió D-376 antes del primer piloto. El dueño eligió hacerla en el momento
 - (−) Varios procesos es el paso más caro de D-376. Lleva cinco piezas a la base antes de poder arrancar un segundo proceso, y hay que hacerlo sin que ninguna se rompa a medio camino.
 - (−) La biblioteca, que será lo más visitado, no se pudo medir.
 
+### D-393 · 2026-11-16 · vigente · P-016 E4 · primer paso de D-392 · resuelve el límite de D-032, D-151 y O-057
+**La aplicación corre en varios procesos que comparten el puerto, cuatro en Contabo. Lo que vivía en la memoria de un solo proceso pasó antes a la base: el freno de intentos, la presencia del editor, las publicaciones, la difusión en curso y la fila de latidos de revisión.**
+
+D-392 midió que un solo proceso de Node usaba poco más de uno de los seis núcleos de Contabo, y puso los varios procesos primero. D-376 pedía antes llevar a la base lo que vivía en la memoria de uno: con dos procesos, cada uno tendría su propia versión y se contradirían.
+
+- **El arranque** (`scripts/arrancar.mjs`, el `CMD` de la imagen):
+  - es un proceso principal que no atiende peticiones. Lanza los de la aplicación con `node:cluster`, que reparte las conexiones por turnos (`SCHED_RR`), y relanza al que se cae: al segundo, o a los 30 s si se cayó cinco veces en un minuto;
+  - **el proceso 1 sale solo.** Payload aplica las migraciones pendientes al levantarse en producción, sin ningún candado: cuatro a la vez aplicarían la misma cuatro veces. El principal le pide la salud, que levanta Payload y con él las migraciones, y lanza a los demás cuando contesta bien;
+  - **cuántos:** `PROCESOS` en el `.env`, o los núcleos menos dos, entre 1 y 4. En Contabo salen 4, y quedan dos núcleos para PostgreSQL y el Chromium de los PDF. Con `PROCESOS=1` funciona como antes;
+  - a cada proceso le pasa su número (`TRAUMAHUB_PROCESO`) y el instante del arranque (`TRAUMAHUB_ARRANQUE`). El número decide quién programa la conservación diaria: solo el 1. El instante es el mismo para todos, y así una pestaña que cae en otro proceso no cree que el servidor se reinició (`despliegue.ts`);
+  - con `SIGTERM` cierra los suyos y, si a los 8 s quedan, los mata: `docker stop` espera 10.
+- **Lo que pasó a la base:**
+  - **el freno de intentos** (`ritmo.ts`), en la tabla `intentos`. Se guarda una huella de la clave, un HMAC con `PAYLOAD_SECRET`, y no la dirección ni el correo. Cada intento cuenta y anota bajo un candado de su freno y su clave: sin él, ocho intentos a la vez leían la misma cuenta y pasaban todos. Las filas de más de un día se borran de paso, una vez de cada 200;
+  - **la presencia del editor** (D-151), en la tabla `presencias`. El nombre y el rol no se guardan: se leen de la cuenta;
+  - **las publicaciones** (D-032), en la tabla `publicaciones`, una fila por módulo. La versión son los milisegundos del instante en que se publicó, y nunca baja. Se escribe en la misma transacción que la publicación: si esta se deshace, el aviso no sale. Cada proceso relee la tabla cada 5 s como mucho. Se descartó `LISTEN/NOTIFY`, que D-015 y D-032 daban por camino natural: el flujo ya mandaba algo cada 15 s, y una tabla no necesita una conexión escuchando en cada proceso;
+  - **la difusión en curso.** Sale de la difusión misma: su trabajador escribe un latido con cada correo (`latidoDelTrabajador`), y una difusión «enviando» con el latido reciente se está mandando, en el proceso que sea (`seEstaEnviando`). La reserva de memoria que separaba dos «Enviar» cruzados es ahora un candado de la base. Reanudar le pone a la difusión una marca nueva (`trabajador`): un trabajador atascado que despierta y no ve la suya, para. Si la reanudación cae en el mismo proceso, el trabajador que dormía la pausa se queda con la marca nueva en vez de parar;
+  - **la fila de latidos de revisión**, que ponía en orden los de una misma cuenta, se queda en el proceso y suma un candado de la base por cuenta, para los latidos que caen en procesos distintos.
+- **Las tres tablas no son colecciones.** Son tablas de Drizzle que el gancho `beforeSchemaInit` añade al esquema (`tablasInternas.ts`): así entran en las migraciones, pero sin panel, sin API, sin reglas de acceso y sin versiones, que nadie tiene por qué ver ni tocar. La migración es `20261116_033200_estado_compartido`, con las dos columnas nuevas de las difusiones.
+- **El candado** (`conCandado`, en `sqlDirecto.ts`) es `pg_advisory_xact_lock` dentro de una transacción de Payload: se suelta solo al confirmar o deshacer, también si el proceso muere.
+- **Bajo Vitest** el freno y las publicaciones siguen en memoria, porque las pruebas de las acciones no levantan una base. La versión de la base se prueba aparte, contra PostgreSQL, en `tests/integration/estadoCompartido.test.ts`, que encontró un fallo antes del despliegue: el rol es un enum en la base, y `coalesce(rol, '')` no vale.
+- **Las otras pruebas:** `variosProcesos.test.ts` arranca el principal con un `server.js` de juguete: tres procesos, el mismo instante de arranque, y el que se cae vuelve. `difusion.test.ts` y `accionesDeDifusion.test.ts` cubren el latido y la marca. En local se arrancó además la salida de producción con dos procesos contra la base desechable: los dos atendieron, y uno matado a mano volvió en un segundo.
+- **Los guiones de la prueba de carga** pasan al repositorio, como dejó dicho D-392: `scripts/carga`, con su `LEEME.md`.
+- **Al desplegar**, en cada servidor hay que copiar la plantilla nueva del override (`despliegue/paginas/docker-compose.override.yml`), que le pasa `PROCESOS` al contenedor: sin esa línea, escribirla en el `.env` no haría nada.
+
+*Consecuencias.*
+- (+) La aplicación usa cuatro núcleos en vez de uno, y nada de lo que dependía de un solo proceso se parte.
+- (+) Un proceso que se cae no tira el servicio: los otros siguen atendiendo mientras vuelve.
+- (+) El freno de intentos y las publicaciones sobreviven a un reinicio.
+- (−) Cada proceso abre su pool de 10 conexiones: con 4, son 40 de las 100 que PostgreSQL acepta por omisión, más los guiones.
+- (−) Cada proceso tiene su memoria. En la prueba de D-392, uno subió hasta 950 MB con 300 personas: cuatro pueden llegar a unos 4 GB de los 11 de Contabo. La prueba repetida lo dirá.
+- (−) Cada intento con freno y cada latido de presencia son ahora consultas a la base. Son pocas al lado de pintar una página, pero no son gratis.
+- (−) El aviso de una publicación puede tardar hasta 20 s en vez de 15.
+- (−) Un trabajador de difusión atascado, y no muerto, más de la pausa y dos minutos, que alguien reanuda, puede mandar un correo más antes de ver que ya no es el suyo: una persona lo recibe dos veces, como mucho.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -12612,6 +12650,7 @@ contraseña como ya hacía `exigirContrasena`.
 Funnel la dirección es `X-Forwarded-For`; un hospital entero sale por una sola.
 Los números están puestos con eso en mente, pero si un servicio completo se
 queda fuera a las ocho de la mañana, es aquí.
+*Desde el 2026-11-16 (D-393)* los contadores viven en la tabla `intentos`, compartidos por todos los procesos, con una huella de la clave en lugar de la dirección.
 
 ### O-058 · 2026-09-20 · media · resuelta
 **El limitador de ritmo podía usarse para agotar la memoria del proceso.**
@@ -17881,7 +17920,8 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - *pendiente:* la revisión del aviso con el abogado en E8;
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
   - *la prueba de carga, hecha el 2026-11-16 (D-392):* con 300 personas el servidor no se cae ni da errores, pero se satura a unas 29 peticiones por segundo, porque un solo proceso usa poco más de uno de los seis núcleos;
-  - *pendiente, en el orden de D-392:* varios procesos, con lo que hoy vive en la memoria de uno pasado antes a la base; la caché del contenido publicado; ETag y Cloudflare para lo estático; y repetir la prueba con fichas publicadas y con el PDF.
+  - *hechos en local el 2026-11-16 (D-393):* varios procesos, cuatro en Contabo, con lo que vivía en la memoria de uno pasado antes a la base. Migración `20261116_033200_estado_compartido`. Los guiones de la prueba, en `scripts/carga`;
+  - *pendiente, en el orden de D-392:* desplegar D-393; la caché del contenido publicado; ETag y Cloudflare para lo estático; y repetir la prueba con fichas publicadas y con el PDF.
 - [ ] **E5 · Las instituciones (D-371).**
   - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;
   - el subdominio, con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381);

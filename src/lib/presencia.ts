@@ -7,20 +7,18 @@
  * pidió saberlo antes, al abrir: «quién más está editando esta ficha». Con eso
  * los dos pueden hablarlo antes de escribir.
  *
- * ## Por qué en memoria y no en la base
+ * ## Dónde se guarda
  *
- * Es un dato que caduca en segundos y que nadie necesita mañana. En la base
- * serían una tabla nueva —con su migración— y una escritura cada quince
- * segundos por pestaña abierta, para guardar algo que deja de ser verdad a los
- * cuarenta y cinco. La aplicación corre en un solo contenedor, con un solo
- * proceso de Node, así que un `Map` del proceso lo ve todo.
- *
- * La consecuencia, dicha para que no sorprenda: **si algún día hay más de una
- * instancia** detrás del proxy, cada una verá solo a quien le cayó a ella y la
- * banda dirá la mitad. Ese día hará falta un almacén compartido (la propia
- * base, o Redis); la forma de este módulo —latir, salir, preguntar— no cambia.
- * Tampoco sobrevive a un reinicio: tras desplegar, la presencia se rehace sola
- * en el primer latido de cada pestaña, quince segundos después.
+ * Es un dato que caduca en segundos y que nadie necesita mañana, y mientras la
+ * aplicación corrió en un solo proceso vivió en un `Map` de ese proceso. Desde
+ * D-393 corre en varios, y cada latido cae en cualquiera: con un `Map` por
+ * proceso, cada uno vería solo a quien le cayó a él y la banda diría la mitad.
+ * Así que en el servidor se guarda en la tabla `presencias` de la base
+ * (`presenciaServidor.ts`), con una escritura cada quince segundos por pestaña
+ * abierta en el editor, que son pocas. El almacén en memoria de aquí abajo
+ * sigue siendo el que decide en las pruebas, y el de la base hace lo mismo con
+ * las mismas constantes. Tampoco sobrevive nada a una caducidad: lo que no late
+ * se borra.
  *
  * Lo de aquí es puro —recibe la hora, no la lee— para probarlo sin servidor ni
  * relojes falsos (`tests/unit/presencia.test.ts`). La ruta que lo sirve es
@@ -103,7 +101,7 @@ export interface Almacen {
 /** `patologias/41`: la clave de una ficha. */
 export const claveDeFicha = (coleccion: string, id: string): string => `${coleccion}/${id}`
 
-const vigente = (p: Presencia, ahora: number): boolean =>
+export const vigente = (p: Presencia, ahora: number): boolean =>
   ahora - p.visto <= (p.visible ? CADUCIDAD_VISIBLE_MS : CADUCIDAD_OCULTA_MS)
 
 /**
@@ -114,7 +112,7 @@ const vigente = (p: Presencia, ahora: number): boolean =>
  * cuándo, que es lo que da la más antigua de sus pestañas. Si cualquiera de
  * ellas está a la vista, la persona está delante.
  */
-function porPersona(presencias: Presencia[]): (OtroEditor & { usuarioId: string })[] {
+export function porPersona(presencias: Presencia[]): (OtroEditor & { usuarioId: string })[] {
   const personas = new Map<string, OtroEditor & { usuarioId: string }>()
   for (const p of presencias) {
     const ya = personas.get(p.usuarioId)
@@ -210,18 +208,6 @@ export function crearAlmacen(maximo = MAXIMO_DE_ENTRADAS): Almacen {
     tamano: () => entradas,
   }
 }
-
-/**
- * El almacén del proceso.
- *
- * Colgado de `globalThis` y no de una constante del módulo: en desarrollo,
- * Next vuelve a evaluar el módulo de la ruta con cada cambio guardado, y un
- * almacén nuevo en cada recarga dejaría a todo el mundo «solo» en la ficha
- * hasta el siguiente latido. En producción da igual: el módulo se evalúa una
- * vez.
- */
-const GLOBAL = globalThis as typeof globalThis & { __presenciaDelEditor?: Almacen }
-export const almacenDelProceso = (): Almacen => (GLOBAL.__presenciaDelEditor ??= crearAlmacen())
 
 // ------------------------------------------------------------------ entrada
 

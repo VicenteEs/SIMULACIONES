@@ -20,7 +20,7 @@ import { registrarPublicacion } from '@/lib/publicaciones'
  * Solo dispara con `_status: 'published'`. Guardar un borrador no interrumpe a
  * nadie: todavía no hay nada que leer.
  */
-export const avisarAlPublicar: CollectionAfterChangeHook = ({ collection, doc }) => {
+export const avisarAlPublicar: CollectionAfterChangeHook = async ({ collection, doc, req }) => {
   const registro = doc as Record<string, unknown>
   if (registro._status !== 'published') return
 
@@ -34,5 +34,7 @@ export const avisarAlPublicar: CollectionAfterChangeHook = ({ collection, doc })
       ? (registro[campoTitulo] as string)
       : ''
 
-  registrarPublicacion(collection.slug, titulo)
+  // Con la petición, para que el aviso vaya en la misma transacción que la
+  // publicación: si esta se deshace, el aviso no sale (D-393).
+  await registrarPublicacion(collection.slug, titulo, req)
 }

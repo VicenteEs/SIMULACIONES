@@ -94,5 +94,19 @@ export const Difusiones: CollectionConfig = {
       label: 'Envíos fallidos',
     },
     { name: 'terminadaEn', type: 'date', label: 'Terminada el' },
+    {
+      // Quién la está mandando y cuándo dio señales por última vez (D-393).
+      // Con varios procesos, «¿se está enviando?» no se puede contestar con la
+      // memoria del que pregunta: el trabajador puede ser de otro. Así que el
+      // trabajador escribe aquí con cada correo, y una difusión «enviando» cuyo
+      // latido ya es viejo está interrumpida (`seEstaEnviando`). `trabajador`
+      // es una marca al azar de cada envío: si alguien reanuda mientras uno que
+      // parecía muerto sigue vivo, el viejo ve que la marca ya no es la suya y
+      // para en la vuelta siguiente.
+      name: 'trabajador',
+      type: 'text',
+      label: 'Marca del trabajador',
+    },
+    { name: 'latidoDelTrabajador', type: 'date', label: 'Último latido del trabajador' },
   ],
 }

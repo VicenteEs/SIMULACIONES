@@ -54,7 +54,7 @@ ENV NEXT_PUBLIC_BASE_PATH=$BASE_PATH
 # Por eso la comprobacion del final. Sin ella, olvidar la variable -o que alguien
 # la renombre en un solo lado- no fallaria aqui sino tres pasos mas abajo, en un
 # COPY que dice «not found» sin nombrar la variable ni este archivo. Se mira
-# `server.js` y no el directorio a secas porque es lo que ejecuta el CMD.
+# `server.js` y no el directorio a secas porque es lo que ejecutan los procesos que lanza el CMD.
 RUN DATABASE_URI=postgres://relleno:relleno@localhost:5432/relleno \
     PAYLOAD_SECRET=valor-de-relleno-solo-para-compilar \
     SALIDA_AUTOCONTENIDA=1 \
@@ -102,6 +102,9 @@ RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# El proceso principal, que lanza varios `server.js` y relanza al que se cae
+# (D-393). Va junto a `server.js`, que es donde lo busca.
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/arrancar.mjs ./arrancar.mjs
 
 # Directorios de escritura, propiedad del usuario de la aplicacion. Ambos se
 # montan como volumen en produccion; se crean aqui para que la imagen funcione
@@ -121,4 +124,7 @@ ENV RESPALDOS_DIR=/backups
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:3000${NEXT_PUBLIC_BASE_PATH}/api/salud" >/dev/null || exit 1
 
-CMD ["node", "server.js"]
+# Varios procesos de la aplicación en el mismo puerto (D-393). `arrancar.mjs`
+# lanza el primero solo, para que aplique las migraciones, y los demás cuando
+# la salud contesta bien.
+CMD ["node", "arrancar.mjs"]

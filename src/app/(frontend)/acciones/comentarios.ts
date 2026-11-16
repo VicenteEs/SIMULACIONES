@@ -61,7 +61,7 @@ export async function crearComentario(
     if (!usuario || !puedeEditarContenido(usuarioDeSesion(usuario)) || (rolReal !== 'admin' && rolReal !== 'editor')) {
       throw new Error('Solo quien trabaja en el taller anatómico puede comentar sus preparaciones.')
     }
-    if (!LIMITE_DE_COMENTARIOS.permitir(String((usuario as { id?: unknown }).id))) {
+    if (!(await LIMITE_DE_COMENTARIOS.permitir(String((usuario as { id?: unknown }).id)))) {
       throw new Error(
         'Dejó varios comentarios en pocos minutos. Espere un poco antes de escribir el siguiente.',
       )
@@ -103,7 +103,7 @@ export async function crearComentario(
     throw new Error('Su cuenta no tiene acceso a ese módulo.')
   }
 
-  if (!LIMITE_DE_COMENTARIOS.permitir(String((usuarioEfectivo as { id?: unknown }).id))) {
+  if (!(await LIMITE_DE_COMENTARIOS.permitir(String((usuarioEfectivo as { id?: unknown }).id)))) {
     throw new Error(
       'Dejó varios comentarios en pocos minutos. Espere un poco antes de escribir el siguiente.',
     )

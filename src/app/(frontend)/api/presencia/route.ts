@@ -1,7 +1,8 @@
 import { esColeccionEditable } from '@/admin/esquema'
 import { puedeEditar } from '@/lib/guardias'
 import { vieneDeAqui } from '@/lib/origenDeLaPeticion'
-import { almacenDelProceso, claveDeFicha, leerLatido } from '@/lib/presencia'
+import { claveDeFicha, leerLatido } from '@/lib/presencia'
+import { almacenDePresencia } from '@/lib/presenciaServidor'
 import { obtenerSesion } from '@/lib/sesion'
 
 export const dynamic = 'force-dynamic'
@@ -40,13 +41,7 @@ async function quienLlama(coleccion: string) {
   if (!puedeEditar(usuario, coleccion)) {
     return { rechazo: responder({ error: 'Su cuenta no edita este módulo.' }, 403) }
   }
-  return {
-    usuario: {
-      id: String(usuario.id),
-      nombre: typeof usuario.nombre === 'string' && usuario.nombre.trim() ? usuario.nombre.trim() : 'Alguien',
-      rol: rolReal,
-    },
-  }
+  return { usuario: { id: String(usuario.id) } }
 }
 
 export async function POST(peticion: Request) {
@@ -70,28 +65,26 @@ export async function POST(peticion: Request) {
   if (acceso.rechazo) return acceso.rechazo
   const { usuario } = acceso
 
-  const almacen = almacenDelProceso()
+  const almacen = almacenDePresencia()
   const ficha = claveDeFicha(latido.coleccion, latido.id)
   const ahora = Date.now()
 
   if (latido.salir) {
-    almacen.salir(ficha, usuario.id, latido.pestana)
+    await almacen.salir(ficha, usuario.id, latido.pestana)
     return responder({ ok: true })
   }
 
-  almacen.latir(
-    ficha,
-    { usuarioId: usuario.id, nombre: usuario.nombre, rol: usuario.rol, pestana: latido.pestana, visible: latido.visible },
-    ahora,
-  )
+  // El nombre y el rol no viajan: el almacén los lee de la cuenta al
+  // preguntar, así que un cambio de nombre se ve en el siguiente latido.
+  await almacen.latir(ficha, { usuarioId: usuario.id, pestana: latido.pestana, visible: latido.visible }, ahora)
   // Se limpia de paso, con cada latido, en vez de con un temporizador del
   // proceso: un `setInterval` suelto en un módulo de ruta sobrevive a las
   // recargas de desarrollo y se multiplica con cada una.
-  almacen.limpiar(ahora)
+  await almacen.limpiar(ahora)
   // `ahora` viaja con la respuesta para que «desde hace 3 min» se cuente con
   // el reloj del servidor, que es el que puso los `desde`: el del computador
   // de quien mira puede ir minutos adelantado o atrasado.
-  return responder({ ahora, ...almacen.quienMas(ficha, usuario.id, latido.pestana, ahora) })
+  return responder({ ahora, ...(await almacen.quienMas(ficha, usuario.id, latido.pestana, ahora)) })
 }
 
 export async function GET(peticion: Request) {
@@ -99,7 +92,7 @@ export async function GET(peticion: Request) {
   const acceso = await quienLlama(coleccion)
   if (acceso.rechazo) return acceso.rechazo
   const ahora = Date.now()
-  const fichas = almacenDelProceso().porColeccion(coleccion, ahora)
+  const fichas = await almacenDePresencia().porColeccion(coleccion, ahora)
   // Sin el identificador interno de las cuentas: a quien mira el listado le
   // basta con el nombre y con saber cuál de ellas es la suya.
   const salida = Object.fromEntries(

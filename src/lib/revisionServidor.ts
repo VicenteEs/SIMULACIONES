@@ -12,7 +12,8 @@
  * revisión solo admiten al administrador por REST.
  */
 import { createHash } from 'node:crypto'
-import type { Payload } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
+import { conCandado } from '@/lib/sqlDirecto'
 import { depurarDocumento, faltantes, sinIdentificadoresDeFila } from '@/admin/depurar'
 import { esquemaDe, type EsquemaDeColeccion } from '@/admin/esquema'
 import {
@@ -509,9 +510,13 @@ export function techoDelLatido(
  * una ve lo que escribió la anterior. De paso deja de chocar el primer latido
  * doble de una sesión nueva contra el índice único de `sesion`.
  *
- * Vive en la memoria del proceso, como el freno de `src/lib/ritmo.ts` y por la
- * misma razón: la plataforma corre en un solo proceso. Cuelga de `globalThis`
- * para que dos copias del módulo no sean dos filas.
+ * Son dos filas, una dentro de otra. La de aquí, en la memoria del proceso,
+ * deja a lo sumo un latido por cuenta esperando turno en cada proceso: sin
+ * ella, cien latidos a la vez tomarían las diez conexiones del pool para
+ * quedarse esperando el candado. Y el candado de la base (`conCandado`) es la
+ * fila entre procesos, que desde D-393 son varios: dos latidos de la misma
+ * cuenta en dos procesos leerían el mismo último latido. Cuelga de
+ * `globalThis` para que dos copias del módulo no sean dos filas.
  */
 const FILAS_DE_LATIDOS = Symbol.for('traumahub.latidosDeRevision')
 
@@ -545,7 +550,9 @@ export function anotarLatido(
   payload: Payload,
   entrada: Parameters<typeof anotarLatidoEnFila>[1],
 ): Promise<boolean> {
-  return enFilaDeLaCuenta(entrada.usuarioId, () => anotarLatidoEnFila(payload, entrada))
+  return enFilaDeLaCuenta(entrada.usuarioId, () =>
+    conCandado(payload, `latido-de-revision:${entrada.usuarioId}`, (req) => anotarLatidoEnFila(payload, entrada, req)),
+  )
 }
 
 async function anotarLatidoEnFila(
@@ -560,6 +567,7 @@ async function anotarLatidoEnFila(
     porSeccion: unknown
     ediciones: unknown
   },
+  req?: Partial<PayloadRequest>,
 ): Promise<boolean> {
   const revision = await revisionDe(payload, entrada.esquema.slug, entrada.documentoId)
   if (!revision) return false
@@ -570,6 +578,7 @@ async function anotarLatidoEnFila(
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    req,
   })
   const existente = docs[0] as unknown as Registro | undefined
   if (
@@ -588,6 +597,7 @@ async function anotarLatidoEnFila(
     limit: 1,
     depth: 0,
     overrideAccess: true,
+    req,
     select: { ultimoLatido: true },
   })
   const ultimoDeLaCuenta = (ultimos[0] as unknown as Registro | undefined)?.ultimoLatido
@@ -617,6 +627,7 @@ async function anotarLatidoEnFila(
       collection: 'sesiones-de-revision',
       id: String(existente.id),
       overrideAccess: true,
+      req,
       data: {
         segundosAbiertos: Number(existente.segundosAbiertos ?? 0) + abiertos,
         segundosActivos: Number(existente.segundosActivos ?? 0) + activos,
@@ -629,6 +640,7 @@ async function anotarLatidoEnFila(
     await payload.create({
       collection: 'sesiones-de-revision',
       overrideAccess: true,
+      req,
       data: {
         usuario: Number(entrada.usuarioId),
         coleccion: entrada.esquema.slug as never,
@@ -651,6 +663,7 @@ async function anotarLatidoEnFila(
       collection: 'revisiones',
       id: String(revision.id),
       overrideAccess: true,
+      req,
       data: { estado: 'en-revision' } as never,
     })
   }

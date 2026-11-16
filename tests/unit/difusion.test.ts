@@ -8,8 +8,10 @@ import {
   enCurso,
   FALLOS_SEGUIDOS_PARA_DETENER,
   lanzarDifusion,
+  MARGEN_DEL_LATIDO_MS,
   pausaEntreCorreosMs,
   procesarDifusion,
+  seEstaEnviando,
 } from '@/correo/difusion'
 
 /**
@@ -325,5 +327,70 @@ describe('lanzar en segundo plano', () => {
     await vi.waitFor(() => expect(enCurso(21)).toBe(false))
 
     expect(espia.logger.error).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('quién la está mandando, entre procesos (D-393)', () => {
+  const ahora = Date.parse('2026-11-16T12:00:00Z')
+  const hace = (ms: number) => new Date(ahora - ms).toISOString()
+
+  it('«enviando» con el latido reciente sí; sin latido, viejo o en otro estado, no', () => {
+    expect(seEstaEnviando({ estado: 'enviando', latidoDelTrabajador: hace(5_000) }, ahora, 18_000)).toBe(true)
+    // La pausa entre correos más el margen: un trabajador que duerme la pausa
+    // larga de un ritmo bajo sigue vivo.
+    expect(seEstaEnviando({ estado: 'enviando', latidoDelTrabajador: hace(600_000) }, ahora, 600_000)).toBe(true)
+    expect(
+      seEstaEnviando({ estado: 'enviando', latidoDelTrabajador: hace(18_000 + MARGEN_DEL_LATIDO_MS + 1) }, ahora, 18_000),
+    ).toBe(false)
+    expect(seEstaEnviando({ estado: 'enviando', latidoDelTrabajador: null }, ahora, 18_000)).toBe(false)
+    expect(seEstaEnviando({ estado: 'enviando', latidoDelTrabajador: 'no es una fecha' }, ahora, 18_000)).toBe(false)
+    expect(seEstaEnviando({ estado: 'detenida', latidoDelTrabajador: hace(1_000) }, ahora, 18_000)).toBe(false)
+  })
+
+  it('cada correo deja su latido en la difusión', async () => {
+    const { payload, espia } = baseDePrueba(TRES(), difusionNueva(40, [1, 2, 3]))
+    await procesarDifusion(payload, 40, { enviar: buzon().enviar, dormir: sinEsperar() })
+    const latidos = espia.update.mock.calls
+      .map((llamada) => (llamada[0] as { data: Fila }).data.latidoDelTrabajador)
+      .filter((latido) => latido !== undefined)
+    expect(latidos).toHaveLength(3)
+    for (const latido of latidos) expect(Number.isFinite(Date.parse(String(latido)))).toBe(true)
+  })
+
+  it('si la difusión trae otra marca, la reanudó otro proceso: este para sin mandar más', async () => {
+    const { payload, difusiones } = baseDePrueba(TRES(), difusionNueva(41, [1, 2, 3], { trabajador: 'marca-a' }))
+    const { recibidos, enviar } = buzon()
+    // Mientras este duerme la primera pausa, otro proceso la reanuda.
+    const dormir = vi.fn(async () => {
+      difusiones.get('41')!.trabajador = 'marca-b'
+    })
+    await procesarDifusion(payload, 41, { enviar, dormir, trabajador: 'marca-a' })
+    expect(recibidos.map((e) => e.para)).toEqual(['ana@hospital.cl'])
+    expect(difusiones.get('41')).toMatchObject({ estado: 'enviando', pendientes: [2, 3] })
+  })
+
+  it('reanudada en este mismo proceso mientras dormía, el trabajador sigue con la marca nueva', async () => {
+    const { payload, difusiones } = baseDePrueba(TRES(), difusionNueva(42, [1, 2, 3], { trabajador: 'marca-a' }))
+    const { recibidos, enviar } = buzon()
+    let soltar!: () => void
+    const cerrojo = new Promise<void>((listo) => {
+      soltar = listo
+    })
+    let vueltas = 0
+    const dormir = vi.fn(() => (vueltas++ === 0 ? cerrojo : Promise.resolve()))
+
+    expect(lanzarDifusion(payload, 42, { enviar, dormir, trabajador: 'marca-a' })).toBe(true)
+    await vi.waitFor(() => expect(dormir).toHaveBeenCalledTimes(1))
+
+    // Lo que hacen «Detener» y «Reanudar» mientras duerme: la acción guarda la
+    // marca nueva y pide lanzarla. No sale un segundo trabajador, y el que había
+    // no se cree sustituido.
+    difusiones.get('42')!.trabajador = 'marca-b'
+    expect(lanzarDifusion(payload, 42, { enviar, dormir, trabajador: 'marca-b' })).toBe(false)
+    soltar()
+    await vi.waitFor(() => expect(enCurso(42)).toBe(false))
+
+    expect(recibidos.map((e) => e.para)).toEqual(['ana@hospital.cl', 'beto@hospital.cl', 'carla@hospital.cl'])
+    expect(difusiones.get('42')).toMatchObject({ estado: 'enviada', enviados: 3 })
   })
 })

@@ -26,6 +26,19 @@
  * `globalThis`, que sobrevive a la recarga.
  */
 
+/**
+ * ¿Programa este proceso la pasada?
+ *
+ * Con varios procesos (D-393) solo el primero: cada uno tendría su reloj, y
+ * todos harían la pasada a la vez sobre las mismas filas. El proceso principal
+ * (`scripts/arrancar.mjs`) numera a los suyos en `TRAUMAHUB_PROCESO` y relanza
+ * con el mismo número al que se cae, así que siempre hay un primero. Sin la
+ * variable —`next dev`, o `node server.js` a secas— el proceso es el único, y
+ * programa.
+ */
+export const programaEsteProceso = (entorno: Record<string, string | undefined> = process.env): boolean =>
+  !entorno.TRAUMAHUB_PROCESO || entorno.TRAUMAHUB_PROCESO === '1'
+
 /** Cuánto espera la primera pasada: que el servidor termine de arrancar y aplique sus migraciones. */
 export const PRIMERA_PASADA_MS = 5 * 60 * 1000
 

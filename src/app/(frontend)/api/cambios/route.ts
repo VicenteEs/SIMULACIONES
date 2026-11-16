@@ -73,8 +73,10 @@ export async function GET() {
       // es todo lo que se le puede pedir a un código que ya está descargado.
       const { despliegue, arranque } = despliegueActual()
       const base = Math.floor(arranque / 1000)
-      const enviar = () => {
-        const actual = versionActual(puedeVer)
+      const enviar = async () => {
+        // Leída de la base y no de la memoria de este proceso (D-393): la
+        // publicación pudo atenderla otro.
+        const actual = await versionActual(puedeVer)
         const datos = JSON.stringify({
           ...actual,
           version: base + actual.version,
@@ -111,9 +113,9 @@ export async function GET() {
           controlador.close()
           return
         }
-        enviar()
+        await enviar()
       }
-      enviar()
+      void enviar().catch(() => undefined)
       intervalo = setInterval(() => void latido().catch(() => clearInterval(intervalo)), 15_000)
     },
     cancel() {

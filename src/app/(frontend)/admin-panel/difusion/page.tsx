@@ -1,7 +1,7 @@
 import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
 import { AUDIENCIAS_DE_DIFUSION } from '@/collections/Difusiones'
 import { direccionPublica } from '@/collections/Usuarios'
-import { condicionDeDestinatarios, correosPorHora, enCurso, pausaEntreCorreosMs } from '@/correo/difusion'
+import { condicionDeDestinatarios, correosPorHora, pausaEntreCorreosMs, seEstaEnviando } from '@/correo/difusion'
 import { hayCorreo } from '@/correo/enviar'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { clientePayload } from '../datos'
@@ -98,7 +98,8 @@ export default async function PaginaDifusion() {
       creada: d.createdAt,
       terminada: d.terminadaEn ?? null,
       estado: d.estado,
-      enCurso: enCurso(d.id),
+      // Por el latido del trabajador, que puede ser de otro proceso (D-393).
+      enCurso: seEstaEnviando(d),
       total: d.total,
       enviados: d.enviados,
       fallidos: d.fallidos,

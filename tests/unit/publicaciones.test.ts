@@ -47,7 +47,7 @@ describe('avisar al publicar', () => {
     for (const slug of SLUGS_DE_MODULOS) {
       olvidarPublicaciones()
       await publicar(coleccionDe(slug), 'published')
-      const estado = versionActual()
+      const estado = await versionActual()
       expect(estado.version, `${slug} no avisa al publicar`).toBeGreaterThan(0)
       expect(estado.modulo, `${slug} avisa sin decir de qué módulo`).toBe(slug)
     }
@@ -57,7 +57,7 @@ describe('avisar al publicar', () => {
     for (const slug of SLUGS_DE_MODULOS) {
       await publicar(coleccionDe(slug), 'draft')
     }
-    expect(versionActual().version).toBe(0)
+    expect((await versionActual()).version).toBe(0)
   })
 
   it('el material de apoyo no avisa', async () => {
@@ -69,7 +69,7 @@ describe('avisar al publicar', () => {
     for (const coleccion of auxiliares) {
       await publicar(coleccion, 'published')
     }
-    expect(versionActual().version, 'una colección auxiliar está avisando').toBe(0)
+    expect((await versionActual()).version, 'una colección auxiliar está avisando').toBe(0)
   })
 
   it('el aviso toma el título del campo que cada colección usa como tal', async () => {
@@ -77,7 +77,7 @@ describe('avisar al publicar', () => {
     // gancho lo lee de la colección en vez de recibirlo, que es lo que hacía
     // imposible copiar y pegar el de patologías.
     await publicar(coleccionDe('casos-ao'), 'published')
-    expect(versionActual().titulo).toBe('Fractura de tibia')
+    expect((await versionActual()).titulo).toBe('Fractura de tibia')
   })
 })
 
@@ -90,24 +90,24 @@ describe('a cada cuenta se le cuenta solo lo suyo', () => {
     await publicar(coleccionDe('cirugias'), 'published')
 
     const soloPatologias = (modulo: string) => modulo === 'patologias'
-    expect(versionActual(soloPatologias).version).toBe(0)
-    expect(versionActual(soloPatologias).modulo).toBeNull()
+    expect((await versionActual(soloPatologias)).version).toBe(0)
+    expect((await versionActual(soloPatologias)).modulo).toBeNull()
 
     // Y quien sí lo ve, lo ve.
-    expect(versionActual().modulo).toBe('cirugias')
+    expect((await versionActual()).modulo).toBe('cirugias')
   })
 
   it('la versión solo crece cuando publica un módulo que la cuenta ve', async () => {
     const soloPatologias = (modulo: string) => modulo === 'patologias'
 
     await publicar(coleccionDe('patologias'), 'published')
-    const primera = versionActual(soloPatologias).version
+    const primera = (await versionActual(soloPatologias)).version
     expect(primera).toBeGreaterThan(0)
 
     await publicar(coleccionDe('maniobras'), 'published')
-    expect(versionActual(soloPatologias).version, 'se movió por un módulo ajeno').toBe(primera)
+    expect((await versionActual(soloPatologias)).version, 'se movió por un módulo ajeno').toBe(primera)
 
     await publicar(coleccionDe('patologias'), 'published')
-    expect(versionActual(soloPatologias).version).toBeGreaterThan(primera)
+    expect((await versionActual(soloPatologias)).version).toBeGreaterThan(primera)
   })
 })

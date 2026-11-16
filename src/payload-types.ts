@@ -2255,6 +2255,8 @@ export interface Difusione {
     | boolean
     | null;
   terminadaEn?: string | null;
+  trabajador?: string | null;
+  latidoDelTrabajador?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -4283,6 +4285,8 @@ export interface DifusionesSelect<T extends boolean = true> {
   pendientes?: T;
   fallos?: T;
   terminadaEn?: T;
+  trabajador?: T;
+  latidoDelTrabajador?: T;
   updatedAt?: T;
   createdAt?: T;
 }

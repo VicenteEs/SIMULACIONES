@@ -21,9 +21,16 @@ import { resolve } from 'node:path'
  *    el cliente necesita saber que cambió de proceso para no comparar la cuenta
  *    de uno con la de otro.
  *
- * Los dos van en `globalThis` por lo mismo que `publicaciones.ts`: el modo
- * desarrollo reevalúa los módulos, y un `arranque` nuevo en cada cambio de
- * archivo recargaría la página de quien está programando.
+ * Los dos van en `globalThis`: el modo desarrollo reevalúa los módulos, y un
+ * `arranque` nuevo en cada cambio de archivo recargaría la página de quien está
+ * programando.
+ *
+ * Con varios procesos (D-393), el `arranque` es el del proceso principal, que
+ * se lo pasa a cada uno en `TRAUMAHUB_ARRANQUE` (`scripts/arrancar.mjs`). Si
+ * cada proceso diera el suyo, el flujo de una pestaña que se reabre y cae en
+ * otro creería que el servidor se reinició. Relanzar un proceso caído tampoco
+ * lo cambia: la construcción es la misma, y la cuenta de publicaciones vive en
+ * la base desde entonces.
  */
 interface Despliegue {
   despliegue: string
@@ -32,8 +39,14 @@ interface Despliegue {
 
 const global_ = globalThis as unknown as { __despliegue?: Despliegue }
 
+/** El arranque que dio el proceso principal, si lo dio y es un instante. */
+function arranqueDelPrincipal(): number | null {
+  const valor = Number(process.env.TRAUMAHUB_ARRANQUE)
+  return Number.isSafeInteger(valor) && valor > 0 ? valor : null
+}
+
 function leer(): Despliegue {
-  const arranque = Date.now()
+  const arranque = arranqueDelPrincipal() ?? Date.now()
   try {
     // En la salida autocontenida `server.js` hace `chdir` a su carpeta, que es
     // donde Next deja `.next/BUILD_ID`; con `next start` es la raíz del

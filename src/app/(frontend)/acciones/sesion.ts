@@ -146,7 +146,7 @@ export async function entrar(
 
     const cabeceras = await headers()
     const direccion = direccionDeQuienLlama(cabeceras)
-    if (!LIMITE_DE_ENTRADAS.permitir(direccion)) {
+    if (!(await LIMITE_DE_ENTRADAS.permitir(direccion))) {
       throw new Error(
         'Demasiados intentos de entrada desde esta conexión. Espere unos minutos y vuelva a intentarlo.',
       )
@@ -345,9 +345,9 @@ export async function pedirEnlaceDeClave(correo: unknown): Promise<Respuesta> {
       // no el de todos.
       const direccion = direccionDeQuienLlama(await headers())
       if (
-        !LIMITE_DE_CLAVE_POR_DIRECCION.permitir(direccion) ||
-        !LIMITE_DE_CLAVE_POR_CORREO.permitir(email) ||
-        !LIMITE_DE_CLAVE_GLOBAL.permitir('todas')
+        !(await LIMITE_DE_CLAVE_POR_DIRECCION.permitir(direccion)) ||
+        !(await LIMITE_DE_CLAVE_POR_CORREO.permitir(email)) ||
+        !(await LIMITE_DE_CLAVE_GLOBAL.permitir('todas'))
       ) {
         payload.logger.warn({
           msg: 'Se descartó una petición de enlace de clave nueva por exceso de ritmo',
@@ -465,7 +465,7 @@ export async function solicitarCuenta(datos: unknown): Promise<Respuesta<null>> 
     // proceso. El formulario ya exige en el navegador casi todo lo que se
     // comprueba aquí, así que a una persona no le cuesta huecos equivocarse.
     const direccion = direccionDeQuienLlama(await headers())
-    if (!LIMITE_POR_DIRECCION.permitir(direccion) || !LIMITE_GLOBAL.permitir('todas')) {
+    if (!(await LIMITE_POR_DIRECCION.permitir(direccion)) || !(await LIMITE_GLOBAL.permitir('todas'))) {
       throw new Error(
         'Se recibieron demasiadas solicitudes en poco tiempo. Espere una hora y vuelva a intentarlo.',
       )

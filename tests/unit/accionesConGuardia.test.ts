@@ -101,6 +101,16 @@ vi.mock('payload', async (original) => {
 
 vi.mock('@payload-config', () => ({ default: {} }))
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
+
+// El candado de la base (D-393) abre una transacción, y este Payload de mentira
+// no tiene base. Se corre el trabajo sin candado, que para esta prueba basta:
+// lo que mide es si la guardia deja llegar a los datos, y lo que hay dentro del
+// candado son esos datos. El candado se prueba contra una base de verdad en
+// `tests/integration/estadoCompartido.test.ts`.
+vi.mock('@/lib/sqlDirecto', async (original) => ({
+  ...((await original()) as object),
+  conCandado: async (_payload: unknown, _nombre: string, trabajo: (req: object) => Promise<unknown>) => trabajo({}),
+}))
 vi.mock('next/headers', () => ({
   cookies: async () => ({ set() {}, delete() {}, get: () => undefined }),
   headers: async () => new Headers(),

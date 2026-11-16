@@ -96,52 +96,71 @@ export async function destinatariosDe(payload: Payload, audiencia: AudienciaDeDi
 // ------------------------------------------------------------ envíos en curso
 
 /**
- * El conjunto de difusiones que este proceso está mandando ahora mismo.
+ * Cuánto margen se le da al trabajador sobre la pausa entre correos antes de
+ * dar la difusión por interrumpida. Escribe su latido con cada correo, y un
+ * correo puede tardar en salir: el servidor de correo tiene sus propias esperas.
+ */
+export const MARGEN_DEL_LATIDO_MS = 2 * 60_000
+
+/**
+ * ¿La está mandando algún trabajador, en cualquier proceso? (D-393)
+ *
+ * Una difusión «enviando» con el latido reciente, sí. Una «enviando» sin latido
+ * o con uno viejo es una que cortó un reinicio o la caída de un proceso: el
+ * panel la enseña como «Interrumpida» y se puede reanudar.
+ */
+export function seEstaEnviando(
+  difusion: { estado?: string | null; latidoDelTrabajador?: string | null },
+  ahora = Date.now(),
+  pausaMs = pausaEntreCorreosMs(),
+): boolean {
+  if (difusion.estado !== 'enviando' || !difusion.latidoDelTrabajador) return false
+  const latido = new Date(difusion.latidoDelTrabajador).getTime()
+  return Number.isFinite(latido) && ahora - latido < pausaMs + MARGEN_DEL_LATIDO_MS
+}
+
+/**
+ * Las difusiones que este proceso está mandando ahora mismo, con la marca de cada una.
  *
  * Cuelga de `globalThis` por la misma razón que el limitador de `ritmo.ts`:
  * Next puede cargar este módulo en más de un paquete de servidor —el de las
  * acciones y el de las páginas—, y con una variable del módulo cada copia
- * tendría su conjunto. La acción que pregunta «¿ya se está enviando?» miraría
- * uno vacío y lanzaría un segundo trabajador sobre la misma cola: cada persona
+ * tendría su lista. La acción que pregunta «¿ya se está enviando?» miraría
+ * una vacía y lanzaría un segundo trabajador sobre la misma cola: cada persona
  * recibiría el correo dos veces.
  */
 const LLAVE = Symbol.for('traumahub.difusionesEnCurso')
 
-function envios(): Set<string> {
-  const global = globalThis as unknown as { [LLAVE]?: Set<string> }
-  global[LLAVE] ??= new Set()
+/** La marca que el trabajador de una difusión espera encontrar en ella. */
+interface Marca {
+  trabajador?: string
+}
+
+function envios(): Map<string, Marca> {
+  const global = globalThis as unknown as { [LLAVE]?: Map<string, Marca> }
+  global[LLAVE] ??= new Map()
   return global[LLAVE]
 }
 
-/** ¿Hay un trabajador de este proceso mandando esta difusión? */
+/**
+ * ¿Hay un trabajador de **este proceso** mandando esta difusión? Para no lanzar
+ * dos en el mismo; la pregunta entre procesos es `seEstaEnviando`.
+ */
 export const enCurso = (id: number | string): boolean => envios().has(String(id))
 
-const LLAVE_DE_RESERVA = Symbol.for('traumahub.difusionReservada')
-
 /**
- * Aparta el turno de empezar una difusión, sin ceder el hilo entre mirar y
- * apuntar.
+ * El nombre del candado de «una difusión a la vez» (`conCandado`).
  *
  * «Una difusión a la vez» se comprobaba preguntando a la base si había alguna
  * enviándose y, tres esperas después —la consulta, la lista de destinatarios y
  * la creación—, lanzando el trabajador. Dos «Enviar» cruzados, desde dos
  * pestañas o dos administradores, pasaban los dos la pregunta antes de que
  * ninguno llegara a apuntarse, y salían dos trabajadores a la vez: el doble de
- * ritmo y el doble de la cuota del hosting. Esta reserva se toma y se mira en
- * la misma instrucción, así que el segundo la encuentra ocupada.
- *
- * Devuelve la función que la suelta, o `null` si ya estaba tomada. Quien la toma
- * la suelta en un `finally`: para entonces, si todo fue bien, el trabajador ya
- * está apuntado en `envios()` y es él quien bloquea al siguiente.
+ * ritmo y el doble de la cuota del hosting. Lo evitaba una reserva en la memoria
+ * del proceso; desde D-393 los procesos son varios, y la reserva es un candado
+ * de la base que toman las acciones de empezar y de reanudar.
  */
-export function reservarInicioDeDifusion(): (() => void) | null {
-  const global = globalThis as unknown as { [LLAVE_DE_RESERVA]?: boolean }
-  if (global[LLAVE_DE_RESERVA]) return null
-  global[LLAVE_DE_RESERVA] = true
-  return () => {
-    global[LLAVE_DE_RESERVA] = false
-  }
-}
+export const CANDADO_DEL_INICIO = 'difusion:inicio'
 
 export interface DependenciasDelEnvio {
   /** Por omisión `enviarCorreo`. Se sustituye en las pruebas. */
@@ -150,6 +169,12 @@ export interface DependenciasDelEnvio {
   dormir?: (ms: number) => Promise<void>
   /** Por omisión `pausaEntreCorreosMs()`, leída al empezar. */
   pausaMs?: number
+  /**
+   * La marca de este envío, la misma que la acción guardó en la difusión. Si en
+   * una vuelta la difusión trae otra, alguien la reanudó con otro trabajador, y
+   * este para. Sin marca no se mira: así la usan las pruebas.
+   */
+  trabajador?: string
 }
 
 /**
@@ -175,9 +200,18 @@ export interface DependenciasDelEnvio {
 export function lanzarDifusion(payload: Payload, id: number | string, dependencias: DependenciasDelEnvio = {}): boolean {
   const clave = String(id)
   const enMarcha = envios()
-  if (enMarcha.has(clave)) return false
-  enMarcha.add(clave)
-  void procesarDifusion(payload, clave, dependencias)
+  const existente = enMarcha.get(clave)
+  if (existente) {
+    // Detenida y reanudada mientras su trabajador de este proceso todavía
+    // dormía la pausa. No se lanza otro, pero el que hay se queda con la marca
+    // nueva: con la vieja, al despertar creería que lo sustituyeron y pararía,
+    // y como aquí no se lanzó ninguno, nadie la mandaría.
+    existente.trabajador = dependencias.trabajador
+    return false
+  }
+  const marca: Marca = { trabajador: dependencias.trabajador }
+  enMarcha.set(clave, marca)
+  void procesarDifusion(payload, clave, dependencias, marca)
     .catch((error: unknown) =>
       payload.logger.error({ msg: `La difusión ${clave} se cortó por un error inesperado`, err: error }),
     )
@@ -262,7 +296,8 @@ const motivoDe = (error: unknown): string => explicarFalloDeCorreo(error).slice(
 export async function procesarDifusion(
   payload: Payload,
   id: number | string,
-  { enviar = enviarCorreo, dormir = dormirDe, pausaMs = pausaEntreCorreosMs() }: DependenciasDelEnvio = {},
+  { enviar = enviarCorreo, dormir = dormirDe, pausaMs = pausaEntreCorreosMs(), trabajador }: DependenciasDelEnvio = {},
+  marca: Marca = { trabajador },
 ): Promise<void> {
   let fallosSeguidos = 0
 
@@ -275,6 +310,9 @@ export async function procesarDifusion(
       disableErrors: true,
     })
     if (!difusion || difusion.estado !== 'enviando') return
+    // Se mira la marca en cada vuelta, no la del principio: `lanzarDifusion`
+    // puede cambiarla mientras este trabajador duerme.
+    if (marca.trabajador && difusion.trabajador !== marca.trabajador) return
 
     const cola = colaDe(difusion.pendientes)
     const fallos = fallosDe(difusion.fallos)
@@ -336,6 +374,7 @@ export async function procesarDifusion(
       overrideAccess: true,
       data: {
         pendientes: resto,
+        latidoDelTrabajador: new Date().toISOString(),
         total,
         enviados,
         fallidos,
