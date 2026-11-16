@@ -12488,9 +12488,9 @@ Decisiones del dueño, el 2026-11-16:
 - (+) No se abre nada nuevo a internet, y Umami solo ve lo limpio.
 - (−) Dos contenedores más en Contabo, de hasta 768 MB entre los dos. Se mira la memoria antes de encenderlos.
 - (−) Lo de Umami se guarda sin plazo hasta que el abogado diga otra cosa (E8).
-- (−) La forma de dos respuestas de Umami, la serie y los activos, no está en su documentación. Se leen con holgura y se confirman en Contabo.
-- (−) Ninguna prueba corre el guion del anfitrión, que necesita `/proc` y Docker. Una prueba fija que escribe lo que la aplicación lee; el resto se comprueba en Contabo.
-- (−) Falta desplegarlo en Contabo, un paso a la vez, y que el dueño cree el token de Cloudflare.
+- (−) La forma de dos respuestas de Umami, la serie y los activos, no está en su documentación. Se leen con holgura y se confirman en Contabo. *Confirmadas el 2026-11-16: llegan como se leen. Salió además una tercera respuesta que no se había puesto en duda, la del sitio que no existe (D-409).*
+- (−) Ninguna prueba corre el guion del anfitrión, que necesita `/proc` y Docker. Una prueba fija que escribe lo que la aplicación lee; el resto se comprueba en Contabo. *Comprobado el 2026-11-16: la primera foto y el cron de cada minuto, sin errores.*
+- ~~(−) Falta desplegarlo en Contabo, un paso a la vez, y que el dueño cree el token de Cloudflare.~~ *Hecho el 2026-11-16, con D-409 (en P-016).*
 
 ### D-409 · 2026-11-16 · vigente · P-016 E7 · Umami 3.4.1 responde 200 por un sitio que no existe
 **La plataforma da por existente el sitio de Umami solo si Umami lo devuelve con el identificador de `UMAMI_SITIO`. Al crearlo, comprueba que Umami lo respetó.**
@@ -12516,8 +12516,9 @@ Decisiones del dueño, el 2026-11-16:
 
 *Consecuencias.*
 - (+) Las pruebas imitan lo que hace el Umami de la producción, no lo que se suponía.
-- (−) Contabo no cuenta visitas hasta desplegar esta corrección. Las otras dos partes de la pestaña funcionan.
-- (−) Ninguna prueba contra el Umami de verdad comprueba que acepte el `id` al crear el sitio. Se ve al desplegar: si no lo acepta, el registro lo dice.
+- ~~(−) Contabo no cuenta visitas hasta desplegar esta corrección.~~ *Desplegada el 2026-11-16 a las 14:03, en ved y Contabo. La primera visita de verdad llegó enseguida.*
+- (−) Ninguna prueba contra el Umami de verdad comprueba que acepte el `id` al crear el sitio. Se ve al desplegar: si no lo acepta, el registro lo dice. *Lo acepta: el sitio de Contabo tiene el `id` de `UMAMI_SITIO`.*
+- (+) Del Umami de Contabo salió también el formato real de la serie. Trae la hora de Chile con una «Z» que no le corresponde, y la lectura ya la ignoraba. Queda en `monitoreo.test.ts`, en lugar del formato que se suponía.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -18497,7 +18498,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6 y E9 hechas y desplegadas; E7 desplegada en ved y Contabo, falta que Umami cree su sitio (D-409); E8 en borrador, con el abogado; falta repetir la carga de E4
+### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6, E7 y E9 hechas y desplegadas; E8 en borrador, con el abogado; falta repetir la carga de E4
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -18721,7 +18722,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - la campana de la barra, que abre sola los avisos nuevos, y «Retirar el aviso»;
   - el enlace del botón, al lugar de cada cuenta;
   - las lecturas, con su barrera, en la descarga de datos y fuera del ensayo;
-- [ ] **E7 · El monitoreo (D-377).** *Hecha el 2026-11-16 (D-408) y desplegada ese día en ved y Contabo; falta desplegar D-409, que crea el sitio de Umami:*
+- [x] **E7 · El monitoreo (D-377).** *Hecha el 2026-11-16 (D-408 y D-409) y desplegada ese día en ved y en Contabo (abajo). El dueño vio la pestaña con datos reales:*
   - la pestaña «Monitoreo», con el servidor, las visitas por página y Cloudflare;
   - Umami escondido tras la plataforma, que limpia cada visita y lo prepara sola;
   - `scripts/preparar-monitoreo.sh`, que lo enciende en un servidor;
@@ -18761,6 +18762,25 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 - ved, a las 11:21 en Chile: la migración `20261116_190000_avisos_y_lugares_de_difusion` en el lote 30. `lecturas_de_avisos` con su barrera y sus 4 políticas, 84 políticas en total, y ninguna tabla con columna de institución sin ellas. La salud por fuera da 200;
 - Contabo, a las 11:34 en Chile: antes, un respaldo cifrado y verificado (`base-` y `medios-20261116-112220`), y el override, igual a la plantilla. `actualizar.sh` pasó de `cb7207e` a `875906a`: la migración en el lote 28, la misma barrera, los 4 procesos y el ensayo con 0 errores. Por fuera, la salud, la portada, `/entrar` y `/biblioteca` dan 200, y el registro no trae errores en los primeros minutos;
 - en ninguno de los dos hay todavía difusiones: el primer aviso de verdad lo manda el dueño.
+
+*Desplegado en ved y en Contabo el 2026-11-16 (`80279ce`, y `3534a70` con D-409), con el OK del dueño en cada paso:* E7 (D-408 y D-409).
+- **ved**, a las 13:14 en Chile: solo el código, con la plantilla nueva del override (la de antes, en `~/antes-d408/`).
+  - No tiene perfil ni claves, así que Umami no corre ahí.
+  - El guion del contador da 404, y la pestaña dice qué le falta.
+- **Contabo**, un paso a la vez:
+  1. Un respaldo cifrado y verificado: `base-` y `medios-20261116-131838`.
+  2. El override de antes, en `~/antes-d408/`. La plantilla nueva, que compose lee con solo `db` y `app` activos.
+  3. `actualizar.sh`, de `875906a` a `80279ce`, de 13:38 a 13:46. El ensayo de los casos sale bien, y la aplicación ya llega a Cloudflare con el token del dueño.
+  4. `preparar-monitoreo.sh`, a las 13:48:
+     - escribe en el `.env` las cuatro claves de Umami y enciende el perfil;
+     - toma la primera foto y pone el cron;
+     - a las 13:49 el cron escribió la segunda foto, sin errores.
+  5. `docker compose up -d`, a las 13:50:
+     - levanta Umami 3.4.1 y su base, sin puerto publicado y fuera de la red del túnel, con 205 MB entre los dos;
+     - salió «[umami] Listo» al primer intento, pero sin sitio. Ahí apareció D-409.
+  6. D-409, desplegada a las 14:03 en los dos. El sitio quedó creado con el `id` de `UMAMI_SITIO`, y la primera visita de verdad se contó enseguida.
+- **El token de Cloudflare.** Lo creó el dueño, con solo «Analytics: Read» de la zona, y lo escribió él en el `.env`. Con él, desde el servidor, responden la consulta del tráfico y la de seguridad.
+- **La pestaña.** El dueño la vio con datos reales: «quedó bien».
 
 E2 va después de E1, para copiar una base ya limpia. E5 necesita el comodín de E2 y las protecciones de E3. E4 puede ir en paralelo a E3. E9 no depende de nada y puede salir con el despliegue de E1.
 

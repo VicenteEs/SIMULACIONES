@@ -259,6 +259,23 @@ describe('las visitas de Umami', () => {
     expect(horas[0].etiqueta).toBe('12:00')
   })
 
+  it('la hora que da el Umami de la producción es la de Chile, aunque diga «Z»', () => {
+    // Copiado de Contabo, el 2026-11-16: una visita a las 14:05 de Chile
+    // (17:05 en UTC), pedida con `timezone=America/Santiago`, llega como
+    // «14:00:00Z». La «Z» miente: si se leyera como UTC, el punto caería tres
+    // horas antes. La lectura la ignora, y el punto queda en las 14:00.
+    const crudo = { pageviews: [{ x: '2026-11-16T14:00:00Z', y: 1 }], sessions: [{ x: '2026-11-16T14:00:00Z', y: 1 }] }
+    const ahora = new Date('2026-11-16T17:10:00Z')
+    const h = intervaloDe('24h', ahora)
+    const conVisitas = serieCompleta(leerSerie(crudo, 'pageviews'), h.desde, h.hasta, h.unidad).filter((p) => p.valor > 0)
+    expect(conVisitas).toEqual([expect.objectContaining({ etiqueta: '14:00', valor: 1 })])
+    // Por día llega a medianoche, con la misma «Z», y cae en su día.
+    const d = intervaloDe('7d', ahora)
+    const porDia = leerSerie({ pageviews: [{ x: '2026-11-16T00:00:00Z', y: 1 }] }, 'pageviews')
+    const dias = serieCompleta(porDia, d.desde, d.hasta, d.unidad).filter((p) => p.valor > 0)
+    expect(dias.map((p) => p.detalle)).toEqual([expect.stringMatching(/16 de noviembre/)])
+  })
+
   it('los activos llegan de tres formas', () => {
     expect(leerActivos({ visitors: 3 })).toBe(3)
     expect(leerActivos([{ x: 2 }])).toBe(2)
