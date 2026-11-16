@@ -30,10 +30,12 @@ import {
 
 type Fila = Record<string, unknown>
 
-function baseDePrueba(cuentas: Fila[], difusion: Fila) {
+function baseDePrueba(cuentas: Fila[], difusion: Fila, instituciones: Fila[] = []) {
   const usuarios = new Map(cuentas.map((c) => [String(c.id), c]))
   const difusiones = new Map([[String(difusion.id), difusion]])
-  const tabla = (coleccion: string) => (coleccion === 'difusiones' ? difusiones : usuarios)
+  const lugares = new Map(instituciones.map((i) => [String(i.id), i]))
+  const tabla = (coleccion: string) =>
+    coleccion === 'difusiones' ? difusiones : coleccion === 'instituciones' ? lugares : usuarios
 
   const payload = {
     findByID: vi.fn(async ({ collection, id }: { collection: string; id: string | number }) => {
@@ -127,6 +129,17 @@ describe('los destinatarios', () => {
     expect(JSON.stringify(condicionDeDestinatarios('editor'))).toContain('"rol":{"equals":"editor"}')
   })
 
+  it('los lugares recortan por institución, con TraumaHub como las cuentas sin ella (D-406)', () => {
+    expect(condicionDeDestinatarios('lector', null)).toEqual(condicionDeDestinatarios('lector'))
+    const condicion = condicionDeDestinatarios('lector', ['traumahub', '7'])
+    expect((condicion as { and: unknown[] }).and).toContainEqual({
+      or: [{ institucion: { exists: false } }, { institucion: { in: [7] } }],
+    })
+    expect((condicionDeDestinatarios('todas', ['7']) as { and: unknown[] }).and).toContainEqual({
+      or: [{ institucion: { in: [7] } }],
+    })
+  })
+
   it('se leen todas de una vez, en orden, y sin tope de página', async () => {
     const find = vi.fn(async () => ({ docs: [{ id: 4, email: 'a@b.cl', nombre: 'Ana', rol: 'lector' }] }))
     const lista = await destinatariosDe({ find } as unknown as Payload, 'lector')
@@ -171,6 +184,37 @@ describe('el envío', () => {
     // Pausa entre correos, no después del último.
     expect(dormir).toHaveBeenCalledTimes(2)
     expect(dormir).toHaveBeenCalledWith(18_000)
+  })
+
+  it('el botón a la plataforma lleva a cada uno a su lugar, y uno de fuera queda igual (D-406)', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SERVER_URL', 'https://traumahub.example')
+    vi.stubEnv('SERVIDOR_DE_PRUEBAS', '')
+    try {
+      const cuentas = [cuenta(1, 'Ana'), cuenta(2, 'Beto', { institucion: 7 })]
+      const { payload } = baseDePrueba(cuentas, difusionNueva(10, [1, 2]), [{ id: 7, subdominio: 'sur' }])
+      const { recibidos, enviar } = buzon()
+      await procesarDifusion(payload, 10, { enviar, dormir: sinEsperar(), pausaMs: 0 })
+      expect(recibidos.map((e) => e.correo.boton?.enlace)).toEqual([
+        'https://traumahub.example/ficha',
+        'https://sur.traumahub.example/ficha',
+      ])
+
+      const fuera = baseDePrueba(cuentas, difusionNueva(11, [1, 2], { botonEnlace: 'https://otro.example/video' }), [
+        { id: 7, subdominio: 'sur' },
+      ])
+      const otroBuzon = buzon()
+      await procesarDifusion(fuera.payload, 11, { enviar: otroBuzon.enviar, dormir: sinEsperar(), pausaMs: 0 })
+      expect(otroBuzon.recibidos.map((e) => e.correo.boton?.enlace)).toEqual([
+        'https://otro.example/video',
+        'https://otro.example/video',
+      ])
+      // Sin botón no hace falta saber el lugar de nadie.
+      const sinBoton = baseDePrueba(cuentas, difusionNueva(12, [1, 2], { botonTexto: '', botonEnlace: '' }))
+      await procesarDifusion(sinBoton.payload, 12, { enviar: buzon().enviar, dormir: sinEsperar(), pausaMs: 0 })
+      expect(sinBoton.espia.findByID.mock.calls.some(([a]) => a.collection === 'instituciones')).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('anota el fallo con su motivo recortado y sigue con los demás', async () => {

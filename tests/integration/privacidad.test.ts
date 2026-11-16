@@ -244,6 +244,13 @@ describe.skipIf(intento.payload === null)('los datos de una cuenta: exportarla y
         { correo: otra.email, motivo: '452 buzón lleno' },
       ],
     })
+    // El aviso de esa difusión, cerrado por ella siguiendo su botón (D-406).
+    await sembrar('lecturas-de-avisos', 'lecturaDeAviso', {
+      usuario: cuentaId,
+      difusion: filas.difusion,
+      leidaEn: new Date().toISOString(),
+      via: 'boton',
+    })
     await sembrar('cotizaciones', 'cotizacion', {
       nombre: persona.nombre,
       correo: persona.email.toUpperCase(),
@@ -352,6 +359,8 @@ describe.skipIf(intento.payload === null)('los datos de una cuenta: exportarla y
     expect(d.difusiones.escritas[0]).not.toHaveProperty('fallos')
     expect(d.difusiones.escritas[0]).not.toHaveProperty('pendientes')
     expect(d.difusiones.enviosFallidos).toEqual([expect.objectContaining({ difusion: filas.difusion })])
+    // Los avisos que cerró: de qué trataban, cuándo y por dónde, sin el resto de la difusión.
+    expect(d.avisosLeidos).toEqual([{ aviso: `Novedades ${marca}`, leidaEn: expect.any(String), via: 'boton' }])
 
     // Y nada que permita saber quién es la otra persona.
     expect(enTexto).not.toContain(otra.email)
@@ -362,7 +371,11 @@ describe.skipIf(intento.payload === null)('los datos de una cuenta: exportarla y
     expect(await datosDeUnaCuenta(payload, 2_000_000_000)).toBeNull()
   })
 
-  it('eliminarla borra lo que el aviso dice que se borra y deja sin nombre lo que dice que queda', async () => {
+  // Con margen de tiempo: al final recorre todas las tablas de la base, una por
+  // una, seis veces —una por cada dato de la persona y la de control—. Sola
+  // tarda unos 4 s, cada tabla nueva la alarga, y con la suite entera usando
+  // la base pasaba de los 5 s del tope por omisión (D-406).
+  it('eliminarla borra lo que el aviso dice que se borra y deja sin nombre lo que dice que queda', { timeout: 30_000 }, async () => {
     const delRegistro = await payload.find({
       collection: 'registro-de-acciones',
       where: { usuario: { equals: cuentaId } },
@@ -377,6 +390,7 @@ describe.skipIf(intento.payload === null)('los datos de una cuenta: exportarla y
     // «se borran con ella los datos de la cuenta y el avance»
     expect(await leer('usuarios', cuentaId)).toBeNull()
     expect(await leer('actividad', filas.actividad)).toBeNull()
+    expect(await leer('lecturas-de-avisos', filas.lecturaDeAviso)).toBeNull()
     const preferencias = await payload.find({
       collection: 'payload-preferences',
       where: { key: { equals: `prueba-${marca}` } },

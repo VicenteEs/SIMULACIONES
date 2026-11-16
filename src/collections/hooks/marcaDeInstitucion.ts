@@ -59,6 +59,7 @@ export const COLECCIONES_CON_INSTITUCION = [
   'tiempo-activo',
   'revisiones',
   'sesiones-de-revision',
+  'lecturas-de-avisos',
 ] as const
 
 /**
@@ -82,7 +83,7 @@ export const COLECCIONES_COMPARTIDAS = [
  */
 export const SIN_MARCA_AUNQUE_TENGAN_CUENTA: Record<string, string> = {
   requisitos: 'el buzón de requisitos es del equipo de TraumaHub',
-  difusiones: 'las manda TraumaHub, y eligen sus instituciones en E6 (D-375)',
+  difusiones: 'las manda TraumaHub, y los lugares a los que van los elige cada una (D-406)',
 }
 
 export const CAMPO_DE_INSTITUCION: Field = {

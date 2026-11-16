@@ -229,6 +229,9 @@ const CLASE_DE: Record<string, Clase> = {
   comentarios: 'propias',
   actividad: 'propias',
   difusiones: 'administracion',
+  // Quién cerró cada aviso de la plataforma (D-406): lo escribe el servidor con
+  // `overrideAccess`; por la API, solo el administrador.
+  'lecturas-de-avisos': 'administracion',
   // La revisión del contenido (D-142): solo el administrador por REST; el
   // panel escribe con la API local detrás de sus propias guardias.
   revisiones: 'administracion',
@@ -485,6 +488,9 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
       data: { asunto, mensaje: 'Aviso de prueba.', audiencia: 'todas', estado: 'enviada', total: 0, enviados: 0, fallidos: 0 },
     }),
   },
+  // Sin cuenta ni difusión: la matriz mira quién lee y escribe la colección, y
+  // el índice único de las dos no choca con filas que no tienen ninguna.
+  'lecturas-de-avisos': { titulo: 'via', fabricar: (via) => ({ data: { via, leidaEn: new Date().toISOString() } }) },
   revisiones: {
     titulo: 'titulo',
     fabricar: (titulo) => ({

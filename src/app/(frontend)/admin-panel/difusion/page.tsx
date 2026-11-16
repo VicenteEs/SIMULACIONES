@@ -1,11 +1,19 @@
+import type { Where } from 'payload'
 import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
 import { AUDIENCIAS_DE_DIFUSION } from '@/collections/Difusiones'
 import { direccionPublica } from '@/collections/Usuarios'
 import { condicionDeDestinatarios, correosPorHora, pausaEntreCorreosMs, seEstaEnviando } from '@/correo/difusion'
 import { hayCorreo } from '@/correo/enviar'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
+import { LUGAR_DE_LA_CENTRAL } from '@/lib/anfitrion'
+import { lugarDeLaCuenta, normalizarLugares } from '@/lib/destinoDeDifusion'
 import { clientePayloadDeTodas } from '../datos'
-import { PanelDeDifusion, type DifusionDelHistorial, type GrupoDeDestinatarios } from './PanelDeDifusion'
+import {
+  PanelDeDifusion,
+  type ConteoDeDestinatarios,
+  type DifusionDelHistorial,
+  type LugarDeDifusion,
+} from './PanelDeDifusion'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +21,8 @@ export const dynamic = 'force-dynamic'
 const TOPE_DEL_HISTORIAL = 20
 
 /**
- * Difusión: un correo a todas las cuentas, o a un grupo.
+ * Difusión: un correo, un aviso dentro de la plataforma o los dos, a todas las
+ * cuentas o a un grupo, en TraumaHub y en las instituciones (D-375, D-406).
  *
  * Existe para los avisos que antes se mandaban desde el correo personal con la
  * lista en copia oculta —«hay un caso nuevo en el simulador», «el lunes no hay
@@ -30,37 +39,29 @@ export default async function PaginaDifusion() {
   // `difusiones` falta porque se desplegó sin su migración—, se dice, y no se
   // pinta un historial vacío que se lee como «nunca se mandó ninguna».
   const lectura = await Promise.all([
-    Promise.all(
-      AUDIENCIAS_DE_DIFUSION.map(async (a) => {
-        const [{ totalDocs }, { docs: primeras }] = await Promise.all([
-          payload.count({
-            collection: 'usuarios',
-            where: condicionDeDestinatarios(a.value),
-            overrideAccess: true,
-          }),
-          // A quién va el primer correo de la cola, para que la vista previa
-          // diga «Así le llega a Camila Rojas» con el saludo que de verdad
-          // recibirá, y no «Hola, Nombre.». El orden es el de
-          // `destinatariosDe`, por identificador: es la cola que arma el envío.
-          payload.find({
-            collection: 'usuarios',
-            where: condicionDeDestinatarios(a.value),
-            sort: 'id',
-            limit: 1,
-            depth: 0,
-            overrideAccess: true,
-            select: { nombre: true, email: true },
-          }),
-        ])
-        const primera = primeras[0] as { nombre?: string | null; email?: string } | undefined
-        return {
-          valor: a.value,
-          etiqueta: a.label,
-          cuantos: totalDocs,
-          primera: primera ? { nombre: primera.nombre ?? '', email: primera.email ?? '' } : null,
-        } satisfies GrupoDeDestinatarios
-      }),
-    ),
+    // Las cuentas que recibirían algo, solo con su rol y su lugar, y en el orden
+    // de la cola (`destinatariosDe`, por identificador). Con eso el formulario
+    // cuenta cualquier combinación de lugares y rol sin volver a preguntar.
+    // Antes eran un `count` y un `find` por grupo; con los lugares serían dos
+    // por cada institución y rol, y una lectura sola de tres columnas cuesta
+    // menos que eso incluso con miles de cuentas.
+    payload.find({
+      collection: 'usuarios',
+      where: condicionDeDestinatarios('todas'),
+      sort: 'id',
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+      select: { rol: true, institucion: true },
+    }),
+    payload.find({
+      collection: 'instituciones',
+      sort: 'nombre',
+      pagination: false,
+      depth: 0,
+      overrideAccess: true,
+      select: { nombre: true },
+    }),
     payload.find({
       collection: 'difusiones',
       sort: '-createdAt',
@@ -86,14 +87,80 @@ export default async function PaginaDifusion() {
     )
   }
 
-  const [grupos, { docs }] = lectura
+  const [{ docs: cuentas }, { docs: instituciones }, { docs }] = lectura
+
+  // Una fila por lugar y rol, con la primera cuenta de su cola. Como las
+  // cuentas llegan por identificador, la primera que aparece de cada par es la
+  // primera de su cola.
+  const porGrupo = new Map<string, { lugar: string; rol: string; cuantos: number; primeraId: number }>()
+  for (const cuenta of cuentas) {
+    const lugar = lugarDeLaCuenta(
+      typeof cuenta.institucion === 'object' && cuenta.institucion ? cuenta.institucion.id : cuenta.institucion,
+    )
+    const rol = String(cuenta.rol)
+    const clave = `${lugar}|${rol}`
+    const grupo = porGrupo.get(clave)
+    if (grupo) grupo.cuantos += 1
+    else porGrupo.set(clave, { lugar, rol, cuantos: 1, primeraId: Number(cuenta.id) })
+  }
+  // El nombre y la dirección solo de esas primeras: son para el saludo de la
+  // vista previa, «Así le llega a Camila Rojas», y no hace falta leer los de
+  // todas las demás.
+  const idsDePrimeras = [...porGrupo.values()].map((g) => g.primeraId)
+  const { docs: primeras } =
+    idsDePrimeras.length > 0
+      ? await payload.find({
+          collection: 'usuarios',
+          where: { id: { in: idsDePrimeras } },
+          pagination: false,
+          depth: 0,
+          overrideAccess: true,
+          select: { nombre: true, email: true },
+        })
+      : { docs: [] }
+  const datosDe = new Map(primeras.map((p) => [Number(p.id), { nombre: p.nombre ?? '', email: p.email ?? '' }]))
+  const conteos: ConteoDeDestinatarios[] = [...porGrupo.values()].map((g) => ({
+    lugar: g.lugar,
+    rol: g.rol,
+    cuantos: g.cuantos,
+    primera: { id: g.primeraId, ...(datosDe.get(g.primeraId) ?? { nombre: '', email: '' }) },
+  }))
+
+  const lugares: LugarDeDifusion[] = [
+    { valor: LUGAR_DE_LA_CENTRAL, etiqueta: 'TraumaHub' },
+    ...instituciones.map((i) => ({ valor: String(i.id), etiqueta: i.nombre })),
+  ]
+  const nombreDelLugar = new Map(lugares.map((l) => [l.valor, l.etiqueta]))
+  const ahora = Date.now()
 
   const historial: DifusionDelHistorial[] = docs.map((d) => {
     const autor = typeof d.autor === 'object' && d.autor ? d.autor : null
+    const lugaresDeLaDifusion = normalizarLugares(d.lugares)
+    // El aviso se mira aquí, con la hora del servidor, y no en el navegador:
+    // la tabla se pinta en los dos, y una difusión que vence en ese segundo
+    // saldría distinta en cada uno.
+    const comoAviso = d.comoAviso === true && Boolean(d.avisoHasta)
+    const conBoton = Boolean(d.botonTexto?.trim() && d.botonEnlace?.trim())
     return {
       id: String(d.id),
       asunto: d.asunto,
       audiencia: AUDIENCIAS_DE_DIFUSION.find((a) => a.value === d.audiencia)?.label ?? d.audiencia,
+      // Una institución que ya no existe se nombra como tal: la difusión le
+      // llegó, y borrar la institución no cambia eso.
+      lugares:
+        lugaresDeLaDifusion === null
+          ? null
+          : lugaresDeLaDifusion.map((l) => nombreDelLugar.get(l) ?? 'Una institución que ya no existe'),
+      porCorreo: d.porCorreo !== false,
+      aviso: comoAviso
+        ? {
+            hasta: d.avisoHasta as string,
+            vigente: new Date(d.avisoHasta as string).getTime() > ahora,
+            leidos: 0,
+            // Sin botón no hay a quién contar.
+            porElBoton: conBoton ? 0 : null,
+          }
+        : null,
       autor: autor ? autor.nombre || autor.email : null,
       creada: d.createdAt,
       terminada: d.terminadaEn ?? null,
@@ -116,9 +183,37 @@ export default async function PaginaDifusion() {
     }
   })
 
+  // Cuántas cuentas cerraron cada aviso, y cuántas siguiendo su botón. Solo
+  // los de las difusiones de la tabla que tuvieron aviso: son veinte como
+  // mucho. Si falla, el historial se enseña igual y sin las cifras: son un
+  // dato de más, no la razón de la pantalla.
+  await Promise.all(
+    historial.map(async (d) => {
+      const aviso = d.aviso
+      if (!aviso) return
+      const contar = async (where: Where) =>
+        (await payload.count({ collection: 'lecturas-de-avisos', where, overrideAccess: true })).totalDocs
+      try {
+        const deEsta = { difusion: { equals: Number(d.id) } }
+        const [leidos, porElBoton] = await Promise.all([
+          contar(deEsta),
+          aviso.porElBoton === null ? null : contar({ and: [deEsta, { via: { equals: 'boton' } }] }),
+        ])
+        aviso.leidos = leidos
+        aviso.porElBoton = porElBoton
+      } catch (error) {
+        console.error('[panel] no se pudieron contar las lecturas de un aviso:', error)
+        aviso.leidos = null
+        aviso.porElBoton = null
+      }
+    }),
+  )
+
   return (
     <PanelDeDifusion
-      grupos={grupos}
+      audiencias={AUDIENCIAS_DE_DIFUSION.map((a) => ({ valor: a.value, etiqueta: a.label }))}
+      lugares={lugares}
+      conteos={conteos}
       historial={historial}
       hayCorreo={hayCorreo()}
       pausaMs={pausaEntreCorreosMs()}

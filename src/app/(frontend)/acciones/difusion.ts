@@ -20,6 +20,7 @@ import { CANDADO_DEL_INICIO, destinatariosDe, lanzarDifusion, seEstaEnviando } f
 import { enviarCorreo, explicarFalloDeCorreo, hayCorreo, SinServidorDeCorreo } from '@/correo/enviar'
 import { mensajeDeDifusion, type DatosDeDifusion } from '@/correo/mensajes'
 import { esEnlaceSeguro } from '@/correo/plantilla'
+import { DIAS_DEL_AVISO, normalizarLugares, type LugaresDeDifusion } from '@/lib/destinoDeDifusion'
 import { accion, exigirAdminCentral, type Respuesta } from '@/lib/guardias'
 import { crearLimitador } from '@/lib/ritmo'
 import { conCandado } from '@/lib/sqlDirecto'
@@ -79,6 +80,56 @@ function validarAudiencia(valor: unknown): AudienciaDeDifusion {
   const audiencia = AUDIENCIAS_DE_DIFUSION.find((a) => a.value === valor)
   if (!audiencia) throw new ErrorDeValidacion('El grupo de destinatarios indicado no existe.')
   return audiencia.value
+}
+
+interface DestinoDeLaDifusion {
+  audiencia: AudienciaDeDifusion
+  lugares: LugaresDeDifusion
+  porCorreo: boolean
+  comoAviso: boolean
+  /** Solo con `comoAviso`. */
+  avisoHasta: string | null
+}
+
+/**
+ * A quién va y por dónde (D-406). Los lugares que no son `traumahub` tienen
+ * que ser instituciones que existen: un identificador inventado no recorta
+ * nada, y la difusión diría que fue a un lugar que no hay.
+ */
+async function validarDestino(payload: Payload, bruto: unknown, ahora = new Date()): Promise<DestinoDeLaDifusion> {
+  const datos = (typeof bruto === 'object' && bruto !== null ? bruto : {}) as Record<string, unknown>
+  const audiencia = validarAudiencia(datos.audiencia)
+
+  let lugares: LugaresDeDifusion = null
+  if (datos.lugares !== null && datos.lugares !== undefined) {
+    lugares = normalizarLugares(datos.lugares)
+    if (lugares === null) throw new ErrorDeValidacion('Elija al menos un lugar: TraumaHub o una institución.')
+    const instituciones = lugares.filter((l) => /^\d+$/.test(l)).map(Number)
+    if (instituciones.length > 0) {
+      const { totalDocs } = await payload.count({
+        collection: 'instituciones',
+        where: { id: { in: instituciones } },
+        overrideAccess: true,
+      })
+      if (totalDocs !== instituciones.length) throw new ErrorDeValidacion('Una de las instituciones elegidas ya no existe.')
+    }
+  }
+
+  const porCorreo = datos.porCorreo !== false
+  const comoAviso = datos.comoAviso === true
+  if (!porCorreo && !comoAviso) {
+    throw new ErrorDeValidacion('Elija cómo sale: por correo, como aviso en la plataforma o las dos.')
+  }
+
+  let avisoHasta: string | null = null
+  if (comoAviso) {
+    const dias = datos.diasDelAviso === undefined || datos.diasDelAviso === null ? DIAS_DEL_AVISO.porOmision : Number(datos.diasDelAviso)
+    if (!Number.isInteger(dias) || dias < 1 || dias > DIAS_DEL_AVISO.maximo) {
+      throw new ErrorDeValidacion(`El aviso se ve de 1 a ${DIAS_DEL_AVISO.maximo} días.`)
+    }
+    avisoHasta = new Date(ahora.getTime() + dias * 86_400_000).toISOString()
+  }
+  return { audiencia, lugares, porCorreo, comoAviso, avisoHasta }
 }
 
 /**
@@ -149,11 +200,56 @@ export async function enviarPruebaDeDifusion(datos: unknown): Promise<Respuesta<
   })
 }
 
-export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: string; total: number }>> {
+/**
+ * Manda una difusión: el correo, con su cola, y el aviso, que se ve desde ya.
+ *
+ * Solo como aviso no hay cola ni cuota que cuidar: se guarda ya enviada, con
+ * cuántas cuentas la verán en `total`, y no espera a que termine otra.
+ */
+export async function iniciarDifusion(
+  datos: unknown,
+): Promise<Respuesta<{ id: string; total: number; porCorreo: boolean }>> {
   return accion(async () => {
     const { payload, usuarioId } = await exigirAdminCentral()
     const difusion = validarDatos(datos)
-    const audiencia = validarAudiencia((datos as { audiencia?: unknown } | null)?.audiencia)
+    const destino = await validarDestino(payload, datos)
+    const { audiencia, lugares } = destino
+    const delDestino = {
+      audiencia,
+      lugares,
+      porCorreo: destino.porCorreo,
+      comoAviso: destino.comoAviso,
+      avisoHasta: destino.avisoHasta,
+    }
+
+    if (!destino.porCorreo) {
+      const destinatarios = await destinatariosDe(payload, audiencia, lugares)
+      if (destinatarios.length === 0) {
+        throw new Error('No hay ninguna cuenta activa en ese grupo, así que nadie vería el aviso.')
+      }
+      const creada = await payload.create({
+        collection: 'difusiones',
+        depth: 0,
+        overrideAccess: true,
+        data: {
+          asunto: difusion.asunto,
+          mensaje: difusion.mensaje,
+          botonTexto: difusion.boton?.texto,
+          botonEnlace: difusion.boton?.enlace,
+          ...delDestino,
+          autor: Number(usuarioId),
+          estado: 'enviada',
+          total: destinatarios.length,
+          enviados: 0,
+          fallidos: 0,
+          pendientes: [],
+          fallos: [],
+          terminadaEn: new Date().toISOString(),
+        },
+      })
+      revalidatePath(RUTA)
+      return { id: String(creada.id), total: destinatarios.length, porCorreo: false }
+    }
 
     // Mirar si hay otra y crear la nueva van bajo el mismo candado de la base:
     // ver `CANDADO_DEL_INICIO`. Se suelta al confirmar la creación, y para
@@ -163,7 +259,7 @@ export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: s
     const { creada, total } = await conCandado(payload, CANDADO_DEL_INICIO, async (req) => {
       if (await difusionEnCurso(payload, req)) throw new Error(YA_HAY_UNA)
 
-      const destinatarios = await destinatariosDe(payload, audiencia)
+      const destinatarios = await destinatariosDe(payload, audiencia, lugares)
       if (destinatarios.length === 0) {
         throw new Error('No hay ninguna cuenta activa en ese grupo, así que no hay a quién enviarla.')
       }
@@ -181,7 +277,7 @@ export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: s
           mensaje: difusion.mensaje,
           botonTexto: difusion.boton?.texto,
           botonEnlace: difusion.boton?.enlace,
-          audiencia,
+          ...delDestino,
           autor: Number(usuarioId),
           estado: 'enviando',
           total: destinatarios.length,
@@ -200,7 +296,40 @@ export async function iniciarDifusion(datos: unknown): Promise<Respuesta<{ id: s
     // de la transacción todavía no existiría para él.
     lanzarDifusion(payload, creada.id, { trabajador })
     revalidatePath(RUTA)
-    return { id: String(creada.id), total }
+    return { id: String(creada.id), total, porCorreo: true }
+  })
+}
+
+/**
+ * Deja de enseñar el aviso de una difusión, desde ya (D-406). El correo no
+ * se toca: lo que salió, salió, y lo que queda en la cola lo detiene
+ * «Detener».
+ */
+export async function retirarAviso(id: unknown): Promise<Respuesta<null>> {
+  return accion(async () => {
+    const { payload } = await exigirAdminCentral()
+    const idDifusion = exigirIdentificador(id, 'La difusión')
+    const difusion = await payload.findByID({
+      collection: 'difusiones',
+      id: idDifusion,
+      depth: 0,
+      overrideAccess: true,
+      disableErrors: true,
+    })
+    if (!difusion) throw new Error('La difusión no existe.')
+    const ahora = new Date()
+    if (!difusion.comoAviso || !difusion.avisoHasta || new Date(difusion.avisoHasta) <= ahora) {
+      throw new Error('Esta difusión no tiene un aviso a la vista.')
+    }
+    await payload.update({
+      collection: 'difusiones',
+      id: idDifusion,
+      depth: 0,
+      overrideAccess: true,
+      data: { avisoHasta: ahora.toISOString() },
+    })
+    revalidatePath(RUTA)
+    return null
   })
 }
 

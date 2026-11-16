@@ -12282,6 +12282,79 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) Seguir un enlace en ved cambia, sin preguntar, la institución que se estaba mirando. La franja lo dice.
 - (−) Una ruta más que existe solo en ved.
 
+### D-406 · 2026-11-16 · vigente · P-016 E6 · las difusiones por lugar, y el aviso dentro de la plataforma
+**Una difusión elige los lugares (todos, o TraumaHub y las instituciones que se marquen) y el rol de siempre, y sale por correo, como aviso dentro de la plataforma o por los dos. El aviso se abre solo al entrar y queda en una campana de la barra hasta que vence o se retira. Quién lo cerró, y si fue siguiendo su botón, queda en `lecturas-de-avisos`, con la barrera de D-399.**
+
+- **Los lugares** (`src/lib/destinoDeDifusion.ts`):
+  - se guardan como una lista de textos: `traumahub` y el identificador de cada institución;
+  - vacía es «todos», también las instituciones que se creen mientras el aviso esté a la vista. Marcarlas todas una por una no es lo mismo, y el formulario lo dice;
+  - una institución que no existe no se acepta. Una que se borra después sigue nombrada en el historial, como «Una institución que ya no existe»: la difusión le llegó;
+  - tres sitios dicen a quién le llega, y dicen lo mismo: la condición de la base que arma la cola del correo (`condicionDeDestinatarios`), la regla en memoria de la campana (`difusionLlegaA`) y la cuenta del formulario (`destinatariosElegidos`). Si una se separara, el botón prometería 40 personas, el correo saldría a 38 y el aviso lo verían 41.
+- **El formulario** cuenta cualquier combinación sin volver a preguntar. La página lee de una vez el rol y el lugar de las cuentas que recibirían algo, y el nombre solo de la primera de cada grupo, para el saludo de la vista previa. Antes eran un `count` y un `find` por rol; con los lugares serían dos por institución y rol.
+  - «Dónde» aparece solo si hay instituciones.
+  - «Cómo sale»: por correo, que es lo de antes y viene marcado, y como aviso, con los días que se ve (14 por omisión, de 1 a 90).
+  - Sin servidor de correo viene marcado el aviso, y se puede publicar. Antes, sin correo no salía nada.
+- **Solo como aviso** no hay cola ni cuota: se guarda «enviada», con cuántas cuentas la verán, y no espera a que termine otra difusión. Con correo, la cola de siempre y su candado (D-393).
+- **El enlace del botón.** Quien escribe pega una dirección de la plataforma tal como la ve desde la central. Una cuenta de institución entra solo desde su subdominio (D-396), y con ese enlace llegaba a donde su cuenta no vale. Ahora:
+  - en el correo, un enlace que empieza por la dirección pública va al lugar de cada cuenta (`direccionDelLugar`, D-405: el subdominio en Contabo, `/lugar/…` en ved);
+  - en la campana se abre dentro de la plataforma, en el lugar donde se está;
+  - un enlace a otro sitio queda igual, y en la campana se abre en otra pestaña.
+- **La campana** (`CampanaDeAvisos`, en la barra de toda la plataforma):
+  - los avisos sin leer se abren solos en una ventana al entrar, porque un aviso que hay que ir a buscar no avisa (D-375). Al cerrarla, o al seguir su botón, quedan leídos;
+  - sin avisos vigentes no se pinta nada: una campana siempre vacía enseña a no mirarla;
+  - la ventana va al final de `<body>`. Dentro de la barra, que es `sticky` con su `z-index`, quedaba debajo de lo que la página pone más alto, como la consola del simulador;
+  - se mira la cuenta real y no la de «ver como». El soporte de TraumaHub dentro de una institución (D-404) no ve los de ella, y una cuenta inactiva tampoco;
+  - los vigentes se guardan medio minuto en la memoria de cada proceso (`avisosEnMemoria.ts`): la barra está en todas las páginas, y casi siempre no hay ninguno. Guardar una difusión los olvida en ese proceso; en los otros (D-393), un aviso nuevo o retirado tarda como mucho ese medio minuto;
+  - esa memoria cuelga de `globalThis`, como el limitador de `ritmo.ts`. La primera versión era una variable del módulo, y con `next start` el gancho de `difusiones` borraba una copia del módulo mientras la barra leía otra: un aviso publicado o retirado tardaba el medio minuto entero también en el mismo proceso. Las pruebas no lo veían, porque corren con una sola copia; lo vio la prueba en el navegador, y ahora una prueba carga dos copias del módulo;
+  - se miran los 20 más nuevos: más que eso ya no es un aviso sino un tablón.
+- **Las lecturas** (`lecturas-de-avisos`): una fila por cuenta y aviso, con índice único, la marca de la institución de la cuenta y `via`, que dice si se cerró con la ventana o siguiendo el botón.
+  - Es de lo que deja cada persona, así que lleva las cuatro políticas de las tablas personales: desde una institución solo se lee y se escribe lo suyo. Sin ellas el rol `traumahub_app` la habría leído entera, porque D-399 le dio permiso sobre las tablas de mañana.
+  - `via` es texto y no una lista cerrada porque la matriz de roles reconoce las filas de cada colección por un campo de texto. Solo la escribe el servidor.
+  - Borrar una cuenta borra sus lecturas, como su actividad. Salen en la descarga de sus datos («avisosLeidos»: el asunto, cuándo y por dónde), no van al registro de acciones y no viajan al ensayo de los casos.
+- **«Retirar el aviso»**, en el historial, lo deja vencido desde ya. El correo no se toca.
+- **El historial** dice por dónde salió cada una. «Enviados» pasa a llamarse «Correo», y la columna nueva «Aviso» dice hasta cuándo se ve, cuántos lo cerraron y, si tenía botón, cuántos lo siguieron.
+- **La migración** `20261116_190000_avisos_y_lugares_de_difusion` añade las columnas de `difusiones`, con los valores por omisión de lo que eran las de antes: solo correo, sin aviso. Ninguna difusión vieja aparece de pronto en la barra. También crea la tabla `lecturas_de_avisos` con su barrera.
+
+*Comprobado.*
+- `tests/unit/avisosDeLaPlataforma.test.ts`, que es nueva:
+  - los lugares, la condición de la base y la regla en memoria;
+  - el enlace por lugar, con y sin prefijo;
+  - la cuenta del formulario y sus botones;
+  - lo que ve cada cuenta en la campana, la memoria de medio minuto —también borrada desde otra copia del módulo— y cerrar los avisos con `via`.
+- `accionesDeDifusion.test.ts`:
+  - solo aviso: sin correo y con otra difusión saliendo;
+  - correo y aviso: la cola de siempre;
+  - los rechazos de canal, plazo y lugares;
+  - los lugares que recortan la cola;
+  - «Retirar el aviso»;
+  - el historial con sus columnas.
+- `difusion.test.ts`: la condición por lugar, y el botón del correo que lleva a cada uno a su lugar.
+- `tests/integration/avisos.test.ts`, contra PostgreSQL, que es nueva:
+  - la campana y la cola eligen las mismas cuentas por lugar;
+  - la lectura queda en el lugar de su cuenta, y desde otra institución no se ve ni se escribe;
+  - el índice único;
+  - **ninguna tabla con columna de institución se quedó sin la barrera**.
+- `privacidad.test.ts` (la lectura sale en la descarga y se va con la cuenta), la matriz de roles, `accionesConGuardia`, `ensayoDeLosCasos` y `datosDeUnaCuenta`, cada una con la colección nueva.
+- `privacidad.test.ts`, «eliminarla borra…», tiene ahora su propio tope de 30 s. Al final recorre todas las tablas de la base seis veces; sola tarda unos 4 s, y con la suite entera pasaba de los 5 s por omisión, también en `test:integration`. Cada tabla nueva la alarga.
+- La suite entera (`npm run test:coverage`): 7248 pasan, 1 omitida y 13 fallan. Doce son las que ya fallaban en este Windows antes de E6: `agarrarElTrozo`, `directorioDeRespaldos` (2), `tableroDeRevision`, `cuadroDeReduccion`, `evaluacionSinAyudas` (3), `crearComentarioDelTaller` (2), `subidaDeVideo` y `autoria`. La decimotercera era la de `privacidad`, antes de darle su tope. El umbral de cobertura se cumple.
+- `npm run test:integration`, la obligatoria: 405 de 405.
+- `typecheck`, `lint` y `build`, sin errores.
+- En el navegador, contra `next start` y la base desechable, con una institución de prueba:
+  - un aviso solo para esa institución no lo ve la cuenta central. El historial dice «Publicada», «No salió por correo.» y «Leído por 0 de 1»;
+  - uno para todos los lugares se abre solo al entrar, con la campana en 1. Cerrado, no vuelve a abrirse y sigue en la campana como leído, y el historial dice «Leído por 1 de 27»;
+  - uno con botón, cerrado siguiendo el botón, cuenta «1 siguió el botón»;
+  - «Retirar el aviso» lo deja en «Se dejó de ver el 16 nov», y la campana se va.
+  - Ahí apareció el fallo de la memoria (arriba, en «La campana»): un aviso publicado o retirado tardaba medio minuto en verse también en el mismo proceso. Con la memoria en `globalThis`, los dos se ven al recargar la página.
+
+*Consecuencias.*
+- (+) Una actualización se anuncia de una vez en todas las instituciones, o solo a sus administradores.
+- (+) Sin servidor de correo, la plataforma puede avisar igual.
+- (+) Una prueba falla si una tabla con columna de institución se queda sin barrera.
+- (+) El historial dice si un aviso que pedía hacer algo se siguió.
+- (−) Quien tiene avisos vigentes que le llegan hace una consulta más en cada página: sus lecturas.
+- (−) La página de difusión lee todas las cuentas activas, aunque solo dos columnas. Con decenas de miles convendría contar en la base.
+- (−) En los otros procesos, un aviso nuevo o retirado tarda hasta medio minuto en verse.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -18260,7 +18333,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1, E2, E3 y E9 hechas
+### P-016 · 2026-11-15 · en curso: E1, E2, E3 y E9 hechas; E5 desplegada a falta del comodín; E6 hecha en local
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -18477,8 +18550,13 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - el administrador de TraumaHub entra en el subdominio de una institución abierta y trabaja como su administrador, con una franja que lo dice;
     - no aparece en sus listas, su registro ni sus estadísticas, y el registro de TraumaHub anota su entrada, su salida y lo que hace;
     - en ved, el selector anota la entrada;
-  - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño. *Los enlaces a una institución en ved, hechos en local el 2026-11-16 (D-405).*
-- [ ] **E6 · Las difusiones (D-375).**
+  - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño. *Los enlaces a una institución en ved, hechos en local el 2026-11-16 (D-405). E5 desplegada en ved y en Contabo ese día (`cb7207e`, abajo); falta el comodín.*
+- [x] **E6 · Las difusiones (D-375).** *Hecha en local el 2026-11-16, con los detalles en D-406:*
+  - los lugares (todos, o TraumaHub y las instituciones marcadas) junto al rol, con la misma regla en la cola, la campana y el formulario;
+  - el canal: correo, aviso o los dos, y el aviso sin correo cuando no hay servidor;
+  - la campana de la barra, que abre sola los avisos nuevos, y «Retirar el aviso»;
+  - el enlace del botón, al lugar de cada cuenta;
+  - las lecturas, con su barrera, en la descarga de datos y fuera del ensayo;
 - [ ] **E7 · El monitoreo (D-377).**
 - [ ] **E8 · Lo legal, antes del primer piloto.** Todo con el abogado:
   - un aviso nuevo, que diga:
@@ -18505,6 +18583,11 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 - en el contenedor, `arrancar.mjs` con 4 procesos `next-server`, y el registro dice «el 1 primero, para las migraciones» y «los 4 procesos están lanzados»;
 - la migración `20261116_033200_estado_compartido` está en el lote 26, con las tablas `intentos`, `presencias` y `publicaciones`, y las columnas `trabajador` y `latido_del_trabajador` de las difusiones;
 - por fuera: salud, portada, `/entrar`, `/biblioteca` y `/simulador` con 200, y un archivo de `medios` sin sesión, 403. `salud.sh` dice «Todo en orden», y el registro no trae ningún error en los primeros minutos.
+
+*Desplegado en ved y en Contabo el 2026-11-16 (`cb7207e`), con el OK del dueño («en ved y contabo»):* E5 entera (D-396 a D-405).
+- ved: las cinco migraciones de E5 en el lote 29, el rol `traumahub_app` con sus 80 políticas, ninguna institución todavía, los 4 procesos, la salud por fuera da 200 y el ensayo, bien. El respaldo del despliegue sale en claro, como se espera allí (D-384);
+- Contabo, a las 10:32 en Chile: antes, un respaldo cifrado y verificado (`base-` y `medios-20261116-102230`), y el override, igual a la plantilla. `actualizar.sh` pasó de `487fa73` a `cb7207e`: las cinco migraciones en el lote 27, el rol y las 80 políticas, 0 instituciones y los 4 procesos. Por fuera, la salud, la portada, `/entrar` y `/biblioteca` dan 200, y `/lugar/x`, 404, porque esa ruta solo existe en ved;
+- falta el comodín: en Cloudflare, el nombre público `*` del túnel `contabo` hacia `http://traumahub:3000`, y el registro `*` hacia el túnel. Lo pone el dueño. Hasta entonces `algo.traumahub.cl` no existe en el DNS.
 
 E2 va después de E1, para copiar una base ya limpia. E5 necesita el comodín de E2 y las protecciones de E3. E4 puede ir en paralelo a E3. E9 no depende de nada y puede salir con el despliegue de E1.
 

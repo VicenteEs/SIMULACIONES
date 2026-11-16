@@ -89,6 +89,7 @@ export interface Config {
     comentarios: Comentario;
     actividad: Actividad;
     difusiones: Difusione;
+    'lecturas-de-avisos': LecturasDeAviso;
     revisiones: Revisione;
     'sesiones-de-revision': SesionesDeRevision;
     'registro-de-acciones': RegistroDeAccione;
@@ -129,6 +130,7 @@ export interface Config {
     comentarios: ComentariosSelect<false> | ComentariosSelect<true>;
     actividad: ActividadSelect<false> | ActividadSelect<true>;
     difusiones: DifusionesSelect<false> | DifusionesSelect<true>;
+    'lecturas-de-avisos': LecturasDeAvisosSelect<false> | LecturasDeAvisosSelect<true>;
     revisiones: RevisionesSelect<false> | RevisionesSelect<true>;
     'sesiones-de-revision': SesionesDeRevisionSelect<false> | SesionesDeRevisionSelect<true>;
     'registro-de-acciones': RegistroDeAccionesSelect<false> | RegistroDeAccionesSelect<true>;
@@ -2295,6 +2297,18 @@ export interface Difusione {
   botonTexto?: string | null;
   botonEnlace?: string | null;
   audiencia: 'todas' | 'lector' | 'editor' | 'admin';
+  lugares?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  porCorreo?: boolean | null;
+  comoAviso?: boolean | null;
+  avisoHasta?: string | null;
   autor?: (number | null) | Usuario;
   estado: 'enviando' | 'enviada' | 'con-fallos' | 'detenida';
   total: number;
@@ -2321,6 +2335,23 @@ export interface Difusione {
   terminadaEn?: string | null;
   trabajador?: string | null;
   latidoDelTrabajador?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "lecturas-de-avisos".
+ */
+export interface LecturasDeAviso {
+  id: number;
+  usuario?: (number | null) | Usuario;
+  difusion?: (number | null) | Difusione;
+  leidaEn?: string | null;
+  via?: string | null;
+  /**
+   * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
+   */
+  institucion?: (number | null) | Institucione;
   updatedAt: string;
   createdAt: string;
 }
@@ -2751,6 +2782,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'difusiones';
         value: number | Difusione;
+      } | null)
+    | ({
+        relationTo: 'lecturas-de-avisos';
+        value: number | LecturasDeAviso;
       } | null)
     | ({
         relationTo: 'revisiones';
@@ -4394,6 +4429,10 @@ export interface DifusionesSelect<T extends boolean = true> {
   botonTexto?: T;
   botonEnlace?: T;
   audiencia?: T;
+  lugares?: T;
+  porCorreo?: T;
+  comoAviso?: T;
+  avisoHasta?: T;
   autor?: T;
   estado?: T;
   total?: T;
@@ -4404,6 +4443,19 @@ export interface DifusionesSelect<T extends boolean = true> {
   terminadaEn?: T;
   trabajador?: T;
   latidoDelTrabajador?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "lecturas-de-avisos_select".
+ */
+export interface LecturasDeAvisosSelect<T extends boolean = true> {
+  usuario?: T;
+  difusion?: T;
+  leidaEn?: T;
+  via?: T;
+  institucion?: T;
   updatedAt?: T;
   createdAt?: T;
 }

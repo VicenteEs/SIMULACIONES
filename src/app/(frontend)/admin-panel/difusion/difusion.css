@@ -56,6 +56,51 @@
   min-width: 0;
 }
 
+/* «Dónde» y «Cómo sale» (D-406): el mismo `fieldset` sin caja que el botón. */
+.difusion-opciones {
+  border: 0;
+  margin: 0 0 var(--e-5);
+  padding: 0;
+  min-width: 0;
+}
+
+.difusion-opciones .admin-form-hint { margin-top: var(--e-1); }
+
+.difusion-casilla {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  min-height: 32px;
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+
+/* Las instituciones, bajo «Solo los que elija», un escalón más adentro para
+   que se lean como parte de esa opción y no como otra más. */
+.difusion-lugares {
+  margin: 0 0 var(--e-1) var(--e-5);
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.difusion-casilla-cuantos {
+  margin-left: auto;
+  color: var(--pizarra);
+  font-variant-numeric: tabular-nums;
+}
+
+.difusion-dias {
+  display: flex;
+  align-items: center;
+  gap: var(--e-2);
+  margin-top: var(--e-1);
+  font-size: var(--t-sm);
+}
+
+.difusion-dias .difusion-etiqueta-menor { margin: 0; }
+
+.difusion-dias .admin-form-input { width: 6em; }
+
 .difusion-etiqueta-menor {
   display: block;
   margin-bottom: var(--e-1);

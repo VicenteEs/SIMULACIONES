@@ -1,6 +1,9 @@
 import type { Payload, Where } from 'payload'
 import type { AudienciaDeDifusion } from '@/collections/Difusiones'
+import { direccionDelLugar, direccionPublica } from '@/collections/Usuarios'
 import type { Difusione } from '@/payload-types'
+import { condicionDeLugares, enlaceParaElLugar, type LugaresDeDifusion } from '@/lib/destinoDeDifusion'
+import { subdominioDeLaCuenta } from '@/lib/institucionesServidor'
 import { enviarCorreo, explicarFalloDeCorreo, type Envio } from './enviar'
 import { mensajeDeDifusion, type DatosDeDifusion } from './mensajes'
 
@@ -58,13 +61,19 @@ export function pausaEntreCorreosMs(): number {
  * La usan el trabajador, al armar la cola, y la página, al contar cada grupo:
  * si contaran con dos filtros distintos, el «Enviar a 40 personas» del botón
  * mandaría a 38.
+ *
+ * Los lugares (D-406) recortan además por institución; sin ellos, todos. La
+ * página cuenta con `lugares` en `null` y separa por lugar en memoria, con
+ * `lugarDeLaCuenta`, que dice lo mismo que esta condición.
  */
-export function condicionDeDestinatarios(audiencia: AudienciaDeDifusion): Where {
+export function condicionDeDestinatarios(audiencia: AudienciaDeDifusion, lugares: LugaresDeDifusion = null): Where {
   const condiciones: Where[] = [
     { activo: { equals: true } },
     { or: [{ pendiente: { equals: false } }, { pendiente: { exists: false } }] },
   ]
   if (audiencia !== 'todas') condiciones.push({ rol: { equals: audiencia } })
+  const porLugar = condicionDeLugares(lugares)
+  if (porLugar) condiciones.push(porLugar)
   return { and: condiciones }
 }
 
@@ -81,10 +90,14 @@ export interface Destinatario {
  * llegara solo a las diez primeras cuentas se daría por enviada sin que nada lo
  * delatara. El orden fijo hace que la cola sea la misma si se vuelve a armar.
  */
-export async function destinatariosDe(payload: Payload, audiencia: AudienciaDeDifusion): Promise<Destinatario[]> {
+export async function destinatariosDe(
+  payload: Payload,
+  audiencia: AudienciaDeDifusion,
+  lugares: LugaresDeDifusion = null,
+): Promise<Destinatario[]> {
   const { docs } = await payload.find({
     collection: 'usuarios',
-    where: condicionDeDestinatarios(audiencia),
+    where: condicionDeDestinatarios(audiencia, lugares),
     pagination: false,
     sort: 'id',
     depth: 0,
@@ -248,13 +261,20 @@ function fallosDe(valor: unknown): Array<{ correo: string; motivo: string }> {
   )
 }
 
-function datosDe(difusion: Difusione): DatosDeDifusion {
+/**
+ * El correo de una cuenta. El enlace del botón, si es de la plataforma, va al
+ * lugar de la cuenta (D-406): una cuenta de institución, con la dirección de
+ * la central, llegaría a donde no vale.
+ */
+async function datosPara(payload: Payload, difusion: Difusione, institucion: unknown): Promise<DatosDeDifusion> {
   const texto = difusion.botonTexto?.trim()
   const enlace = difusion.botonEnlace?.trim()
+  if (!texto || !enlace) return { asunto: difusion.asunto, mensaje: difusion.mensaje }
+  const lugar = direccionDelLugar(await subdominioDeLaCuenta(payload, institucion))
   return {
     asunto: difusion.asunto,
     mensaje: difusion.mensaje,
-    boton: texto && enlace ? { texto, enlace } : undefined,
+    boton: { texto, enlace: enlaceParaElLugar(enlace, direccionPublica(), lugar) },
   }
 }
 
@@ -352,7 +372,8 @@ export async function procesarDifusion(
         // Un correo por persona y con su nombre, nunca la lista en `para`: con
         // varias direcciones en el mismo mensaje, cada residente vería el correo
         // de todos los demás.
-        await enviar(payload, { para: cuenta.email, correo: mensajeDeDifusion(datosDe(difusion), cuenta.nombre) })
+        const datos = await datosPara(payload, difusion, cuenta.institucion)
+        await enviar(payload, { para: cuenta.email, correo: mensajeDeDifusion(datos, cuenta.nombre) })
         enviados += 1
         fallosSeguidos = 0
       } catch (error) {

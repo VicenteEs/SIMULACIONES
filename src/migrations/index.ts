@@ -60,6 +60,7 @@ import * as migration_20261116_150000_barrera_de_instituciones from './20261116_
 import * as migration_20261116_160000_codigo_de_invitacion from './20261116_160000_codigo_de_invitacion';
 import * as migration_20261116_170000_bloqueo_de_instituciones from './20261116_170000_bloqueo_de_instituciones';
 import * as migration_20261116_180000_soporte_en_el_registro from './20261116_180000_soporte_en_el_registro';
+import * as migration_20261116_190000_avisos_y_lugares_de_difusion from './20261116_190000_avisos_y_lugares_de_difusion';
 
 export const migrations = [
   {
@@ -371,5 +372,10 @@ export const migrations = [
     up: migration_20261116_180000_soporte_en_el_registro.up,
     down: migration_20261116_180000_soporte_en_el_registro.down,
     name: '20261116_180000_soporte_en_el_registro',
+  },
+  {
+    up: migration_20261116_190000_avisos_y_lugares_de_difusion.up,
+    down: migration_20261116_190000_avisos_y_lugares_de_difusion.down,
+    name: '20261116_190000_avisos_y_lugares_de_difusion'
   },
 ];

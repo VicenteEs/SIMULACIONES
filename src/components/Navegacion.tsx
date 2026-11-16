@@ -8,6 +8,10 @@ import { obtenerSesion } from '@/lib/sesion'
 import { cerradoPorMantencion, puedeVerModulo, type UsuarioSesion } from '@/access/reglas'
 import { MODULOS as MODULOS_DE_LA_PLATAFORMA } from '@/app/(frontend)/admin-panel/modulos'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
+import { getPayload } from 'payload'
+import config from '@payload-config'
+import { avisosDeLaCuenta, type AvisoDeLaPlataforma } from '@/lib/avisosServidor'
+import { CampanaDeAvisos } from './CampanaDeAvisos'
 
 /**
  * Rótulo de cada módulo en la barra.
@@ -76,7 +80,7 @@ export async function Navegacion({
 }) {
   const hayPanel = rolReal === 'admin' || rolReal === 'editor'
 
-  const { usuarioEfectivo } = await obtenerSesion()
+  const { usuario, usuarioEfectivo } = await obtenerSesion()
   // Un módulo en mantención se queda en la barra y no desaparece. Para el
   // residente sale con la insignia «Próximamente» y sin enlace; para quien
   // conserva el acceso, con su marca de mantención (D-156). Se pregunta con el
@@ -103,6 +107,16 @@ export async function Navegacion({
   // cuenta activa. Va al final, después de los cinco.
   if (efectivo?.activo) modulos.push({ ruta: '/equipo', coleccion: 'equipo', etiqueta: 'Equipo' })
 
+  // Los avisos de la plataforma (D-406), de la cuenta real y no de la que se
+  // está mirando: el aviso es para la persona. Una barra sin avisos porque la
+  // base no contestó es mejor que una página que no carga.
+  let avisos: AvisoDeLaPlataforma[] = []
+  try {
+    avisos = await avisosDeLaCuenta(await getPayload({ config }), usuario)
+  } catch (error) {
+    console.error('[avisos] no se pudieron leer los avisos de la barra:', error)
+  }
+
   return (
     <header className="barra">
       <div className="barra-interior">
@@ -121,6 +135,11 @@ export async function Navegacion({
             desplegable donde no (D-175). Antes la fila se desplazaba en horizontal y dos módulos quedaban fuera. */}
         <BarraDeModulos modulos={modulos} />
         <MenuDeModulos modulos={modulos} />
+
+        {/* Una sola vez, entre los módulos y lo de la derecha, y no dentro de
+            cada una de las dos barras: el aviso nuevo se abre solo, y dos
+            campanas abrirían dos cajas. */}
+        <CampanaDeAvisos avisos={avisos} />
 
         <div className="barra-derecha">
           <ConmutadorVista rolReal={rolReal} simulando={simulando} />

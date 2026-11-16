@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { administracionDeUsuarios, accesoAlPanel } from '@/access/payload'
+import { olvidarAvisos } from '@/lib/avisosEnMemoria'
 
 /** A quién puede ir una difusión. `todas` son todas las cuentas activas. */
 export const AUDIENCIAS_DE_DIFUSION = [
@@ -31,6 +32,11 @@ export const ESTADOS_DE_DIFUSION = [
  *
  * Solo el administrador la ve y la escribe, igual que las cuentas: una
  * difusión es un correo a todas ellas.
+ *
+ * Desde E6 (D-375, D-406) elige también los lugares —TraumaHub, una, varias o
+ * todas las instituciones— y el canal: el correo, el aviso dentro de la
+ * plataforma o los dos. El aviso no tiene cola: lo ve cada cuenta que entra
+ * mientras está vigente, y su lectura queda en `lecturas-de-avisos`.
  */
 export const Difusiones: CollectionConfig = {
   slug: 'difusiones',
@@ -47,6 +53,11 @@ export const Difusiones: CollectionConfig = {
     delete: administracionDeUsuarios,
     admin: accesoAlPanel,
   },
+  // Los avisos vigentes viven medio minuto en la memoria del proceso
+  // (`avisosServidor.ts`). Al escribir una difusión se olvidan, y el aviso
+  // nuevo, o el retirado, se ve aquí enseguida; en los otros procesos, al
+  // vencer ese medio minuto.
+  hooks: { afterChange: [() => olvidarAvisos()] },
   fields: [
     { name: 'asunto', type: 'text', required: true, maxLength: 150, label: 'Asunto' },
     { name: 'mensaje', type: 'textarea', required: true, label: 'Mensaje' },
@@ -59,6 +70,29 @@ export const Difusiones: CollectionConfig = {
       defaultValue: 'todas',
       label: 'Destinatarios',
       options: AUDIENCIAS_DE_DIFUSION.map((a) => ({ ...a })),
+    },
+    {
+      // `traumahub` y los identificadores de las instituciones; vacío, todos
+      // los lugares, también los que se creen después (`destinoDeDifusion.ts`).
+      // En texto y no como relación: `traumahub` no es una institución, y una
+      // lista así se compara entera con la cuenta sin ir a la base.
+      name: 'lugares',
+      type: 'json',
+      label: 'Lugares',
+    },
+    // Los valores por omisión son los de una difusión de antes de E6, que era
+    // solo un correo: así la migración deja las que ya había tal como salieron,
+    // sin un aviso que nadie pidió apareciendo de pronto en la barra.
+    { name: 'porCorreo', type: 'checkbox', defaultValue: true, label: 'Por correo' },
+    { name: 'comoAviso', type: 'checkbox', defaultValue: false, label: 'Como aviso en la plataforma' },
+    {
+      // Hasta cuándo se ve el aviso. Lo fija quien la manda, y «Retirar el
+      // aviso» lo deja en ese momento: el aviso deja de verse sin que se
+      // pierda que lo hubo.
+      name: 'avisoHasta',
+      type: 'date',
+      index: true,
+      label: 'Aviso a la vista hasta',
     },
     {
       // Quién la mandó. Al borrar esa cuenta queda a nulo y la difusión se

@@ -40,6 +40,7 @@ export const CAMPOS_QUE_APUNTAN_A_UNA_CUENTA = {
   comentarios: ['usuario'],
   difusiones: ['autor'],
   entradas: ['usuario'],
+  'lecturas-de-avisos': ['usuario'],
   'registro-de-acciones': ['usuario'],
   requisitos: ['autor', 'votos'],
   revisiones: [
@@ -199,6 +200,21 @@ export function difusionDeLaCuenta(difusion: Fila): Fila {
 }
 
 /**
+ * Un aviso de la plataforma que la persona cerró (D-406): de qué trataba,
+ * cuándo y por dónde. El asunto sale de la difusión, que le llegó a ella; el
+ * resto de la difusión no, que lo escribió otra persona y lo cubre
+ * `difusionDeLaCuenta` para quien la escribió.
+ */
+export function lecturaDeLaCuenta(lectura: Fila, asuntos: ReadonlyMap<string, string>): Fila {
+  const difusion = lectura.difusion === null || lectura.difusion === undefined ? null : String(lectura.difusion)
+  return {
+    aviso: difusion === null ? null : (asuntos.get(difusion) ?? null),
+    leidaEn: lectura.leidaEn ?? null,
+    via: lectura.via ?? null,
+  }
+}
+
+/**
  * Los envíos de una difusión que no le llegaron a la persona, con el motivo que
  * dio el servidor de correo. Es el único rastro de las difusiones recibidas:
  * de las que sí llegaron solo se guarda la cifra.
@@ -244,6 +260,8 @@ export const QUE_CONTIENE = {
   buzonDeRequisitos: 'Si eres o fuiste editor: las propuestas que escribiste en el buzón y las que votaste.',
   difusiones:
     'Los correos masivos que escribiste, si eres administrador, y los que se te enviaron sin llegar, con el motivo que dio el servidor de correo.',
+  avisosLeidos:
+    'Los avisos de la plataforma que cerraste: cuál, cuándo y si fue siguiendo su botón.',
   cotizaciones: 'Las cotizaciones pedidas desde la portada con tu mismo correo.',
   preferencias: 'Preferencias de pantalla guardadas en el servidor.',
   entradas:

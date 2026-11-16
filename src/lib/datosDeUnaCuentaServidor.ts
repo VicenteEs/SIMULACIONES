@@ -8,6 +8,7 @@ import {
   entradaALaPlataforma,
   entradaSobreLaCuenta,
   enviosFallidosA,
+  lecturaDeLaCuenta,
   esCotizacionDe,
   propuestaDeLaCuenta,
   revisionDeLaCuenta,
@@ -39,6 +40,7 @@ export interface DatosDeUnaCuenta {
   revision: { fichas: Fila[]; sesiones: Fila[] }
   buzonDeRequisitos: { propuestas: Fila[]; votos: Fila[] }
   difusiones: { escritas: Fila[]; enviosFallidos: Fila[] }
+  avisosLeidos: Fila[]
   cotizaciones: Fila[]
   preferencias: Fila[]
   entradas: Fila[]
@@ -107,6 +109,7 @@ export async function datosDeUnaCuenta(
     cotizaciones,
     preferencias,
     entradas,
+    lecturas,
   ] = await Promise.all([
     todas(payload, 'actividad', dondeApareceLa('actividad', id), 'ultimaVisita'),
     todas(payload, 'comentarios', dondeApareceLa('comentarios', id), 'createdAt'),
@@ -137,7 +140,9 @@ export async function datosDeUnaCuenta(
       and: [{ 'user.value': { equals: id } }, { 'user.relationTo': { equals: 'usuarios' } }],
     }),
     todas(payload, 'entradas', dondeApareceLa('entradas', id), 'fecha'),
+    todas(payload, 'lecturas-de-avisos', dondeApareceLa('lecturas-de-avisos', id), 'leidaEn'),
   ])
+  const asuntos = new Map(difusiones.map((d) => [String(d.id), String(d.asunto ?? '')]))
 
   return {
     formato: 'traumahub/datos-de-una-cuenta',
@@ -168,6 +173,7 @@ export async function datosDeUnaCuenta(
       escritas: escritas.map(difusionDeLaCuenta),
       enviosFallidos: difusiones.flatMap((d) => enviosFallidosA(d, correo)),
     },
+    avisosLeidos: lecturas.map((l) => lecturaDeLaCuenta(l, asuntos)),
     cotizaciones: cotizaciones.filter((c) => esCotizacionDe(c, correo)),
     preferencias: preferencias.map(({ key, value, createdAt, updatedAt }) => ({ key, value, createdAt, updatedAt })),
     entradas: entradas.map(entradaALaPlataforma),

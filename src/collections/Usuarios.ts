@@ -367,6 +367,14 @@ export const Usuarios: CollectionConfig = {
         await limpiarRastroDeUsuario({
           usuarioId: String(id),
           borrarActividad: async (usuarioId) => {
+            // Las lecturas de los avisos (D-406) van con la actividad: dicen
+            // qué leyó una persona, y sin ella no dicen nada.
+            await req.payload.delete({
+              collection: 'lecturas-de-avisos',
+              where: { usuario: { equals: usuarioId } },
+              req,
+              overrideAccess: true,
+            })
             const { docs } = await req.payload.delete({
               collection: 'actividad',
               where: { usuario: { equals: usuarioId } },

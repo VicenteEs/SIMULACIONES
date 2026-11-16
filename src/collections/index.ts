@@ -20,6 +20,7 @@ import { TextosPagina } from './TextosPagina'
 import { Cotizaciones } from './Cotizaciones'
 import { Actividad } from './Actividad'
 import { Difusiones } from './Difusiones'
+import { LecturasDeAvisos } from './LecturasDeAvisos'
 import { Revisiones } from './Revisiones'
 import { SesionesDeRevision } from './SesionesDeRevision'
 import { RegistroDeAcciones } from './RegistroDeAcciones'
@@ -71,6 +72,7 @@ const DECLARADAS: CollectionConfig[] = [
   Comentarios,
   Actividad,
   Difusiones,
+  LecturasDeAvisos,
   Revisiones,
   SesionesDeRevision,
   RegistroDeAcciones,
@@ -114,6 +116,7 @@ export {
   Comentarios,
   Actividad,
   Difusiones,
+  LecturasDeAvisos,
   Revisiones,
   SesionesDeRevision,
   RegistroDeAcciones,

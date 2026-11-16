@@ -29,7 +29,8 @@ const { estado, payload, lanzar } = vi.hoisted(() => ({
   estado: {
     rolReal: 'admin',
     difusionesEnviando: [] as Array<{ id: number; estado: string; latidoDelTrabajador?: string }>,
-    cuentas: [] as Array<{ id: number; email: string; nombre: string }>,
+    cuentas: [] as Array<{ id: number; email: string; nombre: string; rol?: string; institucion?: number | null }>,
+    instituciones: [] as Array<{ id: number; nombre: string }>,
     difusion: null as Record<string, unknown> | null,
   },
   payload: {
@@ -105,7 +106,9 @@ import {
   enviarPruebaDeDifusion,
   iniciarDifusion,
   reanudarDifusion,
+  retirarAviso,
 } from '@/app/(frontend)/acciones/difusion'
+import { condicionDeDestinatarios } from '@/correo/difusion'
 
 const DATOS = {
   asunto: 'Sesión del lunes',
@@ -121,12 +124,18 @@ beforeEach(() => {
   estado.rolReal = 'admin'
   estado.difusionesEnviando = []
   estado.cuentas = [
-    { id: 3, email: 'ana@hospital.cl', nombre: 'Ana' },
-    { id: 4, email: 'beto@hospital.cl', nombre: 'Beto' },
+    { id: 3, email: 'ana@hospital.cl', nombre: 'Ana', rol: 'lector' },
+    { id: 4, email: 'beto@hospital.cl', nombre: 'Beto', rol: 'editor' },
   ]
+  estado.instituciones = []
   estado.difusion = null
   payload.find.mockReset().mockImplementation(async ({ collection }: { collection: string }) => ({
-    docs: collection === 'difusiones' ? estado.difusionesEnviando : estado.cuentas,
+    docs:
+      collection === 'difusiones'
+        ? estado.difusionesEnviando
+        : collection === 'instituciones'
+          ? estado.instituciones
+          : estado.cuentas,
   }))
   payload.findByID.mockReset().mockImplementation(async ({ collection }: { collection: string }) =>
     collection === 'usuarios' ? { id: 1, email: 'jefe@hospital.cl', nombre: 'Jefe' } : estado.difusion,
@@ -140,7 +149,7 @@ beforeEach(() => {
   })
   payload.update.mockReset().mockResolvedValue({})
   payload.sendEmail.mockReset().mockResolvedValue(undefined)
-  payload.count.mockClear()
+  payload.count.mockReset().mockImplementation(async () => ({ totalDocs: 2 }))
   lanzar.mockClear()
   process.env.SMTP_HOST = 'mail.ejemplo.invalid'
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -258,7 +267,7 @@ describe('una difusión a la vez', () => {
 
     const respuesta = await iniciarDifusion(DATOS)
 
-    expect(respuesta).toEqual({ exito: true, datos: { id: '77', total: 2 } })
+    expect(respuesta).toEqual({ exito: true, datos: { id: '77', total: 2, porCorreo: true } })
     expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'difusiones',
@@ -267,6 +276,12 @@ describe('una difusión a la vez', () => {
           autor: 1,
           estado: 'enviando',
           audiencia: 'todas',
+          // Como antes de E6, si no se dice otra cosa: a todos los lugares y
+          // solo por correo (D-406).
+          lugares: null,
+          porCorreo: true,
+          comoAviso: false,
+          avisoHasta: null,
           total: 2,
           enviados: 0,
           fallidos: 0,
@@ -446,12 +461,110 @@ it('un editor no llega a tocar nada', async () => {
     await iniciarDifusion(DATOS),
     await reanudarDifusion('5'),
     await detenerDifusion('5'),
+    await retirarAviso('5'),
   ]) {
     expect(respuesta.exito).toBe(false)
   }
   for (const metodo of [payload.find, payload.findByID, payload.create, payload.update, payload.sendEmail]) {
     expect(metodo).not.toHaveBeenCalled()
   }
+})
+
+describe('los lugares y el aviso (D-406)', () => {
+  const datosDeCreacion = () => (payload.create.mock.calls[0] as [{ data: Record<string, unknown> }])[0].data
+  const diasHasta = (fecha: unknown) => (new Date(fecha as string).getTime() - Date.now()) / 86_400_000
+
+  it('solo como aviso se publica ya: sin cola, sin trabajador, sin correo y aunque otra difusión esté saliendo', async () => {
+    delete process.env.SMTP_HOST
+    estado.difusionesEnviando = [latiendo({ id: 9 })]
+
+    const respuesta = await iniciarDifusion({ ...DATOS, porCorreo: false, comoAviso: true, diasDelAviso: 3 })
+
+    expect(respuesta).toEqual({ exito: true, datos: { id: '77', total: 2, porCorreo: false } })
+    expect(datosDeCreacion()).toMatchObject({
+      estado: 'enviada',
+      total: 2,
+      enviados: 0,
+      pendientes: [],
+      porCorreo: false,
+      comoAviso: true,
+      lugares: null,
+    })
+    expect(diasHasta(datosDeCreacion().avisoHasta)).toBeGreaterThan(2.99)
+    expect(diasHasta(datosDeCreacion().avisoHasta)).toBeLessThanOrEqual(3)
+    expect(lanzar).not.toHaveBeenCalled()
+  })
+
+  it('por correo y como aviso: la cola de siempre, y el aviso dos semanas si no se dice otra cosa', async () => {
+    const respuesta = await iniciarDifusion({ ...DATOS, comoAviso: true })
+
+    expect(respuesta.datos?.porCorreo).toBe(true)
+    expect(datosDeCreacion()).toMatchObject({ estado: 'enviando', porCorreo: true, comoAviso: true, pendientes: [3, 4] })
+    expect(Math.round(diasHasta(datosDeCreacion().avisoHasta))).toBe(14)
+    expect(lanzar).toHaveBeenCalledTimes(1)
+  })
+
+  it('rechaza que no salga por ningún lado, un plazo fuera de rango y una lista de lugares vacía', async () => {
+    for (const [datos, motivo] of [
+      [{ ...DATOS, porCorreo: false, comoAviso: false }, /cómo sale/],
+      [{ ...DATOS, comoAviso: true, diasDelAviso: 0 }, /de 1 a 90 días/],
+      [{ ...DATOS, comoAviso: true, diasDelAviso: 91 }, /de 1 a 90 días/],
+      [{ ...DATOS, comoAviso: true, diasDelAviso: 2.5 }, /de 1 a 90 días/],
+      [{ ...DATOS, lugares: [] }, /al menos un lugar/],
+      [{ ...DATOS, lugares: ['otro-sitio'] }, /al menos un lugar/],
+    ] as const) {
+      const respuesta = await iniciarDifusion(datos)
+      expect(respuesta.exito, JSON.stringify(datos)).toBe(false)
+      expect(respuesta.mensaje).toMatch(motivo)
+    }
+    expect(payload.create).not.toHaveBeenCalled()
+  })
+
+  it('una institución que no existe no vale como lugar', async () => {
+    payload.count.mockImplementation(async () => ({ totalDocs: 1 }))
+
+    const respuesta = await iniciarDifusion({ ...DATOS, lugares: ['traumahub', '7', '8'] })
+
+    expect(respuesta.exito).toBe(false)
+    expect(respuesta.mensaje).toMatch(/ya no existe/)
+    expect(payload.count).toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'instituciones', where: { id: { in: [7, 8] } } }),
+    )
+    expect(payload.create).not.toHaveBeenCalled()
+  })
+
+  it('los lugares elegidos recortan la cola con la misma condición, y se guardan sin repetidos', async () => {
+    payload.count.mockImplementation(async () => ({ totalDocs: 1 }))
+
+    const respuesta = await iniciarDifusion({ ...DATOS, lugares: ['7', 'traumahub', '7'] })
+
+    expect(respuesta.exito).toBe(true)
+    const consulta = payload.find.mock.calls
+      .map((llamada) => (llamada as unknown[])[0] as { collection: string; where: unknown })
+      .find((a) => a.collection === 'usuarios')
+    expect(consulta?.where).toEqual(condicionDeDestinatarios('todas', ['7', 'traumahub']))
+    expect(datosDeCreacion().lugares).toEqual(['7', 'traumahub'])
+  })
+
+  it('retirar el aviso lo deja vencido desde ya, y no toca uno que no está a la vista', async () => {
+    estado.difusion = { id: 5, estado: 'enviada', comoAviso: true, avisoHasta: new Date(Date.now() + 86_400_000).toISOString() }
+
+    expect((await retirarAviso('5')).exito).toBe(true)
+    const { data } = (payload.update.mock.calls[0] as [{ collection: string; data: { avisoHasta: string } }])[0]
+    expect(Math.abs(diasHasta(data.avisoHasta))).toBeLessThan(0.001)
+
+    payload.update.mockClear()
+    for (const otra of [
+      { id: 5, estado: 'enviada', comoAviso: false, avisoHasta: null },
+      { id: 5, estado: 'enviada', comoAviso: true, avisoHasta: '2026-01-01T00:00:00.000Z' },
+    ]) {
+      estado.difusion = otra
+      const respuesta = await retirarAviso('5')
+      expect(respuesta.exito).toBe(false)
+      expect(respuesta.mensaje).toMatch(/no tiene un aviso a la vista/)
+    }
+    expect(payload.update).not.toHaveBeenCalled()
+  })
 })
 
 describe('la pantalla', () => {
@@ -508,13 +621,12 @@ describe('la pantalla', () => {
     // La primera de la cola sale con el mismo orden y la misma condición que
     // `destinatariosDe`: por id y solo cuentas activas. Si una de las dos
     // cambiara, la vista previa saludaría a alguien que no es el primero.
-    const primeras = payload.find.mock.calls
+    const lectura = payload.find.mock.calls
       .map((llamada) => (llamada as unknown[])[0] as Record<string, unknown>)
-      .filter((a) => a.collection === 'usuarios' && a.limit === 1)
-    expect(primeras).toHaveLength(4)
-    expect(primeras.every((a) => a.sort === 'id' && JSON.stringify(a.where).includes('"activo":{"equals":true}'))).toBe(
-      true,
-    )
+      .filter((a) => a.collection === 'usuarios' && a.pagination === false && !JSON.stringify(a.where).includes('"in"'))
+    expect(lectura).toHaveLength(1)
+    expect(lectura[0].sort).toBe('id')
+    expect(lectura[0].where).toEqual(condicionDeDestinatarios('todas'))
 
     estado.cuentas = []
     const vacio = await pintar()
@@ -571,11 +683,84 @@ describe('la pantalla', () => {
     expect(enMarcha).toContain('>Detener<')
   })
 
-  it('cuenta los destinatarios de cada grupo con la misma condición que el envío', async () => {
-    await pintar()
-    expect(payload.count).toHaveBeenCalledTimes(4)
-    const condiciones = payload.count.mock.calls.map((llamada) => JSON.stringify((llamada as unknown[])[0]))
-    expect(condiciones.every((c) => c.includes('"activo":{"equals":true}'))).toBe(true)
-    expect(condiciones.filter((c) => c.includes('"rol"'))).toHaveLength(3)
+  it('cuenta cada grupo con una sola lectura de las cuentas, y sin instituciones no pregunta dónde', async () => {
+    const html = await pintar()
+    // Antes eran un `count` y un `find` por grupo; con los lugares serían dos
+    // por cada institución y rol (D-406).
+    expect(payload.count.mock.calls.filter((l) => (l as unknown as [{ collection: string }])[0].collection === 'usuarios')).toHaveLength(0)
+    expect(html).toContain('Todas las cuentas activas (2)')
+    expect(html).toContain('Solo lectores (1)')
+    expect(html).toContain('Solo administradores (0)')
+    expect(html).not.toContain('Dónde')
+
+    estado.instituciones = [{ id: 7, nombre: 'Hospital del Sur' }]
+    estado.cuentas.push({ id: 5, email: 'carla@sur.cl', nombre: 'Carla', rol: 'lector', institucion: 7 })
+    const conInstituciones = await pintar()
+    expect(conInstituciones).toContain('Dónde')
+    expect(conInstituciones).toContain('Todos los lugares')
+    expect(conInstituciones).toContain('Solo lectores (2)')
+  })
+
+  it('el historial dice por dónde salió cada una, y ofrece retirar el aviso que se ve', async () => {
+    estado.instituciones = [{ id: 7, nombre: 'Hospital del Sur' }]
+    estado.difusionesEnviando = [
+      {
+        id: 33,
+        asunto: 'Simulador en mantención el sábado',
+        audiencia: 'todas',
+        lugares: ['7', '99'],
+        porCorreo: false,
+        comoAviso: true,
+        avisoHasta: new Date(Date.now() + 86_400_000).toISOString(),
+        autor: null,
+        estado: 'enviada',
+        total: 5,
+        enviados: 0,
+        fallidos: 0,
+        pendientes: [],
+        fallos: [],
+        createdAt: '2026-11-16T12:00:00.000Z',
+      },
+      {
+        id: 32,
+        asunto: 'Aviso que ya venció',
+        botonTexto: 'Abrir el caso',
+        botonEnlace: 'https://traumahub.example/caso',
+        audiencia: 'lector',
+        lugares: null,
+        porCorreo: true,
+        comoAviso: true,
+        avisoHasta: '2026-10-01T12:00:00.000Z',
+        autor: null,
+        estado: 'enviada',
+        total: 4,
+        enviados: 4,
+        fallidos: 0,
+        pendientes: [],
+        fallos: [],
+        createdAt: '2026-09-20T12:00:00.000Z',
+      },
+    ] as never
+    const html = await pintar()
+
+    expect(html).toContain('Publicada')
+    expect(html).toContain('No salió por correo.')
+    // La institución borrada sigue nombrada: la difusión le llegó.
+    expect(html).toContain('Hospital del Sur, Una institución que ya no existe')
+    expect(html).toContain('A la vista hasta el')
+    expect(html).toContain('Se dejó de ver el')
+    expect(html).toContain('Leído por 2 de 5')
+    // Quién siguió el botón, solo del aviso que lo tenía.
+    expect(html.match(/2 siguieron el botón/g)).toHaveLength(1)
+    expect(html.match(/Retirar el aviso/g)).toHaveLength(1)
+    // Las lecturas se cuentan solo de las difusiones con aviso.
+    const contadas = payload.count.mock.calls
+      .map((l) => (l as unknown as [{ collection: string; where: unknown }])[0])
+      .filter((a) => a.collection === 'lecturas-de-avisos')
+    expect(contadas.map((a) => a.where)).toEqual([
+      { difusion: { equals: 33 } },
+      { difusion: { equals: 32 } },
+      { and: [{ difusion: { equals: 32 } }, { via: { equals: 'boton' } }] },
+    ])
   })
 })

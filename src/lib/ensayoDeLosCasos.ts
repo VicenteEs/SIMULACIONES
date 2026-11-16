@@ -44,6 +44,8 @@ export const COLECCIONES_SIN_COPIAR: readonly string[] = [
   'actividad',
   'comentarios',
   'difusiones',
+  // Quién cerró cada aviso de la plataforma (D-406).
+  'lecturas-de-avisos',
   'registro-de-acciones',
   // Equipo, IP y país de cada entrada (D-388).
   'entradas',

@@ -8,12 +8,14 @@ import {
   enviarPruebaDeDifusion,
   iniciarDifusion,
   reanudarDifusion,
+  retirarAviso,
 } from '@/app/(frontend)/acciones/difusion'
 import { apuntarCambiosSinGuardar } from '@/admin/salidaDelEditor'
 import { mensajeDeDifusion } from '@/correo/mensajes'
 import { armarCorreo, esEnlaceSeguro } from '@/correo/plantilla'
+import { DIAS_DEL_AVISO, type LugaresDeDifusion } from '@/lib/destinoDeDifusion'
 import { ruta } from '@/lib/rutas'
-import { Ban, Check, History, Loader, Pause, Play, Send, TriangleAlert, X, Mail } from 'lucide-react'
+import { Ban, BellOff, Check, History, Loader, Pause, Play, Send, TriangleAlert, X, Mail } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
 import { useAvisos } from '@/components/ui/Avisos'
@@ -23,18 +25,43 @@ import { Vacio } from '@/components/ui/Vacio'
 import { claseDeInsignia, type Tono } from '@/lib/tonosDeEstado'
 import './difusion.css'
 
-export interface GrupoDeDestinatarios {
+/** Un grupo de roles del formulario: «Todas las cuentas activas», «Solo lectores»… */
+export interface AudienciaDelFormulario {
   valor: string
   etiqueta: string
+}
+
+/** TraumaHub o una institución, con el nombre que lleva en la lista (`destinoDeDifusion.ts`). */
+export interface LugarDeDifusion {
+  valor: string
+  etiqueta: string
+}
+
+/**
+ * Cuántas cuentas activas hay de un rol en un lugar, y la primera de su cola.
+ * Con estas filas el formulario cuenta cualquier combinación sin preguntar al
+ * servidor (D-406).
+ */
+export interface ConteoDeDestinatarios {
+  lugar: string
+  rol: string
   cuantos: number
-  /** La primera cuenta de la cola de ese grupo, para la vista previa; `null` si el grupo está vacío. */
-  primera: { nombre: string; email: string } | null
+  primera: { id: number; nombre: string; email: string }
 }
 
 export interface DifusionDelHistorial {
   id: string
   asunto: string
   audiencia: string
+  /** Los nombres de los lugares a los que fue; `null`, todos. */
+  lugares: string[] | null
+  porCorreo: boolean
+  /**
+   * El aviso, si lo tuvo. `vigente` lo decide el servidor al pintar la tabla.
+   * `leidos` es `null` si no se pudieron contar, y `porElBoton` también si el
+   * aviso no tenía botón.
+   */
+  aviso: { hasta: string; vigente: boolean; leidos: number | null; porElBoton: number | null } | null
   autor: string | null
   creada: string
   terminada: string | null
@@ -113,14 +140,48 @@ export const hayAlgunaEnviandose = (historial: Pick<DifusionDelHistorial, 'estad
  */
 export function botonesDisponibles(e: {
   hayCorreo: boolean
+  /** Lo que falla en el texto: impide la prueba y el envío. */
   problema: string | null
+  /** Lo que falla en a quién va o por dónde: impide el envío, no la prueba, que va a quien la pide. */
+  problemaDelDestino?: string | null
   ocupado: boolean
   cuantos: number
   algunaEnCurso: boolean
+  /** Sin correo no hay cola ni cuota, y el aviso sale aunque otra difusión se esté enviando. */
+  porCorreo?: boolean
 }): { probar: boolean; enviar: boolean } {
   const probar = e.hayCorreo && !e.problema && !e.ocupado
-  return { probar, enviar: probar && e.cuantos > 0 && !e.algunaEnCurso }
+  const listo = !e.problema && !e.problemaDelDestino && !e.ocupado && e.cuantos > 0
+  const enviar = e.porCorreo === false ? listo : listo && e.hayCorreo && !e.algunaEnCurso
+  return { probar, enviar }
 }
+
+/**
+ * Cuántas cuentas reciben la difusión con este rol y estos lugares, y cuál es
+ * la primera de la cola, la del saludo de la vista previa.
+ *
+ * La misma regla que `difusionLlegaA` y `condicionDeDestinatarios`, sobre las
+ * filas que trae la página. La primera es la de identificador más bajo, como
+ * en `destinatariosDe`, que arma la cola por identificador.
+ */
+export function destinatariosElegidos(
+  conteos: ConteoDeDestinatarios[],
+  audiencia: string,
+  lugares: LugaresDeDifusion,
+): { cuantos: number; primera: { nombre: string; email: string } | null } {
+  let cuantos = 0
+  let primera: ConteoDeDestinatarios['primera'] | null = null
+  for (const c of conteos) {
+    if (audiencia !== 'todas' && c.rol !== audiencia) continue
+    if (lugares !== null && !lugares.includes(c.lugar)) continue
+    cuantos += c.cuantos
+    if (!primera || c.primera.id < primera.id) primera = c.primera
+  }
+  return { cuantos, primera: primera ? { nombre: primera.nombre, email: primera.email } : null }
+}
+
+const fecha = (valor: string) =>
+  new Date(valor).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', timeZone: 'America/Santiago' })
 
 /**
  * Qué decir cuando la acción de servidor no llega a contestar.
@@ -151,6 +212,9 @@ function etiquetaDeEstado(d: DifusionDelHistorial): { texto: string; tono: Tono;
   // icono acompaña a la palabra para que el estado no se diga solo con color.
   // «Con fallos» tenía una clase propia (`.difusion-etiqueta-fallos`) que era,
   // letra por letra, el tono de peligro.
+  // Solo como aviso no hay envío que siga ni que falle: se guarda «enviada»
+  // al publicarse, y si se ve todavía lo dice la columna del aviso.
+  if (!d.porCorreo) return { texto: 'Publicada', tono: 'ok', icono: Check }
   switch (d.estado) {
     case 'enviando':
       return d.enCurso
@@ -166,14 +230,18 @@ function etiquetaDeEstado(d: DifusionDelHistorial): { texto: string; tono: Tono;
 }
 
 export function PanelDeDifusion({
-  grupos,
+  audiencias,
+  lugares,
+  conteos,
   historial,
   hayCorreo,
   pausaMs,
   correosPorHora,
   direccionPlataforma,
 }: {
-  grupos: GrupoDeDestinatarios[]
+  audiencias: AudienciaDelFormulario[]
+  lugares: LugarDeDifusion[]
+  conteos: ConteoDeDestinatarios[]
   historial: DifusionDelHistorial[]
   hayCorreo: boolean
   pausaMs: number
@@ -202,7 +270,17 @@ export function PanelDeDifusion({
   const [mensaje, setMensaje] = useState('')
   const [botonTexto, setBotonTexto] = useState('')
   const [botonEnlace, setBotonEnlace] = useState('')
-  const [audiencia, setAudiencia] = useState(grupos[0]?.valor ?? 'todas')
+  const [audiencia, setAudiencia] = useState(audiencias[0]?.valor ?? 'todas')
+  // Los lugares: todos, que incluye las instituciones que se creen mientras el
+  // aviso esté a la vista, o los que se marquen. Al pasar a elegir salen todos
+  // marcados, para quitar los que sobran y no tener que marcar uno a uno.
+  const [eligiendoLugares, setEligiendoLugares] = useState(false)
+  const [lugaresMarcados, setLugaresMarcados] = useState<string[]>(() => lugares.map((l) => l.valor))
+  // Por correo, como venía siendo, salvo que no haya servidor de correo: ahí
+  // solo puede salir como aviso, y se deja marcado lo que sí se puede.
+  const [porCorreo, setPorCorreo] = useState(hayCorreo)
+  const [comoAviso, setComoAviso] = useState(!hayCorreo)
+  const [diasDelAviso, setDiasDelAviso] = useState(String(DIAS_DEL_AVISO.porOmision))
   const [confirmando, setConfirmando] = useState(false)
   // Qué se está esperando, para rotular el botón que lo pidió y no todos: con
   // un «Enviando…» en la prueba mientras se detiene otra difusión, parecería
@@ -213,17 +291,26 @@ export function PanelDeDifusion({
   const idConfirmacion = useId()
   const botonConfirmar = useRef<HTMLButtonElement>(null)
 
-  const grupo = grupos.find((g) => g.valor === audiencia)
-  const cuantos = grupo?.cuantos ?? 0
+  // Con una sola entrada, TraumaHub, no hay nada que elegir: la difusión va a
+  // todos los lugares, que es el único, y el apartado no se pinta.
+  const hayInstituciones = lugares.length > 1
+  const lugaresDeLaDifusion: LugaresDeDifusion = hayInstituciones && eligiendoLugares ? lugaresMarcados : null
+  const etiquetaDeAudiencia = audiencias.find((a) => a.valor === audiencia)?.etiqueta ?? audiencia
+  const nombresDeLugares =
+    lugaresDeLaDifusion === null
+      ? null
+      : lugares.filter((l) => lugaresDeLaDifusion.includes(l.valor)).map((l) => l.etiqueta)
   // El saludo de la vista previa es el que recibirá la primera persona de la
   // cola, con su nombre tal cual —vacío incluido, que sale «Hola.»—. Sin nadie
   // en el grupo no hay a quién mostrárselo, y queda el «Nombre» de muestra.
-  // Ese nombre se busca dentro de la memoria de la vista previa, a partir de
-  // `grupos` y `audiencia`: sacado de `grupo` aquí fuera, el compilador de
+  // La vista previa vuelve a buscarla dentro de su memoria, a partir de
+  // `conteos` y lo elegido: con el valor sacado aquí fuera, el compilador de
   // React no podía asegurar que nadie lo cambiara entre medias y renunciaba a
   // optimizar el componente entero.
-  const aQuienLeLlega = grupo?.primera ? grupo.primera.nombre || grupo.primera.email : null
+  const { cuantos, primera } = destinatariosElegidos(conteos, audiencia, lugaresDeLaDifusion)
+  const aQuienLeLlega = primera ? primera.nombre || primera.email : null
   const algunaEnCurso = hayAlgunaEnviandose(historial)
+  const dias = Number(diasDelAviso)
 
   const sucio = [asunto, mensaje, botonTexto, botonEnlace].some((t) => t.trim() !== '')
 
@@ -240,13 +327,26 @@ export function PanelDeDifusion({
       : enlaceInseguro
         ? 'El enlace del botón tiene que ser una dirección completa, que empiece por http:// o https://.'
         : null
+  // Lo del destino va aparte: no impide la prueba, que llega a quien la pide.
+  const problemaDelDestino =
+    lugaresDeLaDifusion !== null && lugaresDeLaDifusion.length === 0
+      ? 'Elija al menos un lugar.'
+      : !porCorreo && !comoAviso
+        ? 'Elija cómo sale: por correo, como aviso en la plataforma o las dos.'
+        : porCorreo && !hayCorreo
+          ? 'Sin servidor de correo solo puede salir como aviso en la plataforma.'
+          : comoAviso && !(Number.isInteger(dias) && dias >= 1 && dias <= DIAS_DEL_AVISO.maximo)
+            ? `El aviso se ve de 1 a ${DIAS_DEL_AVISO.maximo} días.`
+            : null
 
   const { probar: puedeProbar, enviar: puedeEnviar } = botonesDisponibles({
     hayCorreo,
     problema,
+    problemaDelDestino,
     ocupado,
     cuantos,
     algunaEnCurso,
+    porCorreo,
   })
 
   /**
@@ -262,7 +362,7 @@ export function PanelDeDifusion({
    * no puede hacer nada en su sesión.
    */
   const vistaPrevia = useMemo(() => {
-    const primera = grupos.find((g) => g.valor === audiencia)?.primera
+    const { primera } = destinatariosElegidos(conteos, audiencia, lugaresDeLaDifusion)
     return armarCorreo(
       mensajeDeDifusion(
         {
@@ -274,7 +374,7 @@ export function PanelDeDifusion({
       ),
       { logo: ruta('/logo-correo.png') },
     ).html
-  }, [asunto, mensaje, botonTexto, botonEnlace, tieneTexto, tieneEnlace, grupos, audiencia])
+  }, [asunto, mensaje, botonTexto, botonEnlace, tieneTexto, tieneEnlace, conteos, audiencia, lugaresDeLaDifusion])
 
   // Con texto escrito, la barra lateral y Atrás preguntan antes de salir. Es
   // el mismo patrón que el editor de fichas: apuntarse solo mientras hay algo,
@@ -306,7 +406,23 @@ export function PanelDeDifusion({
     setConfirmando(false)
   }
 
-  const datos = { asunto, mensaje, botonTexto, botonEnlace, audiencia }
+  /** Lo mismo que `cambiar`, para las casillas. */
+  const marcar = (fijar: (valor: boolean) => void) => (valor: boolean) => {
+    fijar(valor)
+    setConfirmando(false)
+  }
+
+  const datos = {
+    asunto,
+    mensaje,
+    botonTexto,
+    botonEnlace,
+    audiencia,
+    lugares: lugaresDeLaDifusion,
+    porCorreo,
+    comoAviso,
+    diasDelAviso: comoAviso ? dias : undefined,
+  }
 
   const probar = () => {
     setAviso(null)
@@ -337,9 +453,12 @@ export function PanelDeDifusion({
         const resultado = await iniciarDifusion(datos)
         setConfirmando(false)
         if (resultado.exito && resultado.datos) {
+          const conAviso = comoAviso ? ' El aviso ya se ve en la plataforma.' : ''
           setAviso({
             tipo: 'ok',
-            texto: `Enviando «${asunto.trim()}» a ${personas(resultado.datos.total)}. El envío sigue aunque salga de esta pantalla; el avance se ve en el historial.`,
+            texto: resultado.datos.porCorreo
+              ? `Enviando «${asunto.trim()}» a ${personas(resultado.datos.total)}. El envío sigue aunque salga de esta pantalla; el avance se ve en el historial.${conAviso}`
+              : `Publicado «${asunto.trim()}» como aviso para ${personas(resultado.datos.total)}. Se verá ${dias === 1 ? 'un día' : `${dias} días`}, o hasta que lo retire desde el historial.`,
           })
           setAsunto('')
           setMensaje('')
@@ -372,6 +491,34 @@ export function PanelDeDifusion({
         }
       } catch (fallo) {
         setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo detener.') })
+      }
+    })
+  }
+
+  const retirar = async (d: DifusionDelHistorial) => {
+    const si = await confirmar({
+      titulo: `¿Retirar el aviso «${d.asunto}»?`,
+      mensaje: (
+        <p>
+          Deja de verse en la plataforma desde ya, también para quien todavía no lo ha leído. El correo,
+          si lo hubo, no cambia.
+        </p>
+      ),
+      confirmar: 'Retirar el aviso',
+    })
+    if (!si) return
+    setAviso(null)
+    iniciar(async () => {
+      try {
+        const resultado = await retirarAviso(d.id)
+        if (resultado.exito) {
+          setAviso({ tipo: 'ok', texto: `Se retiró el aviso «${d.asunto}».` })
+          router.refresh()
+        } else {
+          setAviso({ tipo: 'error', texto: resultado.mensaje ?? 'No se pudo retirar el aviso.' })
+        }
+      } catch (fallo) {
+        setAviso({ tipo: 'error', texto: motivoDeLaCaida(fallo, 'No se pudo retirar el aviso.') })
       }
     })
   }
@@ -414,7 +561,7 @@ export function PanelDeDifusion({
     <div>
       <CabeceraDePagina
         titulo="Difusión"
-        subtitulo="Un correo a todas las cuentas activas o a un grupo: un aviso de clase, un caso nuevo, un cambio de horario. Sale uno por persona, con su nombre, al ritmo que admite el servidor de correo."
+        subtitulo="Un correo, un aviso dentro de la plataforma o los dos, a todas las cuentas activas o a un grupo: un aviso de clase, un caso nuevo, un cambio de horario. El correo sale uno por persona, con su nombre, al ritmo que admite el servidor de correo."
       />
 
       {aviso ? (
@@ -426,8 +573,8 @@ export function PanelDeDifusion({
       {!hayCorreo ? (
         <div className="admin-aviso admin-aviso-atencion">
           <strong>No hay servidor de correo configurado.</strong>
-          Puede redactar y ver cómo quedará, pero no enviar ni la prueba ni la difusión. La
-          configuración del correo saliente y su estado están en{' '}
+          Puede redactarla y publicarla como aviso dentro de la plataforma, pero no enviar nada por
+          correo, ni la prueba. La configuración del correo saliente y su estado están en{' '}
           <Link href="/admin-panel/sistema">Sistema</Link>.
         </div>
       ) : null}
@@ -446,9 +593,9 @@ export function PanelDeDifusion({
               value={audiencia}
               onChange={(e) => cambiar(setAudiencia)(e.target.value)}
             >
-              {grupos.map((g) => (
-                <option key={g.valor} value={g.valor}>
-                  {g.etiqueta} ({g.cuantos})
+              {audiencias.map((a) => (
+                <option key={a.valor} value={a.valor}>
+                  {a.etiqueta} ({destinatariosElegidos(conteos, a.valor, lugaresDeLaDifusion).cuantos})
                 </option>
               ))}
             </select>
@@ -457,6 +604,92 @@ export function PanelDeDifusion({
               reciben nada.
             </p>
           </div>
+
+          {hayInstituciones ? (
+            <fieldset className="difusion-opciones">
+              <legend className="admin-form-label">Dónde</legend>
+              <label className="difusion-casilla">
+                <input
+                  type="radio"
+                  name="difusion-lugares"
+                  checked={!eligiendoLugares}
+                  onChange={() => marcar(setEligiendoLugares)(false)}
+                />
+                Todos los lugares
+              </label>
+              <label className="difusion-casilla">
+                <input
+                  type="radio"
+                  name="difusion-lugares"
+                  checked={eligiendoLugares}
+                  onChange={() => marcar(setEligiendoLugares)(true)}
+                />
+                Solo los que elija
+              </label>
+              {eligiendoLugares ? (
+                <div className="difusion-lugares">
+                  {lugares.map((l) => (
+                    <label key={l.valor} className="difusion-casilla">
+                      <input
+                        type="checkbox"
+                        checked={lugaresMarcados.includes(l.valor)}
+                        onChange={(e) => {
+                          const marcada = e.target.checked
+                          setLugaresMarcados((antes) =>
+                            marcada ? [...antes, l.valor] : antes.filter((v) => v !== l.valor),
+                          )
+                          setConfirmando(false)
+                        }}
+                      />
+                      {l.etiqueta}
+                      <span className="difusion-casilla-cuantos">
+                        {destinatariosElegidos(conteos, audiencia, [l.valor]).cuantos}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              ) : null}
+              <p className="admin-form-hint">
+                {eligiendoLugares
+                  ? 'Solo esos: una institución que se cree después no ve el aviso.'
+                  : 'TraumaHub y cada institución, también las que se creen mientras el aviso esté a la vista.'}
+              </p>
+            </fieldset>
+          ) : null}
+
+          <fieldset className="difusion-opciones">
+            <legend className="admin-form-label">Cómo sale</legend>
+            <label className="difusion-casilla">
+              <input type="checkbox" checked={porCorreo} onChange={(e) => marcar(setPorCorreo)(e.target.checked)} />
+              Por correo
+            </label>
+            <label className="difusion-casilla">
+              <input type="checkbox" checked={comoAviso} onChange={(e) => marcar(setComoAviso)(e.target.checked)} />
+              Como aviso en la plataforma
+            </label>
+            {comoAviso ? (
+              <div className="difusion-dias">
+                <label className="difusion-etiqueta-menor" htmlFor="difusion-dias">
+                  Se ve durante
+                </label>
+                <input
+                  id="difusion-dias"
+                  className="admin-form-input"
+                  type="number"
+                  min={1}
+                  max={DIAS_DEL_AVISO.maximo}
+                  step={1}
+                  value={diasDelAviso}
+                  onChange={(e) => cambiar(setDiasDelAviso)(e.target.value)}
+                />
+                <span>días</span>
+              </div>
+            ) : null}
+            <p className="admin-form-hint">
+              El aviso se abre solo en una ventana la próxima vez que cada persona entra, y queda en la
+              campana de la barra hasta que vence o se retira.
+            </p>
+          </fieldset>
 
           <div className="admin-form-group">
             <label className="admin-form-label" htmlFor="difusion-asunto">
@@ -537,16 +770,23 @@ export function PanelDeDifusion({
                 Usar la dirección de TraumaHub
               </button>
             ) : null}
+            {hayInstituciones ? (
+              <p className="admin-form-hint">
+                Un enlace a TraumaHub se abre, para cada persona, en el lugar de su cuenta: quien es de
+                una institución llega a su subdominio.
+              </p>
+            ) : null}
           </fieldset>
 
           {problema && sucio ? <p className="difusion-problema">{problema}</p> : null}
-          {!problema && cuantos === 0 ? (
+          {!problema && problemaDelDestino ? <p className="difusion-problema">{problemaDelDestino}</p> : null}
+          {!problema && !problemaDelDestino && cuantos === 0 ? (
             <p className="difusion-problema">No hay ninguna cuenta activa en ese grupo.</p>
           ) : null}
-          {algunaEnCurso ? (
+          {algunaEnCurso && porCorreo ? (
             <p className="difusion-problema">
-              Hay una difusión enviándose. Puede probar esta, pero no enviarla hasta que aquella termine
-              o se detenga.
+              Hay una difusión enviándose. Puede probar esta, pero no enviarla por correo hasta que
+              aquella termine o se detenga; como aviso solo, sí.
             </p>
           ) : null}
 
@@ -557,11 +797,22 @@ export function PanelDeDifusion({
               aria-labelledby={idConfirmacion}
             >
               <strong id={idConfirmacion}>
-                ¿Enviar «{asunto.trim()}» a {personas(cuantos)}?
+                {porCorreo
+                  ? `¿Enviar «${asunto.trim()}» a ${personas(cuantos)}${comoAviso ? ', por correo y como aviso' : ''}?`
+                  : `¿Publicar «${asunto.trim()}» como aviso para ${personas(cuantos)}?`}
               </strong>
-              Grupo: {grupo?.etiqueta}. Al ritmo configurado —{correosPorHora} correos por hora— tardará{' '}
-              {duracionAproximada(cuantos, pausaMs)}. El envío sigue aunque cierre esta pantalla y se
-              puede detener desde el historial, pero lo que ya salió no se recupera.
+              Grupo: {etiquetaDeAudiencia}
+              {nombresDeLugares ? `, en ${nombresDeLugares.join(', ')}` : hayInstituciones ? ', en todos los lugares' : ''}.{' '}
+              {porCorreo ? (
+                <>
+                  Al ritmo configurado —{correosPorHora} correos por hora— el correo tardará{' '}
+                  {duracionAproximada(cuantos, pausaMs)}. El envío sigue aunque cierre esta pantalla y se
+                  puede detener desde el historial, pero lo que ya salió no se recupera.{' '}
+                </>
+              ) : null}
+              {comoAviso
+                ? `El aviso se ve ${dias === 1 ? 'un día' : `${dias} días`} y se puede retirar antes desde el historial.`
+                : null}
               <div className="admin-acciones difusion-confirmacion-botones">
                 <button
                   ref={botonConfirmar}
@@ -571,7 +822,11 @@ export function PanelDeDifusion({
                   disabled={!puedeEnviar}
                 >
                   <Send aria-hidden size={16} />
-                  {ocupado ? 'Empezando…' : `Sí, enviar a ${personas(cuantos)}`}
+                  {ocupado
+                    ? 'Empezando…'
+                    : porCorreo
+                      ? `Sí, enviar a ${personas(cuantos)}`
+                      : `Sí, publicar para ${personas(cuantos)}`}
                 </button>
                 <button
                   type="button"
@@ -597,7 +852,8 @@ export function PanelDeDifusion({
                 disabled={!puedeEnviar}
               >
                 <Send aria-hidden size={16} />
-                Enviar a {personas(cuantos)}
+                {/* «Enviar» es el correo; un aviso solo se publica. */}
+                {porCorreo ? `Enviar a ${personas(cuantos)}` : `Publicar para ${personas(cuantos)}`}
               </button>
             </div>
           )}
@@ -612,6 +868,9 @@ export function PanelDeDifusion({
                     cuantos > 1 ? `; cada una de las ${cuantos} personas lo recibe con su nombre en el saludo` : ''
                   }.`
                 : 'Así lo recibirá cada persona, con su nombre en el saludo.'}
+              {comoAviso
+                ? ' El aviso de la plataforma lleva el mismo asunto, mensaje y botón, sin el saludo.'
+                : ''}
             </p>
           </div>
           <iframe className="difusion-vista-marco" title="Vista previa del correo" sandbox="" srcDoc={vistaPrevia} />
@@ -629,8 +888,9 @@ export function PanelDeDifusion({
           // lo ve: decir «entregados», como el diseño, prometería un dato que
           // no se guarda.
           <p className="admin-form-hint difusion-historial-nota">
-            {historial.length === 1 ? 'La última difusión' : `Las últimas ${historial.length} difusiones, de la más reciente a la más antigua`}. «Enviados» es la parte de los destinatarios cuyo correo aceptó el servidor; lo
-            que rebote después llega al buzón del remitente y no aparece aquí.
+            {historial.length === 1 ? 'La última difusión' : `Las últimas ${historial.length} difusiones, de la más reciente a la más antigua`}. «Correo» es la parte de los destinatarios cuyo correo aceptó el servidor; lo
+            que rebote después llega al buzón del remitente y no aparece aquí. «Aviso» cuenta quiénes lo
+            cerraron en la plataforma.
           </p>
         ) : null}
         {historial.length === 0 ? (
@@ -645,7 +905,8 @@ export function PanelDeDifusion({
                 <th>Fecha</th>
                 <th>Asunto</th>
                 <th>Para</th>
-                <th>Enviados</th>
+                <th>Correo</th>
+                <th>Aviso</th>
                 <th>Estado</th>
                 <th>
                   <span className="sr-only">Acciones</span>
@@ -682,10 +943,18 @@ export function PanelDeDifusion({
                     <td data-etiqueta="Para">
                       <div>
                         {d.audiencia}
+                        {d.lugares ? (
+                          <div className="admin-table-user-email">{d.lugares.join(', ')}</div>
+                        ) : hayInstituciones ? (
+                          <div className="admin-table-user-email">Todos los lugares</div>
+                        ) : null}
                         <div className="admin-table-user-email">{personas(d.total)}</div>
                       </div>
                     </td>
-                    <td className="difusion-avance" data-etiqueta="Enviados">
+                    <td className="difusion-avance" data-etiqueta="Correo">
+                      {!d.porCorreo ? (
+                        <div className="admin-table-user-email">No salió por correo.</div>
+                      ) : (
                       <div className="difusion-avance-cuerpo">
                       <div className="difusion-avance-cifras">
                         <span className="u-num">{porcentaje === null ? '—' : `${porcentaje} %`}</span>
@@ -704,6 +973,24 @@ export function PanelDeDifusion({
                         <div className="admin-progreso-relleno" style={{ width: `${porcentaje ?? 0}%` }} />
                       </div>
                       </div>
+                      )}
+                    </td>
+                    <td data-etiqueta="Aviso">
+                      {d.aviso ? (
+                        <div>
+                          {d.aviso.vigente ? `A la vista hasta el ${fecha(d.aviso.hasta)}` : `Se dejó de ver el ${fecha(d.aviso.hasta)}`}
+                          {d.aviso.leidos !== null ? (
+                            <div className="admin-table-user-email">
+                              Leído por {d.aviso.leidos} de {d.total}
+                              {d.aviso.porElBoton !== null
+                                ? ` · ${d.aviso.porElBoton === 1 ? '1 siguió' : `${d.aviso.porElBoton} siguieron`} el botón`
+                                : ''}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="admin-table-user-email">Sin aviso.</div>
+                      )}
                     </td>
                     <td data-etiqueta="Estado">
                       <div>
@@ -742,8 +1029,19 @@ export function PanelDeDifusion({
                         `td:empty` la esconda en el teléfono en lugar de dejar
                         un hueco al pie de la tarjeta. */}
                     <td className="admin-table-acciones">
-                      {(d.estado === 'enviando' && d.enCurso) || reanudable ? (
+                      {(d.estado === 'enviando' && d.enCurso) || reanudable || d.aviso?.vigente ? (
                       <div className="admin-table-acciones-fila">
+                        {d.aviso?.vigente ? (
+                          <button
+                            type="button"
+                            className="admin-btn admin-btn-sm admin-btn-secondary"
+                            onClick={() => retirar(d)}
+                            disabled={ocupado}
+                          >
+                            <BellOff aria-hidden size={14} />
+                            Retirar el aviso
+                          </button>
+                        ) : null}
                         {d.estado === 'enviando' && d.enCurso ? (
                           <button
                             type="button"

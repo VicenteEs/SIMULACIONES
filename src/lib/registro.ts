@@ -90,6 +90,8 @@ export function quienEnElRegistro(entrada: { usuarioNombre?: unknown; origen?: u
  * - `entradas` (D-388): cada entrada ya deja su «Inició sesión», y la fila de
  *   la entrada es ella misma un registro. Anotarla otra vez sería decir lo mismo
  *   dos veces, y la segunda con la IP, por doce meses en lugar de tres.
+ * - `lecturas-de-avisos` (D-406): cerrar un aviso de la barra no es un acto
+ *   sobre la plataforma, y la fila de la lectura ya dice quién y cuándo.
  */
 export const COLECCIONES_SIN_REGISTRO: readonly string[] = [
   'registro-de-acciones',
@@ -97,6 +99,7 @@ export const COLECCIONES_SIN_REGISTRO: readonly string[] = [
   'sesiones-de-revision',
   'revisiones',
   'entradas',
+  'lecturas-de-avisos',
 ]
 
 // ------------------------------------------------------ foto de la cuenta

@@ -370,6 +370,28 @@ main { max-width: 1120px; margin: 0 auto; padding: var(--e-10) var(--e-6) var(--
 .enlace-nav:disabled { color: var(--sobre-tinta-3); cursor: not-allowed; }
 .quien { display: inline-flex; align-items: center; gap: var(--e-2); font-size: var(--t-sm); color: var(--sobre-tinta-3); white-space: nowrap; padding: 0 var(--e-1); }
 
+/* ---------- la campana de los avisos (D-406) ----------
+   Va sola entre los módulos y lo de la derecha, en las dos barras. Cuando
+   está, el margen que empuja a la derecha es suyo, y la barra que la sigue
+   se le pega. */
+.campana-de-avisos { margin-left: auto; }
+.barra-interior .campana-de-avisos ~ .barra-derecha,
+.barra-interior .campana-de-avisos ~ .barra-movil { margin-left: 0; }
+.campana-boton { position: relative; padding: 0 var(--e-3); }
+.campana-insignia {
+  position: absolute; top: -4px; right: -4px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; line-height: 1;
+  color: var(--superficie); background: var(--peligro, #c0392b); border-radius: var(--r-full);
+}
+.avisos-lista { list-style: none; margin: 0 0 var(--e-4); padding: 0; display: grid; gap: var(--e-4); }
+.aviso-item { padding: var(--e-4); border: 1px solid var(--linea-suave); border-radius: var(--r-lg); }
+.aviso-item-nuevo { border-color: var(--marca); background: var(--marca-tenue, #eaf1fc); }
+.aviso-item-cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--e-2); margin: 0 0 var(--e-2); }
+.aviso-item-fecha { font-size: var(--t-sm); color: var(--tinta-3, #5b6472); }
+.aviso-item-texto { margin: 0 0 var(--e-2); white-space: pre-line; }
+
 /* ---------- botones ----------
    Una sola familia. Antes había cinco botones que no se parecían entre sí:
    `.boton` (azul, radio de 4 px), `.acceso-boton` (azul, sin borde),

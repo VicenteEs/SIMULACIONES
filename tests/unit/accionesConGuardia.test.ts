@@ -2,6 +2,7 @@ import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { VERSION_DEL_AVISO_DE_PRIVACIDAD } from '@/lib/avisoDePrivacidad'
+import { olvidarAvisos } from '@/lib/avisosEnMemoria'
 
 /**
  * Toda acción de servidor pasa por su guardia antes de tocar los datos.
@@ -403,6 +404,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'difusion.ts:iniciarDifusion': { guardia: 'admin', soloCentral: true, argumentos: () => [DIFUSION] },
   'difusion.ts:reanudarDifusion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
   'difusion.ts:detenerDifusion': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
+  'difusion.ts:retirarAviso': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
   'correo.ts:enviarCorreoDePrueba': { guardia: 'admin', soloCentral: true, argumentos: () => [] },
 
   // La revisión del contenido (D-142). Lo del revisor —medir su tiempo y dar la
@@ -434,6 +436,9 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'respaldos.ts:respaldarAhora': { guardia: 'admin', soloCentral: true, argumentos: () => [] },
   'respaldos.ts:borrarRespaldo': { guardia: 'admin', soloCentral: true, argumentos: () => ['base-20260101-000000.sql.gz'] },
 
+  // Cerrar los avisos de la barra (D-406): cada cuenta anota los suyos, y solo
+  // los que de verdad le llegan.
+  'avisos.ts:marcarAvisosLeidos': { guardia: 'sesion', argumentos: () => [['5'], '5'] },
   // El latido de actividad (D-145): cualquier cuenta con sesión activa.
   'registro.ts:registrarLatidoDeActividad': { guardia: 'sesion', argumentos: () => ['/biblioteca'] },
   'actividad.ts:registrarVisita': { guardia: 'sesion', modulo: 'argumento', argumentos: (m) => [m, '12'] },
@@ -625,6 +630,11 @@ async function tocadoPor(
 
 beforeEach(() => {
   estado.cuentas = 1
+  // Los avisos vigentes viven medio minuto en memoria (D-406). Sin olvidarlos,
+  // la primera sesión que cierra avisos guarda la lista vacía de este Payload
+  // falso, y las siguientes ya no preguntan nada: parecería que su guardia las
+  // paró antes de llegar a los datos.
+  olvidarAvisos()
   vi.spyOn(console, 'error').mockImplementation(() => {})
 })
 
