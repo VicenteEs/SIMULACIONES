@@ -11645,6 +11645,8 @@ Comprobado después:
   - dar a la IP el ancho de una IPv4, que partida en dos líneas no se leía como una dirección;
   - dejar que las insignias se partan en esta tabla, porque «Se entró en otro equipo», entera, desbordaba la tarjeta a 460 px.
 
+*Desplegado en ved el 2026-11-16 (`6ea9dc6`).* `actualizar.sh` pasó ved de `f72af1a` a `6ea9dc6`, y el ensayo abrió los 2 casos publicados con 0 errores y los 2 avisos de siempre. Después: las 5 cuentas siguen ahí (D-384), `entradas` sigue vacía porque nadie del equipo ha vuelto a entrar desde D-388, la salud por fuera da 200, y `salud.sh` solo marca los respaldos sin cifrar (D-295).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
