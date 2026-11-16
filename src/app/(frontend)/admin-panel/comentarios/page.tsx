@@ -1,6 +1,6 @@
 import { CheckCheck, Hourglass, Inbox } from 'lucide-react'
-import { exigirPanel } from '@/app/(frontend)/admin-panel/acceso'
-import { clientePayload, SLUGS_DE_MODULOS } from '../datos'
+import { exigirPanelCentral } from '@/app/(frontend)/admin-panel/acceso'
+import { clientePayloadDeTodas, SLUGS_DE_MODULOS } from '../datos'
 import { NOMBRE_DE_DESTINO, SLUG_DEL_TALLER, esCatalogoComentable } from '../modulos'
 import { claveDeFicha, leerTitulosDeFichas } from '../titulosDeFichas'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
@@ -29,20 +29,24 @@ export default async function PaginaComentarios() {
   // Entra también el editor: es quien escribe el contenido y, por tanto, quien
   // resuelve lo que se comenta sobre él. Eliminar sigue siendo cosa del
   // administrador, porque borra la observación de otra persona.
-  const { esAdmin } = await exigirPanel()
+  //
+  // Solo TraumaHub, y de todas las instituciones a la vez: los comentarios van
+  // todos a TraumaHub, también los que hablan del contenido propio de una
+  // institución, y las instituciones no los ven (D-371, D-401).
+  const { esAdmin } = await exigirPanelCentral()
 
-  const payload = await clientePayload()
+  const payload = await clientePayloadDeTodas()
 
   // Sin este `catch`, una consulta que falla —lo corriente: la tabla que falta
   // porque se desplegó un cambio de esquema sin su migración— tumba la página
   // entera con la pantalla genérica de Next, que no nombra la tabla ni deja
   // pista. La base caída del todo no llega hasta aquí y este `catch` no la
-  // cubre: `exigirPanel()` (arriba) ya pasó por `obtenerSesion()`, que abre el
+  // cubre: `exigirPanelCentral()` (arriba) ya pasó por `obtenerSesion()`, que abre el
   // cliente de Payload sin guardia (`src/lib/sesion.ts`), y `layout.tsx` hace
   // lo mismo antes de pintar la barra lateral; con Postgres sin responder la
   // excepción sale de ahí y este aviso no llega a dibujarse nunca. Cerrar ese
   // hueco es trabajo de `obtenerSesion`/`layout.tsx`, no de esta página:
-  // envolver aquí `clientePayload()` solo movería el punto de la caída. Lo que
+  // envolver aquí `clientePayloadDeTodas()` solo movería el punto de la caída. Lo que
   // NO se hace es seguir adelante con una lista vacía: «todavía nadie ha
   // comentado» y «no se pudo leer» no son lo mismo, y es la misma confusión que
   // las tarjetas del resumen dejaron de cometer con `ilegible`.

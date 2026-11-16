@@ -12,7 +12,7 @@ import {
   listarRespaldos,
   problemaDelDirectorio,
 } from '@/lib/respaldosServidor'
-import { clientePayload } from '../datos'
+import { clientePayloadDeTodas } from '../datos'
 import { versionDelAtlas } from '@/app/(frontend)/acciones/atlas'
 import { ruta } from '@/lib/rutas'
 import { puertoDeCorreo } from '@/correo/enviar'
@@ -183,7 +183,7 @@ export default async function PaginaSistema() {
   let usuarios = 0
 
   try {
-    const payload = await clientePayload()
+    const payload = await clientePayloadDeTodas()
     const conteo = await payload.count({ collection: 'usuarios', overrideAccess: true })
     usuarios = conteo.totalDocs
     const info = await estadoDeLaBase(payload)

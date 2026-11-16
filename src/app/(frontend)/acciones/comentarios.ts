@@ -4,7 +4,7 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { usuarioDeSesion } from '@/access/payload'
 import { puedeEditarContenido, puedeVerModulo } from '@/access/reglas'
-import { exigirEditor, accion, type Respuesta } from '@/lib/guardias'
+import { exigirEditorCentral, accion, type Respuesta } from '@/lib/guardias'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import { crearLimitador } from '@/lib/ritmo'
 import { obtenerSesion } from '@/lib/sesion'
@@ -141,8 +141,9 @@ export interface ComentarioDelTaller {
 /**
  * Los comentarios de una preparación, los más recientes arriba.
  *
- * Con `exigirEditor` y rol real: el taller es del panel, y la regla de lectura
- * de la colección ya deja a todo editor ver todos los comentarios. Se pasa por
+ * Con `exigirEditorCentral` y rol real: el taller es del panel y solo de
+ * TraumaHub (D-396), y los comentarios van todos a TraumaHub, vengan de la
+ * institución que vengan (D-371, D-401). Se pasa por
  * aquí y no por `payload.find` desde el navegador porque la API REST de
  * Payload está cerrada (D-073). El ancla se vuelve a pasar por
  * `anclaOpcional`: lo guardado sobrevive a una validación más vieja, y la pestaña
@@ -153,7 +154,7 @@ export async function listarComentariosDe(
   documentoId: unknown,
 ): Promise<Respuesta<ComentarioDelTaller[]>> {
   return accion(async () => {
-    const { payload } = await exigirEditor()
+    const { payload } = await exigirEditorCentral()
     if (exigirDestinoDeComentario(coleccion) !== DESTINO_TALLER) {
       throw new Error('Esta lista es la del taller anatómico.')
     }

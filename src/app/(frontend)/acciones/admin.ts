@@ -24,7 +24,7 @@ import {
   mensajeDeCuentaActivada,
   mensajeDeSolicitudRechazada,
 } from '@/correo/mensajes'
-import { exigirAdmin, exigirAdminCentral, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
+import { exigirAdmin, exigirAdminCentral, exigirEditorCentral, accion, type Respuesta } from '@/lib/guardias'
 import { entradasDeLaCuenta } from '@/lib/entradasServidor'
 import { subdominioDeLaCuenta } from '@/lib/institucionesServidor'
 import { comoListaDeModulos } from '@/lib/mantencion'
@@ -1031,7 +1031,13 @@ export async function entradasDeUnaCuenta(
 ): Promise<Respuesta<Awaited<ReturnType<typeof entradasDeLaCuenta>>>> {
   return accion(async () => {
     const { payload } = await exigirAdmin()
-    return entradasDeLaCuenta(payload, exigirIdentificador(id, 'El usuario'))
+    const objetivo = exigirIdentificador(id, 'El usuario')
+    // Las entradas ya salen recortadas al lugar, y de una cuenta ajena vendría
+    // una lista vacía: no enseña nada, pero dice «nunca entró» de alguien que
+    // no es de aquí. Se pregunta antes por la cuenta, que contesta como las
+    // demás acciones (D-401).
+    await payload.findByID({ collection: 'usuarios', id: objetivo, depth: 0, select: { email: true } })
+    return entradasDeLaCuenta(payload, objetivo)
   })
 }
 
@@ -1039,8 +1045,9 @@ export async function entradasDeUnaCuenta(
 
 export async function actualizarComentario(id: unknown, estado: unknown): Promise<Respuesta> {
   return accion(async () => {
-    // El editor también resuelve: es quien arregla lo que se le señala.
-    const { payload, usuario } = await exigirEditor()
+    // El editor también resuelve: es quien arregla lo que se le señala. Solo
+    // el de TraumaHub, que es adonde van todos los comentarios (D-371, D-401).
+    const { payload, usuario } = await exigirEditorCentral()
     if (estado !== 'pendiente' && estado !== 'resuelto') {
       throw new Error('El estado del comentario no es válido.')
     }
@@ -1057,7 +1064,7 @@ export async function actualizarComentario(id: unknown, estado: unknown): Promis
 
 export async function eliminarComentario(id: unknown): Promise<Respuesta> {
   return accion(async () => {
-    const { payload, usuario } = await exigirAdmin()
+    const { payload, usuario } = await exigirAdminCentral()
     await payload.delete({
       collection: 'comentarios',
       id: exigirIdentificador(id, 'El comentario'),
@@ -1071,7 +1078,7 @@ export async function eliminarComentario(id: unknown): Promise<Respuesta> {
 /** Marca como resueltos todos los comentarios pendientes de una sola vez. */
 export async function resolverTodosLosComentarios(): Promise<Respuesta<{ resueltos: number }>> {
   return accion(async () => {
-    const { payload, usuario } = await exigirEditor()
+    const { payload, usuario } = await exigirEditorCentral()
     const resultado = await payload.update({
       collection: 'comentarios',
       where: { estado: { equals: 'pendiente' } },

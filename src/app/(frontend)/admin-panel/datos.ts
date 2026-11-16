@@ -3,6 +3,9 @@ import config from '@payload-config'
 import { SLUGS_DE_MODULOS } from '@/collections'
 import { resumirRecorridos, type ResumenDeRecorridos } from '@/lib/progresoDelSimulador'
 import { leerTodas } from '@/lib/leerTodas'
+import { lugarDeLaCuenta } from '@/lib/guardias'
+import { payloadDelLugar } from '@/lib/payloadDelLugar'
+import { obtenerSesion } from '@/lib/sesion'
 import { esDelEquipo, filasDeQuien, type QuienLee } from '@/lib/seguimiento'
 import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from './modulos'
 
@@ -29,7 +32,30 @@ import { MODULOS, NOMBRE_DE_MODULO, rutaPublica } from './modulos'
  * recuento y no lo es.
  */
 
-export const clientePayload = (): Promise<Payload> => getPayload({ config })
+/**
+ * El Payload de las pantallas del panel, recortado al lugar de quien mira
+ * (P-016 E5.6, D-401): el administrador de una institución lee sus cuentas, su
+ * contenido y su actividad, y el de TraumaHub, los de TraumaHub. Ver
+ * `payloadDelLugar`.
+ *
+ * Sin sesión lanza en vez de leer como la central. Toda pantalla pasa antes por
+ * su guardia, que ya habría echado a quien no la tiene; si una se olvida de
+ * ella, que se rompa a la vista en lugar de enseñar lo de TraumaHub.
+ */
+export async function clientePayload(): Promise<Payload> {
+  const [payload, { usuario }] = await Promise.all([getPayload({ config }), obtenerSesion()])
+  if (!usuario) throw new Error('El panel se leyó sin sesión: a la pantalla le falta su guardia.')
+  return payloadDelLugar(payload, lugarDeLaCuenta(usuario))
+}
+
+/**
+ * El de toda la plataforma, sin recortar. Solo para las pantallas de TraumaHub
+ * (`exigirPanelCentral`) que miran todas las instituciones a la vez: las
+ * instituciones y sus cupos, la difusión, los comentarios, que van todos a
+ * TraumaHub (D-371), y el sistema. `tests/unit/panelPorRol.test.ts` falla si
+ * otra pantalla lo pide.
+ */
+export const clientePayloadDeTodas = (): Promise<Payload> => getPayload({ config })
 
 /**
  * Cuántos hay, o `null` si la base no supo responder.

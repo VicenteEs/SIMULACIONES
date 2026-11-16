@@ -289,13 +289,18 @@ export function mensajeDeComentarioNuevo(datos: {
   modulo: string
   texto: string
   enlacePanel: string
+  /** De qué institución viene, si no es de TraumaHub (D-401). */
+  institucion?: string
 }): Correo {
   return {
     asunto: `TraumaHub · Nuevo comentario en ${datos.modulo}`,
     resumen: `${datos.autor} dejó un comentario en ${datos.modulo}.`,
     titulo: 'Nuevo comentario',
     bloques: [
-      { tipo: 'datos', filas: [['Autor', datos.autor], ['Módulo', datos.modulo]] },
+      {
+        tipo: 'datos',
+        filas: [['Autor', datos.autor], ...(datos.institucion ? [['Institución', datos.institucion] as [string, string]] : []), ['Módulo', datos.modulo]],
+      },
       { tipo: 'cita', texto: datos.texto },
     ],
     boton: { texto: 'Abrir los comentarios', enlace: datos.enlacePanel },

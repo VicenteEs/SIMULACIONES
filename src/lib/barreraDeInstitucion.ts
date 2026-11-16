@@ -70,6 +70,24 @@ export function subdominioDeLaPeticionEnCurso(): string {
 }
 
 /**
+ * Corre `trabajo` como si no hubiera petición: las conexiones que pida salen
+ * sin barrera, como las de un guion.
+ *
+ * Existe para una sola cosa, y conviene que siga así: borrar una cuenta desde
+ * su institución (D-401). La anonimización de D-293 tiene que alcanzar lo que
+ * la central anotó sobre ella —su alta como administradora de la institución,
+ * las invitaciones—, y desde el subdominio la barrera no lo deja ver. Cada uso
+ * nuevo es un agujero en la segunda barrera: que lo pida una decisión.
+ *
+ * Fuera de toda transacción de quien llama: la conexión es otra. Si `trabajo`
+ * toca una fila que esa transacción ya tiene tomada, se esperan la una a la
+ * otra para siempre.
+ */
+export function sinLaPeticion<T>(trabajo: () => Promise<T>): Promise<T> {
+  return workUnitAsyncStorage.run(undefined as never, trabajo)
+}
+
+/**
  * Pone en una conexión el lugar pedido, si no lo tiene ya.
  *
  * `set_config(…, false)` dura lo que la conexión, no la transacción, y por eso

@@ -4,7 +4,7 @@ import { direccionPublica } from '@/collections/Usuarios'
 import { condicionDeDestinatarios, correosPorHora, pausaEntreCorreosMs, seEstaEnviando } from '@/correo/difusion'
 import { hayCorreo } from '@/correo/enviar'
 import { CabeceraDePagina } from '@/components/admin/CabeceraDePagina'
-import { clientePayload } from '../datos'
+import { clientePayloadDeTodas } from '../datos'
 import { PanelDeDifusion, type DifusionDelHistorial, type GrupoDeDestinatarios } from './PanelDeDifusion'
 
 export const dynamic = 'force-dynamic'
@@ -24,7 +24,7 @@ const TOPE_DEL_HISTORIAL = 20
 export default async function PaginaDifusion() {
   await exigirPanelCentral('admin')
 
-  const payload = await clientePayload()
+  const payload = await clientePayloadDeTodas()
 
   // Mismo criterio que `comentarios/page.tsx`: si la lectura falla —la tabla
   // `difusiones` falta porque se desplegó sin su migración—, se dice, y no se

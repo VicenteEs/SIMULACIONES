@@ -108,6 +108,25 @@ export async function subdominioDeLaCuenta(payload: Pick<Payload, 'findByID' | '
   }
 }
 
+/**
+ * El nombre de una institución, para un correo. `null` si es la central o si no
+ * se pudo leer: el correo sale igual, sin esa fila.
+ */
+export async function nombreDeLaInstitucion(
+  payload: Pick<Payload, 'findByID' | 'logger'>,
+  id: string | null,
+): Promise<string | null> {
+  if (!id) return null
+  try {
+    const fila = await payload.findByID({ collection: 'instituciones', id, depth: 0, overrideAccess: true })
+    const nombre = (fila as { nombre?: unknown }).nombre
+    return typeof nombre === 'string' && nombre.trim() ? nombre.trim() : null
+  } catch (fallo) {
+    payload.logger.error({ msg: 'No se pudo leer el nombre de una institución para un correo', err: fallo })
+    return null
+  }
+}
+
 /** Dónde está la petición: su subdominio, y la institución, si existe. */
 export interface LugarDeLaPeticion {
   subdominio: string

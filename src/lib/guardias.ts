@@ -19,6 +19,7 @@ import { obtenerSesion, type Sesion } from '@/lib/sesion'
 import { MENSAJE_DE_OTRA_ENTRADA } from '@/lib/entradas'
 import { idDeInstitucion } from '@/access/payload'
 import { COLECCIONES_CON_INSTITUCION } from '@/collections/hooks/marcaDeInstitucion'
+import { payloadDelLugar } from '@/lib/payloadDelLugar'
 
 const COLECCIONES_SOLO_ADMIN: ReadonlySet<string> = new Set(
   ESQUEMAS.filter((e) => e.soloAdmin).map((e) => e.slug),
@@ -34,10 +35,28 @@ export class ErrorDeAcceso extends Error {}
 export const mensajeSinSesion = (sesion: Pick<Sesion, 'usuario' | 'cierre'>, mensaje: string): string =>
   !sesion.usuario && sesion.cierre === 'otra-entrada' ? MENSAJE_DE_OTRA_ENTRADA : mensaje
 
+/**
+ * El lugar donde trabaja una cuenta: su institución, o `null` si es de
+ * TraumaHub (D-396). Sobre el documento de la sesión, que la trae como número
+ * o poblada.
+ *
+ * En una sola función porque el fantasma (E5.9) lo cambiará: el administrador
+ * de TraumaHub que entra a una institución trabajará en ella sin ser de ella.
+ */
+export const lugarDeLaCuenta = (usuario: Record<string, unknown>): string | null => idDeInstitucion(usuario.institucion)
+
 export interface Contexto {
+  /**
+   * Recortado al lugar de quien llama (`payloadDelLugar`, D-401): lo que lea
+   * de una colección con marca es solo de su lugar, y lo que escriba, también.
+   * Las guardias de TraumaHub (`exigirAdminCentral`, `exigirEditorCentral`)
+   * dan el de toda la plataforma, porque lo que hacen es de toda ella.
+   */
   payload: Payload
   usuario: Record<string, unknown>
   usuarioId: string
+  /** `lugarDeLaCuenta` de quien llama. */
+  lugar: string | null
 }
 
 async function exigirRolReal(roles: readonly string[], mensaje: string): Promise<Contexto> {
@@ -46,10 +65,16 @@ async function exigirRolReal(roles: readonly string[], mensaje: string): Promise
   if (!usuario || !activo || !rolReal || !roles.includes(rolReal)) {
     throw new ErrorDeAcceso(mensajeSinSesion(sesion, mensaje))
   }
+  // Recortado aquí y no en cada acción: las acciones leen con
+  // `overrideAccess: true`, y cada una que se olvidara de filtrar dejaría a un
+  // administrador de institución tocar las cuentas de otra con solo cambiar el
+  // identificador que manda el navegador.
+  const lugar = lugarDeLaCuenta(usuario)
   return {
-    payload: await getPayload({ config }),
+    payload: payloadDelLugar(await getPayload({ config }), lugar),
     usuario,
     usuarioId: String(usuario.id),
+    lugar,
   }
 }
 
@@ -75,7 +100,10 @@ const MENSAJE_SOLO_CENTRAL = 'Acceso denegado: esto lo administra el equipo de T
 async function exigirCentral(contexto: Promise<Contexto>): Promise<Contexto> {
   const listo = await contexto
   if (!esDeTraumaHub(listo.usuario)) throw new ErrorDeAcceso(MENSAJE_SOLO_CENTRAL)
-  return listo
+  // Sin recortar: crear una institución mira si el correo ya tiene cuenta en
+  // cualquiera, la difusión llega a todas y los comentarios de todas vienen a
+  // TraumaHub (D-371). Recortado a la central, nada de eso funcionaría.
+  return { ...listo, payload: await getPayload({ config }) }
 }
 
 /**

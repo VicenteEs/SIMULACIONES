@@ -11905,14 +11905,14 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
   - `accionesConGuardia` llama a cada acción con un administrador y un editor de institución, y exige que toda acción de esos diez archivos se declare `soloCentral`: una acción nueva en ellos no queda abierta por olvido. `panelPorRol` recorre las pantallas con las mismas dos cuentas, y fija aparte qué pantallas son de TraumaHub.
 - **El catálogo común es de TraumaHub, por ahora.** El atlas, las estructuras, el instrumental, el vocabulario del simulador y el buzón de requisitos los usan todas las instituciones y no son de ninguna. Así que un docente de institución no amplía el vocabulario ni propone requisitos. Si un piloto lo pide, se decide en E5.6.
 - **Los avisos al equipo** (lo que D-397 dejó para aquí). Las cuentas a las que se avisa salen de `filtroDelLugar`:
-  - un comentario nuevo va a los administradores del lugar del comentario, que es el de quien lo dejó, con el enlace a su subdominio;
+  - un comentario nuevo va a los administradores del lugar del comentario, que es el de quien lo dejó, con el enlace a su subdominio; *(Superado por D-401: desde E5.6 va a los de TraumaHub, como dice D-371.)*
   - una alerta de entrada va a los administradores del lugar de la cuenta, también con su enlace;
   - una cotización, un requisito nuevo y una solicitud de cuenta van solo a los de TraumaHub. La solicitud, hasta E5.7: hoy la cuenta pedida nace sin institución. *(Superado por D-399: desde E5.4 va a los administradores del lugar donde se pidió.)*
 
 *Lo que queda para otros pasos, y por qué no es un riesgo todavía:*
-- Las pantallas compartidas dejan entrar al administrador de una institución, pero todavía leen con `overrideAccess` y sin filtro: Usuarios, Contenido, Por revisar, Comentarios, Estadísticas, Actividad, Registro y Auditoría. Pasa lo mismo con los conteos de la barra. Les pone el filtro E5.6, y la barra de PostgreSQL E5.4.
-- Las acciones de cuentas no miran todavía que la cuenta tocada sea del mismo lugar. Tampoco miran los revisores posibles. Es E5.6.
-- «Que quede un administrador» cuenta a todos los administradores, en las acciones y en el disparador de la base. Con instituciones, el de una institución contaría como el último de TraumaHub. El disparador va en E5.4, y las acciones en E5.6. *(El disparador, hecho en E5.4: D-399.)*
+- Las pantallas compartidas dejan entrar al administrador de una institución, pero todavía leen con `overrideAccess` y sin filtro: Usuarios, Contenido, Por revisar, Comentarios, Estadísticas, Actividad, Registro y Auditoría. Pasa lo mismo con los conteos de la barra. Les pone el filtro E5.6, y la barra de PostgreSQL E5.4. *(Hecho en E5.6: D-401. Comentarios pasó a ser solo de TraumaHub.)*
+- Las acciones de cuentas no miran todavía que la cuenta tocada sea del mismo lugar. Tampoco miran los revisores posibles. Es E5.6. *(Hecho en E5.6: D-401.)*
+- «Que quede un administrador» cuenta a todos los administradores, en las acciones y en el disparador de la base. Con instituciones, el de una institución contaría como el último de TraumaHub. El disparador va en E5.4, y las acciones en E5.6. *(El disparador, hecho en E5.4: D-399. Las acciones, en E5.6: D-401.)*
 - Nada de esto alcanza a nadie mientras no haya una institución desplegada, y por eso desplegar es el último paso (E5.10).
 
 *Consecuencias.*
@@ -11950,7 +11950,7 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - **Lo que se crea sin sesión desde una institución lleva su institución.** Una solicitud de cuenta, la línea del registro de una cotización. El gancho de la marca (`marcaDeInstitucion.ts`) se la pone a lo que no trae ni sesión ni cuenta dueña. Antes quedaban de TraumaHub, y la barrera las habría rechazado: un `INSERT … RETURNING` exige que la fila nueva pase también la política de leer, y lo personal de la central no se lee desde una institución.
   - Se pensó en dejar crear filas sin marca desde una institución. No: serían filas que la central lee como suyas, escritas desde fuera.
 - **El aviso de una solicitud de cuenta va a los administradores del lugar donde se pidió**, con el enlace a su subdominio. Esto cambia una línea de D-398, que lo mandaba a TraumaHub hasta E5.7. Con la marca del lugar, la cuenta pedida nace en esa institución, y la acepta quien la administra.
-- **El último administrador.** El disparador de la base cuenta ahora solo los administradores de TraumaHub, y no mira cuando se desactiva o se borra el de una institución. Antes, el administrador activo de una institución bastaba para que la plataforma pudiera quedarse sin ninguno central. Qué pasa con el último de cada institución se decide en E5.6.
+- **El último administrador.** El disparador de la base cuenta ahora solo los administradores de TraumaHub, y no mira cuando se desactiva o se borra el de una institución. Antes, el administrador activo de una institución bastaba para que la plataforma pudiera quedarse sin ninguno central. Qué pasa con el último de cada institución se decide en E5.6. *(Decidido en D-401: lo cuentan las acciones, por lugar.)*
 - **Desarrollo y restauración.**
   - En desarrollo el esquema lo pone el `push` de Drizzle, que no corre migraciones, así que no hay rol. `ponerBarreraEnPayload` lo dice una vez al arrancar y la plataforma sigue sin barrera. En un servidor, el mismo aviso quiere decir que faltan las migraciones.
   - Un rol es de todo el servidor de bases y no viaja en el volcado de una. `restaurar.sh` lo crea antes de restaurar: sin él, el primer `GRANT` del volcado pararía la restauración entera. `tests/guiones/respaldosCifrados.sh` lo vigila.
@@ -11966,7 +11966,7 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 
 *Lo que queda para otros pasos:*
 - el filtro de las pantallas compartidas y las acciones de cuentas por lugar, con los revisores y el último administrador de cada institución (E5.6);
-- borrar una cuenta desde una institución (E5.6). La anonimización de D-293 corre dentro de la transacción del borrado, y por tanto con la barrera: lo que nombra a la cuenta en filas de TraumaHub, como la línea del registro que dejó la central al crearla, no se alcanzaría. Hasta entonces, las cuentas de una institución las borra la central;
+- borrar una cuenta desde una institución (E5.6). La anonimización de D-293 corre dentro de la transacción del borrado, y por tanto con la barrera: lo que nombra a la cuenta en filas de TraumaHub, como la línea del registro que dejó la central al crearla, no se alcanzaría. Hasta entonces, las cuentas de una institución las borra la central; *(hecho en E5.6: D-401)*
 - el registro con enlace de invitación y el cupo (E5.7).
 
 *Consecuencias.*
@@ -12003,6 +12003,57 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) Sin `NEXT_PUBLIC_SERVER_URL` no se puede crear ninguna: el enlace de la invitación no tendría adónde llevar.
 - (−) El cupo incluye al administrador: una institución contratada para treinta alumnos necesita un cupo de treinta y uno, o más con docentes.
 - (−) La pantalla cuenta las cuentas de cada institución con una consulta por institución. Con cientos habrá que juntarlas en una.
+
+### D-401 · 2026-11-16 · vigente · P-016 E5.6 · el panel de cada lugar
+**Las pantallas y las acciones del panel leen y escriben a través de un Payload recortado al lugar de quien las usa. El administrador de una institución administra solo lo suyo, y el de TraumaHub, solo lo de TraumaHub. Los comentarios van todos a TraumaHub.**
+
+- **El recorte, en un solo sitio (`payloadDelLugar`).** El panel hace más de doscientas consultas con `overrideAccess: true`, y el filtro de `reglas.ts` no las alcanza. Ponerlo a mano en cada una era la forma segura de olvidar alguna. Así que el Payload que reciben las pantallas (`clientePayload`) y las acciones (el contexto de `exigirAdmin`, `exigirEditor` y `exigirEdicionDe`) ya viene recortado:
+  - `find`, `count` y sus versiones llevan el filtro del lugar en el `where`. `findByID` de una fila de otro lugar se porta como si no existiera: `null` con `disableErrors`, y si no, el 404 de Payload con «No se encontró.». Así las páginas que ya convertían el 404 en su «no existe» no necesitan saber de instituciones, y nadie aprende por el mensaje que la fila está en otra;
+  - `update` y `delete` solo alcanzan lo propio. Por identificador, primero se lee la marca de la fila, dentro de la transacción de quien escribe; con `where`, se le junta el filtro;
+  - `create` pasa tal cual: la marca la pone el gancho con la institución de quien crea;
+  - las cuentas, el contenido y lo personal, solo del lugar. Los medios y los modelos 3D, además, los de TraumaHub cuando quien lee es una institución, porque su contenido los enlaza. Leer no es poder cambiarlos.
+  - Se pensó en recortar solo las pantallas y revisar a mano las acciones de cuentas. Pero las acciones reciben el identificador del navegador, y bastaba con olvidar una para que un administrador de institución tocara las cuentas de otra.
+- **Lo que es de toda la plataforma va sin recortar.** Las guardias de TraumaHub (`exigirAdminCentral`, `exigirEditorCentral`) dan el Payload de siempre: crear una institución mira si el correo ya tiene cuenta en cualquiera, y la difusión llega a todas. Entre las pantallas, lo piden con `clientePayloadDeTodas` solo «Instituciones», «Difusión», «Sistema» y «Comentarios», y `panelPorRol` falla si lo pide una que no sea de TraumaHub.
+- **Lo que el recorte trae consigo.** Lo pedía D-398, y sale sin escribir nada más:
+  - «Usuarios y permisos», «Contenido», «Por revisar», «Estadísticas», «Actividad», «Registro», «Auditoría» y los números de la barra, cada uno con lo de su lugar. También las dos planillas que se descargan de «Registro» y «Auditoría»;
+  - las acciones de cuentas (cambiar, activar, borrar, resolver una solicitud, el enlace de clave, las entradas) contestan «No se encontró.» a una cuenta de otro lugar. Eso vale también para la central: desde «Usuarios», el administrador de TraumaHub no toca las cuentas de las instituciones. Las alcanza solo desde «Instituciones», al devolverle la llave a su administrador (D-400);
+  - el contenido: un docente no abre, cambia, publica ni borra una ficha de otro lugar, y la central tampoco una de una institución;
+  - los revisores que se ofrecen son los de la misma institución. Con la doble firma de siempre, una institución sin un médico y un kinesiólogo con cuenta de docente no publica contenido propio (D-371).
+- **El último administrador, por lugar.** Las acciones cuentan los administradores con el Payload recortado, así que cada lugar conserva al menos uno. La base no lo repite para las instituciones: el disparador cuenta solo los de TraumaHub (D-399). Si dos administradores de una institución se desactivan el uno al otro a la vez, la institución puede quedarse sin ninguno. Se arregla desde «Instituciones» con «Enviar invitación», y por eso no se escribió otro disparador.
+- **Los comentarios, todos a TraumaHub (D-371).**
+  - E5.3 mandaba el aviso a los administradores del lugar del comentario (D-398). Eso contradecía D-371: el de la institución recibía el aviso de algo que su panel no le enseña.
+  - Ahora el aviso va a los administradores de TraumaHub, con el enlace a la central y el nombre de la institución de donde viene. El de una ficha propia de la institución hay que reenviárselo a ella.
+  - La pantalla de comentarios, sus acciones y la lista del taller pasan a ser solo de TraumaHub, y leen de todas las instituciones a la vez.
+- **Borrar una cuenta desde su institución** (lo que D-399 dejó para aquí). La anonimización de D-293 corre dentro de la transacción del borrado, y desde el subdominio la barrera no deja ver lo que la central anotó sobre la cuenta: su alta como administradora y las invitaciones. Eso se retoca aparte:
+  - sin la barrera (`sinLaPeticion`) y fuera de la transacción;
+  - solo las filas de la central, y antes que lo demás. Si esa conexión tocara una fila de la institución que la transacción ya tiene tomada, las dos se esperarían para siempre;
+  - si después el borrado se deshace, esas filas se quedan sin el título de una cuenta que sigue viva. El resto del acto se conserva: cuándo, quién y sobre qué cuenta.
+  - Desde aquí, las cuentas de una institución las borra su propio administrador.
+- **La presencia en el editor** («quién más tiene abierta esta ficha») no lleva marca: se guarda por ficha. La ruta ahora contesta solo por las fichas del lugar de quien pregunta, y no acepta un latido en una ajena. Sin eso, un docente leía quién de TraumaHub estaba editando qué, con su nombre.
+- **Lo que se dejó igual.**
+  - El catálogo común (atlas, estructuras, instrumental, vocabulario, requisitos) sigue siendo solo de TraumaHub, como dijo D-398: ningún piloto ha pedido otra cosa.
+  - «Dónde se usa este modelo» (D-372) lee con SQL a mano. Desde una institución pasa por la barrera de la base. Desde la central, en cambio, enseña también las fichas de las instituciones que usan un modelo de TraumaHub, y es justo lo que necesita «Reemplazar en todos los sitios».
+
+*Comprobado.*
+- `tests/unit/payloadDelLugar.test.ts`: el filtro de cada lectura, las referencias compartidas, las versiones, la fila de otro lugar como 404, las escrituras estrictas y dentro de la transacción de quien escribe.
+- `tests/integration/panelDelLugar.test.ts`, contra PostgreSQL, con la central y dos instituciones:
+  - qué cuentas lista cada pantalla;
+  - que ni el administrador de una institución ni el de TraumaHub tocan una cuenta ajena con cada una de las acciones;
+  - que la cuenta creada por el de una institución es de ella;
+  - que el contenido ajeno no se borra en ninguno de los dos sentidos;
+  - los revisores de la misma institución;
+  - el borrado desde el subdominio, que deja sin nombre la fila que anotó la central. La prueba falla si se quita el paso aparte.
+- `rolesEntreInstituciones`, con el aviso de comentario a TraumaHub. `accionesConGuardia` y `panelPorRol`, con los comentarios como solo de TraumaHub.
+- Cinco pruebas unitarias que cuentan las lecturas y escrituras de otra cosa (el último administrador, las notas de una cuenta, guardar y publicar una ficha) usan un Payload de mentira sin `findByID`. Declaran en su archivo que se les quita el recorte, y por qué.
+- La suite entera: la integración pasa completa, y lo que falla son las 10 de siempre en este equipo (las de CRLF, la zona horaria y los respaldos bajo carga).
+
+*Consecuencias.*
+- (+) Una pantalla o una acción nueva del panel nace recortada al lugar: hay que pedir a propósito el Payload de toda la plataforma, y una prueba lo vigila.
+- (+) En la central, donde la base no pone barrera, el recorte es la protección entre TraumaHub y las cuentas de las instituciones, y ya no depende de cada consulta.
+- (+) El panel de una institución ya se puede entregar. Falta que sus alumnos entren con el enlace de invitación (E5.7).
+- (−) Cada `update` y `delete` por identificador de una colección con marca lee antes la fila: una consulta más por escritura.
+- (−) `sinLaPeticion` es un agujero deliberado en la segunda barrera. Se usa solo para la anonimización, y cada uso nuevo tiene que pedirlo una decisión.
+- (−) Un comentario sobre una ficha propia de una institución llega a TraumaHub y hay que reenviárselo, como ya decía D-371.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -18180,7 +18231,12 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - crear deja la institución y la cuenta de su administrador en una transacción, y le manda la invitación a su subdominio;
     - el plazo como último día entero en Chile, el aviso desde cinco días antes, y el cupo de cuentas activas de cualquier rol;
     - «Editar» y «Enviar invitación»; la institución no se borra desde aquí (E5.8);
-  - E5.6 · los tres roles de institución en el panel, y el contenido propio con sus revisores;
+  - E5.6 · los tres roles de institución en el panel, y el contenido propio con sus revisores. *Hecho en local el 2026-11-16, con los detalles en D-401:*
+    - el Payload recortado al lugar (`payloadDelLugar`) en las pantallas compartidas, las acciones, la barra y las dos planillas; sin recortar, solo lo de TraumaHub;
+    - las cuentas, el contenido y los revisores de cada lugar, y el último administrador de cada uno;
+    - los comentarios, todos a TraumaHub: la pantalla, sus acciones y el aviso;
+    - borrar una cuenta desde su institución, con lo que la central anotó sobre ella;
+    - la presencia en el editor, solo con las fichas del lugar;
   - E5.7 · el enlace de invitación y el cupo;
   - E5.8 · el bloqueo, con sus 12 meses, y la exportación;
   - E5.9 · la entrada como fantasma;

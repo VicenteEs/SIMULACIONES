@@ -49,6 +49,12 @@ vi.mock('payload', () => ({
 
 vi.mock('@payload-config', () => ({ default: {} }))
 
+// El recorte por lugar del Payload que dan las guardias (D-401) lee la fila
+// antes de cada escritura, y aquí se cuentan las lecturas y las escrituras de
+// otra cosa. Lo prueban `payloadDelLugar.test.ts` y, contra la base,
+// `tests/integration/panelDelLugar.test.ts`.
+vi.mock('@/lib/payloadDelLugar', () => ({ payloadDelLugar: (payload: unknown) => payload }))
+
 vi.mock('next/cache', () => ({ revalidatePath: () => {} }))
 
 import { actualizarUsuario, crearUsuario } from '@/app/(frontend)/acciones/admin'

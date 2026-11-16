@@ -1,5 +1,8 @@
+import { getPayload } from 'payload'
+import config from '@payload-config'
 import { esColeccionEditable } from '@/admin/esquema'
-import { puedeEditar } from '@/lib/guardias'
+import { lugarDeLaCuenta, puedeEditar } from '@/lib/guardias'
+import { payloadDelLugar } from '@/lib/payloadDelLugar'
 import { vieneDeAqui } from '@/lib/origenDeLaPeticion'
 import { claveDeFicha, leerLatido } from '@/lib/presencia'
 import { almacenDePresencia } from '@/lib/presenciaServidor'
@@ -41,7 +44,33 @@ async function quienLlama(coleccion: string) {
   if (!puedeEditar(usuario, coleccion)) {
     return { rechazo: responder({ error: 'Su cuenta no edita este módulo.' }, 403) }
   }
-  return { usuario: { id: String(usuario.id) } }
+  return { usuario: { id: String(usuario.id) }, lugar: lugarDeLaCuenta(usuario) }
+}
+
+/**
+ * De esas fichas, las del lugar de quien pregunta (D-401).
+ *
+ * La presencia no lleva marca de institución: se guarda por ficha, y las de
+ * cada lugar tienen identificadores distintos. Pero sin este recorte, un
+ * docente de una institución leía por aquí quién de TraumaHub estaba editando
+ * qué, con su nombre, y podía anunciarse en una ficha ajena para ver quién más
+ * estaba en ella. Se pregunta a la base con el Payload del lugar, el mismo que
+ * recorta el panel.
+ */
+async function fichasDelLugar(coleccion: string, ids: string[], lugar: string | null): Promise<Set<string>> {
+  if (ids.length === 0) return new Set()
+  const delLugar = payloadDelLugar(await getPayload({ config }), lugar)
+  const { docs } = await delLugar.find({
+    collection: coleccion as never,
+    where: { id: { in: ids } },
+    limit: ids.length,
+    pagination: false,
+    depth: 0,
+    draft: true,
+    select: { id: true } as never,
+    overrideAccess: true,
+  })
+  return new Set(docs.map((d) => String((d as { id: unknown }).id)))
 }
 
 export async function POST(peticion: Request) {
@@ -64,6 +93,9 @@ export async function POST(peticion: Request) {
   const acceso = await quienLlama(latido.coleccion)
   if (acceso.rechazo) return acceso.rechazo
   const { usuario } = acceso
+  if (!(await fichasDelLugar(latido.coleccion, [latido.id], acceso.lugar)).has(latido.id)) {
+    return responder({ error: 'Esa ficha no existe.' }, 404)
+  }
 
   const almacen = almacenDePresencia()
   const ficha = claveDeFicha(latido.coleccion, latido.id)
@@ -92,14 +124,17 @@ export async function GET(peticion: Request) {
   const acceso = await quienLlama(coleccion)
   if (acceso.rechazo) return acceso.rechazo
   const ahora = Date.now()
-  const fichas = await almacenDePresencia().porColeccion(coleccion, ahora)
+  const todas = await almacenDePresencia().porColeccion(coleccion, ahora)
+  const propias = await fichasDelLugar(coleccion, Object.keys(todas), acceso.lugar)
   // Sin el identificador interno de las cuentas: a quien mira el listado le
   // basta con el nombre y con saber cuál de ellas es la suya.
   const salida = Object.fromEntries(
-    Object.entries(fichas).map(([id, personas]) => [
-      id,
-      personas.map(({ usuarioId, ...resto }) => ({ ...resto, esUsted: usuarioId === acceso.usuario.id })),
-    ]),
+    Object.entries(todas)
+      .filter(([id]) => propias.has(id))
+      .map(([id, personas]) => [
+        id,
+        personas.map(({ usuarioId, ...resto }) => ({ ...resto, esUsted: usuarioId === acceso.usuario.id })),
+      ]),
   )
   return responder({ ahora, fichas: salida })
 }

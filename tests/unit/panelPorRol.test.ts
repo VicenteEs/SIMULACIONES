@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -176,7 +176,8 @@ const NIVEL_DE_PAGINA: Record<string, Nivel> = {
   'contenido/[coleccion]/[id]/page.tsx': 'modulo',
   // El taller y las estructuras escriben el catálogo común (D-396).
   'atlas/page.tsx': 'editorCentral',
-  'comentarios/page.tsx': 'editor',
+  // Los comentarios van todos a TraumaHub, y las instituciones no los ven (D-371, D-401).
+  'comentarios/page.tsx': 'editorCentral',
   // El listado global de estructuras anatómicas (D-179): lo llena el traumatólogo, que es editor.
   'estructuras/page.tsx': 'editorCentral',
   'usuarios/page.tsx': 'admin',
@@ -269,8 +270,20 @@ describe('las pantallas del panel', () => {
     for (const pagina of ['respaldos/page.tsx', 'sistema/page.tsx', 'difusion/page.tsx', 'medios-pagina/page.tsx', 'cotizaciones/page.tsx', 'cotizaciones/[id]/page.tsx', 'instituciones/page.tsx']) {
       expect(NIVEL_DE_PAGINA[pagina], pagina).toBe('adminCentral')
     }
-    for (const pagina of ['atlas/page.tsx', 'estructuras/page.tsx']) {
+    for (const pagina of ['atlas/page.tsx', 'estructuras/page.tsx', 'comentarios/page.tsx']) {
       expect(NIVEL_DE_PAGINA[pagina], pagina).toBe('editorCentral')
+    }
+  })
+
+  it('solo esas leen sin recortar al lugar', () => {
+    // `clientePayload` recorta cada lectura a la institución de quien mira
+    // (D-401); `clientePayloadDeTodas` no. Pedido desde una pantalla que
+    // también abre un administrador de institución, le enseñaría las cuentas y
+    // la actividad de todas las demás.
+    const sinRecortar = PAGINAS.filter((p) => /clientePayloadDeTodas\(/.test(readFileSync(resolve(RAIZ, p), 'utf-8')))
+    expect(sinRecortar.length).toBeGreaterThan(0)
+    for (const pagina of sinRecortar) {
+      expect(['adminCentral', 'editorCentral'], pagina).toContain(NIVEL_DE_PAGINA[pagina])
     }
   })
 })

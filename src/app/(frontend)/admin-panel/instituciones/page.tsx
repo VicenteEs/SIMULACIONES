@@ -5,7 +5,7 @@ import { hayCorreo } from '@/correo/enviar'
 import { idDeInstitucion } from '@/access/payload'
 import { dominioDeInstituciones } from '@/lib/anfitrion'
 import { diaEnChile, estadoDelPlazo, type Modalidad } from '@/lib/instituciones'
-import { clientePayload } from '../datos'
+import { clientePayloadDeTodas } from '../datos'
 import { PanelDeInstituciones, type InstitucionDelPanel } from './PanelDeInstituciones'
 import './instituciones.css'
 
@@ -24,7 +24,7 @@ const TOPE = 1000
  */
 export default async function PaginaDeInstituciones() {
   await exigirPanelCentral('admin')
-  const payload = await clientePayload()
+  const payload = await clientePayloadDeTodas()
 
   const listado = await payload
     .find({ collection: 'instituciones', limit: TOPE, sort: 'nombre', depth: 0, overrideAccess: true })

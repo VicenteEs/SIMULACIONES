@@ -48,6 +48,8 @@ import {
   vencimiento,
 } from './conservacion'
 import { registrarAccion } from './registroServidor'
+import { filtroDelLugar } from '@/access/reglas'
+import { sinLaPeticion, subdominioDeLaPeticionEnCurso } from './barreraDeInstitucion'
 
 type Peticion = Partial<PayloadRequest> | undefined
 type Registro = Record<string, unknown>
@@ -278,6 +280,26 @@ export async function anonimizarElRastroDeLaCuenta(
   req: Peticion,
 ): Promise<RastroAnonimizado> {
   const id = String(cuenta.id)
+  const sobreElla: Where = { and: [{ coleccion: { equals: 'usuarios' } }, { documentoId: { equals: id } }, { titulo: { exists: true } }] }
+  // Borrada desde el subdominio de su institución, la barrera no deja ver lo
+  // que la central anotó sobre ella: su alta como administradora, las
+  // invitaciones (D-400). Eso se retoca aparte, sin la barrera y fuera de esta
+  // transacción (D-401).
+  //
+  // Solo las filas de la central, y antes que lo demás: las de la institución
+  // las toca la transacción del borrado, y si esta conexión tocara una de
+  // ellas, esperaría a que esa transacción terminase, que a su vez espera a
+  // esto. Las de la central no las alcanza la transacción, ni con barrera ni
+  // sin ella, porque cuando llega su turno ya no tienen título.
+  //
+  // Lo que se pierde si el borrado después se deshace: el título de esas filas
+  // de una cuenta que sigue viva. Queda el resto del acto: cuándo, quién y
+  // sobre qué cuenta.
+  const sobreEllaEnLaCentral = subdominioDeLaPeticionEnCurso()
+    ? await sinLaPeticion(() =>
+        retocarElRegistro(payload, { and: [sobreElla, filtroDelLugar(null) as Where] }, { titulo: null }, undefined),
+      )
+    : 0
   const propias = await retocarElRegistro(
     payload,
     {
@@ -289,19 +311,14 @@ export async function anonimizarElRastroDeLaCuenta(
     { usuarioNombre: null, usuarioCorreo: null },
     req,
   )
-  const sobreElla = await retocarElRegistro(
-    payload,
-    { and: [{ coleccion: { equals: 'usuarios' } }, { documentoId: { equals: id } }, { titulo: { exists: true } }] },
-    { titulo: null },
-    req,
-  )
+  const sobreEllaEnSuLugar = await retocarElRegistro(payload, sobreElla, { titulo: null }, req)
   const correo = typeof cuenta.email === 'string' ? cuenta.email.trim().toLowerCase() : ''
   const difusiones = correo
     ? await retirarCorreosDeLasDifusiones(payload, (c) => c.trim().toLowerCase() === correo, req)
     : 0
   const preferencias = await borrarPreferenciasDe(payload, id, req)
   const entradas = await borrarEntradas(payload, { usuario: { equals: id } }, req)
-  return { propias, sobreElla, difusiones, preferencias, entradas }
+  return { propias, sobreElla: sobreEllaEnLaCentral + sobreEllaEnSuLugar, difusiones, preferencias, entradas }
 }
 
 // ------------------------------------------------- la pasada de cada día

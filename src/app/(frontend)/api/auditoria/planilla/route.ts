@@ -2,6 +2,8 @@ import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { cuentaEnSuLugar } from '@/lib/sesion'
+import { lugarDeLaCuenta } from '@/lib/guardias'
+import { payloadDelLugar } from '@/lib/payloadDelLugar'
 import { leerAuditoria } from '@/lib/auditoriaServidor'
 import { crearPlanilla } from '@/lib/planilla'
 import { hojasDeLaAuditoria } from '@/lib/planillaDeAuditoria'
@@ -27,7 +29,10 @@ export async function GET() {
   )
   if (!esAdmin) return new Response('No autorizado', { status: 401 })
 
-  const auditoria = await leerAuditoria(payload)
+  // La planilla es la de la pantalla, y sale recortada igual que ella: el
+  // administrador de una institución descarga solo lo suyo (D-401).
+  const delLugar = payloadDelLugar(payload, lugarDeLaCuenta(user as Record<string, unknown>))
+  const auditoria = await leerAuditoria(delLugar)
   const bytes = crearPlanilla(hojasDeLaAuditoria(auditoria), {
     titulo: 'Auditoría de la revisión del contenido',
     autor: 'TraumaHub',

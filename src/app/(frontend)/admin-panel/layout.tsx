@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { getPayload } from 'payload'
+import { payloadDelLugar } from '@/lib/payloadDelLugar'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
 import {
@@ -19,7 +20,7 @@ import './admin.css'
 import './panel.css'
 import { ruta } from '@/lib/rutas'
 import { AUTORIA } from '@/lib/autoria'
-import { esDeTraumaHub, puedeEditar } from '@/lib/guardias'
+import { esDeTraumaHub, lugarDeLaCuenta, puedeEditar } from '@/lib/guardias'
 import { MODULOS } from './modulos'
 
 export const dynamic = 'force-dynamic'
@@ -72,13 +73,19 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const usuarioId = String(cuenta.id)
   const misModulos = MODULOS.filter((m) => puedeEditar(cuenta, m.slug)).map((m) => m.slug)
   try {
-    const payload = await getPayload({ config })
+    // Los números de la barra, de su lugar (D-401): al administrador de una
+    // institución, sus solicitudes y sus revisiones. Los comentarios, de todas
+    // las instituciones y solo para TraumaHub, que es adonde van (D-371).
+    const deTodas = await getPayload({ config })
+    const payload = payloadDelLugar(deTodas, lugarDeLaCuenta(cuenta))
     const [conteo, conteoDeSolicitudes, conteoPorRevisar, conteoDeListas, conteoDeCotizaciones] = await Promise.all([
-      payload.count({
-        collection: 'comentarios',
-        where: { estado: { equals: 'pendiente' } },
-        overrideAccess: true,
-      }),
+      esCentral
+        ? deTodas.count({
+            collection: 'comentarios',
+            where: { estado: { equals: 'pendiente' } },
+            overrideAccess: true,
+          })
+        : Promise.resolve({ totalDocs: 0 }),
       esAdmin
         ? payload.count({
             collection: 'usuarios',
@@ -143,12 +150,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         { ruta: '/admin-panel/contenido', etiqueta: 'Contenido', icono: 'contenido' },
         // El taller y las estructuras editan el catálogo común: solo TraumaHub.
         ...(esCentral ? [{ ruta: '/admin-panel/atlas', etiqueta: 'Taller anatómico', icono: 'atlas' }] : []),
-        {
-          ruta: '/admin-panel/comentarios',
-          etiqueta: 'Comentarios',
-          icono: 'comentarios',
-          aviso: pendientes || undefined,
-        },
+        // Los comentarios van todos a TraumaHub (D-371): la institución no los ve.
+        ...(esCentral
+          ? [{ ruta: '/admin-panel/comentarios', etiqueta: 'Comentarios', icono: 'comentarios', aviso: pendientes || undefined }]
+          : []),
         // Debajo de Comentarios, como pidió el dueño (D-179). Sin aviso: «2.000
         // pendientes» en la barra no se atiende, se trabaja de a poco.
         ...(esCentral ? [{ ruta: '/admin-panel/estructuras', etiqueta: 'Estructuras', icono: 'estructuras' }] : []),

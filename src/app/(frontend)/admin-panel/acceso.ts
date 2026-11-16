@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { esColeccionEditable, esquemaDe } from '@/admin/esquema'
-import { esDeTraumaHub, puedeEditar } from '@/lib/guardias'
+import { esDeTraumaHub, lugarDeLaCuenta, puedeEditar } from '@/lib/guardias'
 import { obtenerSesion } from '@/lib/sesion'
 
 /**
@@ -44,6 +44,8 @@ export async function exigirPanel(nivel: 'editor' | 'admin' = 'editor') {
     rol,
     esAdmin: rol === 'admin',
     esCentral: esDeTraumaHub(sesion.usuario),
+    /** La institución de quien mira, o `null` si es de TraumaHub: a qué recorta `clientePayload`. */
+    lugar: lugarDeLaCuenta(sesion.usuario),
   }
 }
 

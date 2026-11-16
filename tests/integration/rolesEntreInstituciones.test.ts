@@ -253,7 +253,9 @@ describe.skipIf(payload === null)('los roles entre instituciones (D-396)', () =>
     expect(await leidas('adminA')).toEqual([entradas.A])
   })
 
-  it('el aviso de un comentario va a los administradores de su lugar, con el enlace a su subdominio', async () => {
+  // Hasta E5.6 iba a los de su lugar, y eso contradecía D-371: los comentarios
+  // van todos a TraumaHub, y las instituciones no los ven (D-401).
+  it('el aviso de un comentario va a los administradores de TraumaHub, con la institución de donde viene', async () => {
     const antes = { url: process.env.NEXT_PUBLIC_SERVER_URL, pruebas: process.env.SERVIDOR_DE_PRUEBAS }
     process.env.NEXT_PUBLIC_SERVER_URL = 'https://traumahub.test'
     process.env.SERVIDOR_DE_PRUEBAS = ''
@@ -268,9 +270,16 @@ describe.skipIf(payload === null)('los roles entre instituciones (D-396)', () =>
       })
       borrar.push({ coleccion: 'comentarios', id: comentario.id })
       expect(correo.enviar).toHaveBeenCalledTimes(1)
-      const [, envio] = correo.enviar.mock.calls[0] as [unknown, { para: string[]; correo: { boton?: { enlace: string } } }]
-      expect(envio.para).toEqual([usuarios.adminA.email])
-      expect(envio.correo.boton?.enlace).toBe(`https://a${marca}.traumahub.test/admin-panel/comentarios`)
+      const [, envio] = correo.enviar.mock.calls[0] as [
+        unknown,
+        { para: string[]; correo: { boton?: { enlace: string }; bloques: { tipo: string; filas?: [string, string][] }[] } },
+      ]
+      // La base de pruebas puede traer otros administradores de TraumaHub.
+      expect(envio.para).toContain(usuarios.adminCentral.email)
+      expect(envio.para).not.toContain(usuarios.adminA.email)
+      expect(envio.correo.boton?.enlace).toBe('https://traumahub.test/admin-panel/comentarios')
+      const filas = envio.correo.bloques.find((b) => b.tipo === 'datos')?.filas ?? []
+      expect(filas).toContainEqual(['Institución', `Institución A ${marca}`])
     } finally {
       correo.activo = false
       process.env.NEXT_PUBLIC_SERVER_URL = antes.url

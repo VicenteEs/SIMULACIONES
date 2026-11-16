@@ -8,7 +8,7 @@ import {
   idDeInstitucion,
 } from '@/access/payload'
 import { filtroDelLugar } from '@/access/reglas'
-import { subdominioDeLaCuenta } from '@/lib/institucionesServidor'
+import { nombreDeLaInstitucion } from '@/lib/institucionesServidor'
 import { enviarSinEsperar, hayCorreo } from '@/correo/enviar'
 import { mensajeDeComentarioNuevo } from '@/correo/mensajes'
 // De `modulos.ts` y no de `datos.ts`: aquel son constantes sin un solo import, y
@@ -93,19 +93,25 @@ export const Comentarios: CollectionConfig = {
         // gancho y el transporte no puedan discrepar sobre si hay servidor.
         if (operation === 'create' && hayCorreo()) {
           try {
-            // A los administradores del lugar del comentario, que es el de
-            // quien lo deja (la marca, D-396), y con el enlace a su
-            // subdominio: el de otra institución no puede atenderlo, ni
-            // tiene por qué leer lo que escribió un alumno ajeno.
-            const lugar = idDeInstitucion(doc.institucion)
+            // A los administradores de TraumaHub, venga de donde venga, y
+            // con el enlace a la central: los comentarios van todos ahí,
+            // también los que hablan del contenido propio de una institución,
+            // y las instituciones no los ven (D-371, D-401). El nombre de la
+            // institución va en el correo, porque el de una ficha propia hay
+            // que reenviárselo a ella.
+            //
+            // En E5.3 iba a los administradores del lugar del comentario, y
+            // eso contradecía D-371: el de la institución recibía el aviso de
+            // algo que su panel no le enseña.
             const adminQuery = await req.payload.find({
               collection: 'usuarios',
               where: {
-                and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, filtroDelLugar(lugar)],
+                and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }, filtroDelLugar(null)],
               } as never,
               limit: MAXIMO_DE_ADMINISTRADORES_AVISADOS,
             })
-            const direccion = direccionPublica(await subdominioDeLaCuenta(req.payload, doc.institucion))
+            const direccion = direccionPublica()
+            const institucion = await nombreDeLaInstitucion(req.payload, idDeInstitucion(doc.institucion))
 
             const adminEmails = adminQuery.docs.map((a: any) => a.email).filter(Boolean)
 
@@ -143,6 +149,7 @@ export const Comentarios: CollectionConfig = {
                     // nunca la base.
                     modulo: NOMBRE_DE_DESTINO[String(doc.coleccion)] ?? String(doc.coleccion),
                     texto: String(doc.texto ?? ''),
+                    institucion: institucion ?? undefined,
                     enlacePanel: `${direccion}${rutaDelPanelParaComentario(String(doc.coleccion), doc.documentoId, doc.id)}`,
                   }),
                 },

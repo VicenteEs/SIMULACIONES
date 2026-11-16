@@ -34,6 +34,8 @@ import { VERSION_DEL_AVISO_DE_PRIVACIDAD } from '@/lib/avisoDePrivacidad'
  *
  *  - `admin`: `exigirAdmin`. Cuentas, respaldos, borrar comentarios.
  *  - `editor`: `exigirEditor`. Taller del atlas y bandeja de comentarios.
+ *  - Cualquiera de las dos con `soloCentral`: además, solo una cuenta de
+ *    TraumaHub (`exigirAdminCentral`, `exigirEditorCentral`).
  *  - `edicionDeModulo`: `exigirEdicionDe(coleccion)`. El editor de contenido:
  *    además del rol, el módulo.
  *  - `sesion`: cuenta activa, y el módulo visible si la fila cuelga de uno. Lo
@@ -309,10 +311,11 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'admin.ts:generarEnlaceDeClave': { guardia: 'admin', argumentos: () => ['5'] },
   'admin.ts:entradasDeUnaCuenta': { guardia: 'admin', argumentos: () => ['5'] },
   'admin.ts:resolverSolicitud': { guardia: 'admin', argumentos: () => ['5', 'activar', 'lector'] },
-  'admin.ts:eliminarComentario': { guardia: 'admin', argumentos: () => ['5'] },
+  // Los comentarios van todos a TraumaHub, y las instituciones no los ven (D-371, D-401).
+  'admin.ts:eliminarComentario': { guardia: 'admin', soloCentral: true, argumentos: () => ['5'] },
   // El editor resuelve comentarios —es quien arregla lo señalado— pero no los borra.
-  'admin.ts:actualizarComentario': { guardia: 'editor', argumentos: () => ['5', 'resuelto'] },
-  'admin.ts:resolverTodosLosComentarios': { guardia: 'editor', argumentos: () => [] },
+  'admin.ts:actualizarComentario': { guardia: 'editor', soloCentral: true, argumentos: () => ['5', 'resuelto'] },
+  'admin.ts:resolverTodosLosComentarios': { guardia: 'editor', soloCentral: true, argumentos: () => [] },
   // El interruptor de mantención de un módulo (D-156): del administrador, con su
   // rol real, porque decide qué ve cada residente.
   'admin.ts:cambiarMantencionDeModulo': { guardia: 'admin', soloCentral: true, argumentos: () => ['patologias', true] },
@@ -449,9 +452,10 @@ const GUARDIAS: Record<string, Clasificacion> = {
     argumentos: () => ['12', AVANCE],
   },
   // Los comentarios del taller (E2, D-158): la lista es del editor y del
-  // administrador, con su rol real.
+  // administrador, con su rol real, y de TraumaHub, como el taller (D-401).
   'comentarios.ts:listarComentariosDe': {
     guardia: 'editor',
+    soloCentral: true,
     argumentos: () => ['instancias-atlas', '5'],
   },
   'comentarios.ts:crearComentario': {

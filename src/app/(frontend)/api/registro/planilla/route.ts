@@ -2,6 +2,8 @@ import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { cuentaEnSuLugar } from '@/lib/sesion'
+import { lugarDeLaCuenta } from '@/lib/guardias'
+import { payloadDelLugar } from '@/lib/payloadDelLugar'
 import { crearPlanilla } from '@/lib/planilla'
 import { hojasDelRegistro } from '@/lib/registroPanel'
 import { marcaDeTiempo } from '@/lib/respaldos'
@@ -26,7 +28,10 @@ export async function GET() {
   )
   if (!esAdmin) return new Response('No autorizado', { status: 401 })
 
-  const bytes = crearPlanilla(await hojasDelRegistro(payload), {
+  // La planilla es la de la pantalla, y sale recortada igual que ella: el
+  // administrador de una institución descarga solo lo suyo (D-401).
+  const delLugar = payloadDelLugar(payload, lugarDeLaCuenta(user as Record<string, unknown>))
+  const bytes = crearPlanilla(await hojasDelRegistro(delLugar), {
     titulo: 'Registro de acciones y tiempo de actividad',
     autor: 'TraumaHub',
   })
