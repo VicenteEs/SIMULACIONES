@@ -285,11 +285,11 @@ export function TextoDelAviso() {
           </li>
         </ul>
         <p>
-          El registro de acciones se borra a los {plazoDelRegistro}: cada entrada desaparece cuando cumple{' '}
+          El registro de acciones se borra a los {plazoDelRegistro}: cada línea desaparece cuando cumple{' '}
           {plazoDelRegistro}, exista o no la cuenta.
         </p>
         <p>
-          Cada entrada —cuándo, desde qué equipo, desde qué IP y desde qué país— se borra a los{' '}
+          Lo que se anota de cada vez que entras —cuándo, desde qué equipo, desde qué IP y desde qué país— se borra a los{' '}
           {plazoDeLasEntradas}, aunque la cuenta siga.
         </p>
         <p>Una cotización se borra a los {plazoDeLasCotizaciones} de llegar, o antes si nos pides borrarla.</p>

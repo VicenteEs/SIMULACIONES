@@ -11583,6 +11583,22 @@ Comprobado después:
 - (−) Cada entrada escribe dos o tres filas más, y cada página que llega con una cookie sin sesión, una consulta más.
 - (−) Todas las cuentas vuelven a aceptar el aviso la primera vez que entren después de desplegar.
 
+*Comprobado antes de subir.*
+- `typecheck` limpio, y `lint` sin errores, con los 15 avisos de siempre;
+- `test:integration`, 295 de 295, con las 7 de `entradas.test.ts`;
+- la suite: 6677 bien y una omitida. Fallan las 3 de siempre en Windows. La cobertura queda en 86,9 % de sentencias, 79,0 % de ramas, 87,8 % de funciones y 88,3 % de líneas. Con la suite entera vencieron por tiempo algunas que solas pasan (`autoria`, `privacidad`, `crearComentarioDelTaller`); con `--testTimeout=20000` quedaron solo las 3 de Windows;
+- `build` con `/traumahub`, bien, en un worktree aparte con solo `93ba901`, por lo mismo que en D-387.
+
+*Mirado en el navegador*, con esa compilación servida en el puerto 3200 contra la base desechable y una cuenta de administración de prueba. El «otro equipo» fue un guion que llama a `payload.login` como «Safari en iPhone»:
+- al entrar sale el aviso de la versión del 16 de noviembre, con el párrafo de las entradas y su plazo de tres meses. Al aceptarlo se llega al panel;
+- al entrar el «iPhone», la entrada del navegador queda como «Chrome en Windows», cerrada por otra entrada, y la nueva, como que echó a otro equipo;
+- 38 segundos después, la pestaña del panel enseña «Se inició sesión con su cuenta en otro equipo, y en este se cerró…» con «Entrar de nuevo», que lleva a `/traumahub/entrar`;
+- al recargar, la página lleva a la portada, con la misma franja arriba;
+- al volver a entrar en el navegador y otra vez en el «iPhone», el registro de acciones enseña a la tercera «Entró de una forma que no parece de una sola persona», con «En la última hora se entró 3 veces con esta cuenta…» en el detalle. La cuarta deja otra línea, con 4 veces;
+- el correo no se pudo ver, porque la compilación de prueba no tiene servidor de correo y sin él `alertar` no escribe a nadie. Por eso se añadió a la prueba de integración: a la tercera vez sale un correo a los administradores activos, con las últimas entradas y sus equipos, y la alerta del país, el mismo día, ya no manda otro.
+
+Después de mirarlo se cambiaron dos frases del aviso, porque «entrada» ya nombra las de la plataforma. Del registro de acciones, «cada entrada desaparece» pasó a «cada línea desaparece», y el plazo de las entradas empieza ahora por «Lo que se anota de cada vez que entras». Es solo texto, y la versión sigue siendo la del 2026-11-16, que aún no se ha desplegado en ningún sitio. Ese cambio y la prueba del correo van en el commit de después, que no se volvió a compilar; `typecheck`, `lint`, `test:integration` y los 15 archivos de prueba que tocan el aviso pasan con él.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

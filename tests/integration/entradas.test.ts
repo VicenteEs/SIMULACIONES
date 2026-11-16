@@ -23,6 +23,17 @@ vi.mock('next/headers', () => ({
   cookies: async () => ({ delete: () => {}, set: () => {}, get: () => undefined }),
 }))
 
+// El correo de la alerta. Las pruebas no tienen servidor de correo (`tests/setup.ts`),
+// y sin él `alertar` ni siquiera busca a quién escribir: se finge que lo hay solo
+// mientras corren las alertas, y el envío se queda en el espía. Fingirlo desde el
+// principio haría que cualquier otro aviso de la cuenta pasara por el espía.
+const correo = vi.hoisted(() => ({ activo: false, enviar: vi.fn() }))
+vi.mock('@/correo/enviar', async (original) => ({
+  ...(await original<typeof import('@/correo/enviar')>()),
+  hayCorreo: () => correo.activo,
+  enviarSinEsperar: correo.enviar,
+}))
+
 const payload: Payload | null = await (async () => {
   try {
     const { getPayload } = await import('payload')
@@ -44,6 +55,10 @@ describe.skipIf(payload === null)('una sesión por cuenta', () => {
   const password = randomBytes(18).toString('base64url')
   let cuentaId: number | string
   let borrada = false
+  // Un administrador activo, para que la alerta tenga a quién escribir aunque la
+  // base de pruebas no traiga ninguno.
+  const administrador = `entradas-admin-${randomBytes(6).toString('hex')}@prueba.invalid`
+  let administradorId: number | string
 
   const cabecerasCon = (testigo: string) =>
     new Headers({ cookie: `${base.config.cookiePrefix}-token=${testigo}`, 'sec-fetch-site': 'same-origin' })
@@ -84,11 +99,21 @@ describe.skipIf(payload === null)('una sesión por cuenta', () => {
       overrideAccess: true,
     })
     cuentaId = cuenta.id
+    const admin = await base.create({
+      collection: 'usuarios',
+      data: { nombre: 'Administración de prueba', email: administrador, password, rol: 'admin', activo: true } as never,
+      overrideAccess: true,
+    })
+    administradorId = admin.id
   })
 
   afterAll(async () => {
+    correo.activo = false
     if (cuentaId && !borrada) {
       await base.delete({ collection: 'usuarios', id: cuentaId, overrideAccess: true }).catch(() => {})
+    }
+    if (administradorId) {
+      await base.delete({ collection: 'usuarios', id: administradorId, overrideAccess: true }).catch(() => {})
     }
   })
 
@@ -144,13 +169,35 @@ describe.skipIf(payload === null)('una sesión por cuenta', () => {
   })
 
   it('turnarse entre dos equipos avisa al administrador a la tercera vez en una hora', async () => {
+    correo.activo = true
     expect(await alertas()).toHaveLength(0)
     pabellon = await entrarDesde(PABELLON) // la segunda vez que se echa a otro equipo
     expect(await alertas()).toHaveLength(0)
+    expect(correo.enviar).not.toHaveBeenCalled()
     telefono = await entrarDesde(TELEFONO) // la tercera
     const [alerta] = await alertas()
     expect(alerta?.detalle).toContain('En la última hora se entró 3 veces')
     expect(alerta?.usuarioCorreo).toBe(email)
+
+    // Y por correo, a los administradores activos, que son hasta 20: la cuenta
+    // de la alerta, que es de editor, no está entre ellos.
+    expect(correo.enviar).toHaveBeenCalledTimes(1)
+    const [, envio] = correo.enviar.mock.calls[0] as [
+      unknown,
+      { para: string[]; correo: { asunto: string; bloques: unknown[] } },
+    ]
+    const { totalDocs: administradores } = await base.count({
+      collection: 'usuarios',
+      where: { and: [{ rol: { equals: 'admin' } }, { activo: { equals: true } }] },
+      overrideAccess: true,
+    })
+    expect(envio.para).toHaveLength(Math.min(administradores, 20))
+    expect(envio.para).not.toContain(email)
+    expect(envio.correo.asunto).toBe('TraumaHub · Entrada sospechosa en la cuenta de Prueba de entradas')
+    expect(JSON.stringify(envio.correo.bloques)).toContain('En la última hora se entró 3 veces')
+    // Las últimas entradas, con su equipo, para que se vea el turno sin abrir nada.
+    expect(JSON.stringify(envio.correo.bloques)).toContain('Safari en iPhone')
+    expect(JSON.stringify(envio.correo.bloques)).toContain('Chrome en Windows')
   })
 
   it('otro país demasiado pronto, también', async () => {
@@ -160,6 +207,9 @@ describe.skipIf(payload === null)('una sesión por cuenta', () => {
     expect(ultima?.detalle).toContain('Entró desde Perú')
     expect(ultima?.detalle).toContain('desde Chile')
     expect(ultima?.detalle).not.toContain('veces')
+    // La alerta queda en el registro, pero de la misma cuenta llega un correo al día.
+    expect(correo.enviar).toHaveBeenCalledTimes(1)
+    correo.activo = false
   })
 
   it('salir deja la entrada cerrada por «salió»', async () => {
