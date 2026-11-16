@@ -50,8 +50,10 @@ export function UsosDelModelo({
   const reemplazar = async () => {
     const elegido = candidatos.find((c) => c.id === hacia)
     if (!elegido) return
+    // Sin el «sin usar» de la etiqueta: en la pregunta sobra, y después del cambio deja de ser verdad.
+    const nombre = elegido.etiqueta.replace(/ · sin usar$/, '')
     const si = await confirmar({
-      titulo: `¿Cambiar este modelo por «${elegido.etiqueta}» en ${total === 1 ? 'el sitio que lo usa' : `los ${total} sitios que lo usan`}?`,
+      titulo: `¿Cambiar este modelo por «${nombre}» en ${total === 1 ? 'el sitio que lo usa' : `los ${total} sitios que lo usan`}?`,
       mensaje:
         'Cambia en el documento y en su último borrador. Si el modelo nuevo llama distinto a sus piezas, abra cada caso en el editor para revisarlas. Este modelo no se borra: queda libre para borrarlo después.',
       confirmar: 'Reemplazar en todos',
