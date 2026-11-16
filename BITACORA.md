@@ -11568,7 +11568,7 @@ Comprobado después:
   - Entran en la exportación de los datos de una cuenta, sin la huella de la sesión, y no viajan a la copia del ensayo.
 - **El aviso de privacidad pasa a la versión del 2026-11-16**, y con ella todas las cuentas lo aceptan otra vez al entrar (D-292). Dice qué se guarda de cada entrada, que la cuenta solo se abre en un equipo a la vez, que se avisa a los administradores y el plazo. Donde decía que la IP no se guarda en la base, ahora dice cuál se guarda (era lo pendiente de D-382).
 - **Lo que queda:**
-  - ver las entradas de una cuenta en «Usuarios y permisos». Hoy solo salen en el correo de la alerta y en la exportación de sus datos;
+  - ver las entradas de una cuenta en «Usuarios y permisos». Hoy solo salen en el correo de la alerta y en la exportación de sus datos (*hecho en D-390*);
   - con las instituciones de E5, que la alerta vaya solo al administrador de TraumaHub y no al de la institución, como pide D-374. Hoy no hay otro;
   - que lo lea el abogado, con el resto del aviso, en E8.
 
@@ -11598,6 +11598,33 @@ Comprobado después:
 - el correo no se pudo ver, porque la compilación de prueba no tiene servidor de correo y sin él `alertar` no escribe a nadie. Por eso se añadió a la prueba de integración: a la tercera vez sale un correo a los administradores activos, con las últimas entradas y sus equipos, y la alerta del país, el mismo día, ya no manda otro.
 
 Después de mirarlo se cambiaron dos frases del aviso, porque «entrada» ya nombra las de la plataforma. Del registro de acciones, «cada entrada desaparece» pasó a «cada línea desaparece», y el plazo de las entradas empieza ahora por «Lo que se anota de cada vez que entras». Es solo texto, y la versión sigue siendo la del 2026-11-16, que aún no se ha desplegado en ningún sitio. Ese cambio y la prueba del correo van en el commit de después, que no se volvió a compilar; `typecheck`, `lint`, `test:integration` y los 15 archivos de prueba que tocan el aviso pasan con él.
+
+*Desplegado en ved el 2026-11-16 (`f72af1a`).* `actualizar.sh` pasó ved de `28bb000` a `f72af1a`, con el respaldo de antes, sin cifrar como siempre (D-295). El ensayo abrió los 2 casos publicados con 0 errores y los 2 avisos de siempre: ninguno tiene aún su resolución de referencia.
+
+Comprobado después:
+- la base de verdad tiene la migración `20261116_002803_sesion_unica_y_entradas` (lote 27), y `entradas` empieza vacía: se llena con la primera entrada de cada cuenta, que además vuelve a aceptar el aviso;
+- las 5 cuentas siguen ahí (D-384);
+- la salud por fuera da 200, y `salud.sh` solo marca lo de siempre, los respaldos sin cifrar.
+
+### D-390 · 2026-11-16 · vigente · P-016 E3 · sigue a D-388
+**Las entradas de una cuenta se ven en «Usuarios y permisos»: «Entradas a la plataforma», en el menú de cada fila, enseña las últimas 50 con su equipo, su IP, su país y cómo terminó, y encima las alertas de la cuenta.**
+
+- **Por qué.** D-388 las dejaba solo en el correo de la alerta y en la exportación de los datos de la cuenta. Quien recibía «no parece de una sola persona» no tenía dónde mirar lo de antes y lo de después, ni las alertas que ya no mandaron correo porque ese día ya había salido uno.
+- **Se piden al abrir el modal** (`entradasDeUnaCuenta`, en `acciones/admin.ts`, con `exigirAdmin`), y no llegan con la tabla. Son hasta 50 filas con IP por cuenta, y la tabla trae hasta 500 cuentas que casi nunca se miran así.
+- **Cómo terminó cada una** (`finDeLaEntrada`, pura):
+  - lo anotado manda: «Salió» y «Se entró en otro equipo»;
+  - sin anotación, «Abierta» si su sesión sigue en la cuenta. Se compara la huella de cada sesión viva de la cuenta con la de la entrada, en el servidor; la huella no sale al navegador;
+  - si no, «Caducó» pasadas las ocho horas, o «Se cerró antes de caducar, casi siempre por una contraseña nueva». `resetPassword` de Payload vacía las sesiones de la cuenta sin pasar por el gancho, así que no queda motivo anotado, y no se inventa uno;
+  - las ocho horas son ahora una sola constante, `HORAS_DE_SESION`, que `Usuarios` usa como `tokenExpiration`. Escritas en dos sitios, cambiar una haría que el panel dijera «Caducó» de una sesión que se cerró antes, o al revés.
+- **Las alertas** salen del registro de acciones, las 10 últimas. Duran lo que el registro, doce meses, más que las entradas que las dispararon.
+- Con más de 50 entradas en tres meses, el modal dice cuántas hay y que todas van en «Descargar sus datos».
+- Leerlas no deja línea en el registro, como no la deja abrir la tabla de cuentas.
+
+*Consecuencias.*
+- (+) Una alerta se revisa desde el panel, con lo de antes y lo de después.
+- (+) Se ve si la cuenta sigue abierta, y en qué equipo.
+- (−) Abrir el modal es una acción de servidor más.
+- (−) Cualquier administrador ve la IP de cada entrada de cualquier cuenta. Ya la veía en la exportación; ahora le cuesta un clic. El aviso ya dice que se guarda y para qué.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -17726,7 +17753,9 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - las alertas por otro país demasiado pronto y por turnarse entre equipos, en el registro y por correo a los administradores;
       - el plazo de tres meses, y el aviso de privacidad en la versión del 2026-11-16;
       - pruebas: `entradas.test.ts` (unitaria) y `tests/integration/entradas.test.ts`;
-      - *pendiente:* las entradas de una cuenta en «Usuarios y permisos», y la revisión del aviso con el abogado en E8;
+      - desplegado en ved el 2026-11-16 (`f72af1a`);
+      - las entradas de una cuenta en «Usuarios y permisos», con sus alertas (D-390);
+      - *pendiente:* la revisión del aviso con el abogado en E8;
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
 - [ ] **E5 · Las instituciones (D-371).**
   - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;

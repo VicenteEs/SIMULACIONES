@@ -1,12 +1,15 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
+  ETIQUETAS_DEL_FIN,
+  HORAS_DE_SESION,
   MENSAJE_DE_OTRA_ENTRADA,
   MINUTOS_ENTRE_PAISES,
   VECES_QUE_ECHAN_A_OTRO_EQUIPO,
   datosDeLaPeticion,
   datosDelContexto,
   describirEquipo,
+  finDeLaEntrada,
   minutosEnPalabras,
   motivosDeAlerta,
   nombreDelPais,
@@ -270,5 +273,34 @@ describe('el mensaje del equipo que se quedó sin sesión', () => {
     expect(MENSAJE_DE_OTRA_ENTRADA).toContain('otro equipo')
     expect(MENSAJE_DE_OTRA_ENTRADA).toContain('un equipo a la vez')
     expect(MENSAJE_DE_OTRA_ENTRADA).not.toMatch(/ataque|sospech|robad/i)
+  })
+})
+
+describe('cómo terminó una entrada, en «Usuarios y permisos»', () => {
+  const fecha = new Date('2026-11-16T10:00:00Z')
+  const despues = (horas: number) => new Date(fecha.getTime() + horas * 60 * 60_000)
+
+  it('lo anotado manda, aunque la sesión siguiera en la cuenta', () => {
+    expect(finDeLaEntrada({ fecha, motivoDelCierre: 'salio', abierta: true }, despues(1))).toBe('salio')
+    expect(finDeLaEntrada({ fecha, motivoDelCierre: 'otra-entrada', abierta: false }, despues(1))).toBe('otra-entrada')
+  })
+
+  it('sin anotación, abierta es lo que dice la cuenta, no la fecha', () => {
+    expect(finDeLaEntrada({ fecha, motivoDelCierre: null, abierta: true }, despues(1))).toBe('abierta')
+    // Una sesión que la cuenta ya no tiene no abre nada, aunque no hayan pasado las ocho horas.
+    expect(finDeLaEntrada({ fecha, motivoDelCierre: null, abierta: false }, despues(1))).toBe('cerrada')
+  })
+
+  it('pasadas las horas de la sesión, caducó', () => {
+    expect(HORAS_DE_SESION).toBe(8)
+    expect(finDeLaEntrada({ fecha, motivoDelCierre: null, abierta: false }, despues(HORAS_DE_SESION))).toBe('caduco')
+    expect(finDeLaEntrada({ fecha, motivoDelCierre: null, abierta: false }, despues(HORAS_DE_SESION - 0.01))).toBe(
+      'cerrada',
+    )
+  })
+
+  it('cada final tiene sus palabras', () => {
+    expect(Object.keys(ETIQUETAS_DEL_FIN).sort()).toEqual(['abierta', 'caduco', 'cerrada', 'otra-entrada', 'salio'])
+    expect(ETIQUETAS_DEL_FIN['otra-entrada']).toBe('Se entró en otro equipo')
   })
 })

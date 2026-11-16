@@ -291,3 +291,65 @@ export const MINUTOS_QUE_MIRAN_LAS_REGLAS = Math.max(MINUTOS_ENTRE_PAISES, MINUT
  * personas que se turnan una tarde entera darían un correo por entrada.
  */
 export const HORAS_ENTRE_CORREOS_DE_ALERTA = 24
+
+// ------------------------------------------- en «Usuarios y permisos»
+
+/**
+ * Cuánto vale una sesión sin cerrarse. Es el `tokenExpiration` de `Usuarios`, que
+ * lo lee de aquí: escrito en los dos sitios, cambiar uno haría que el panel dijera
+ * «caducó» de una sesión que se cerró antes, o al revés.
+ */
+export const HORAS_DE_SESION = 8
+
+/** Cómo terminó una entrada, para la tabla del panel. */
+export type FinDeLaEntrada = 'abierta' | MotivoDelCierre | 'caduco' | 'cerrada'
+
+/**
+ * Cómo terminó una entrada, o si sigue abierta.
+ *
+ * Lo anotado manda: «salió» y «se entró en otro equipo» los escriben `salir()` y
+ * la entrada siguiente. Sin anotación, la pregunta de si sigue abierta se le
+ * hace a la cuenta —`abierta` dice si su sesión está todavía en `sessions`— y no
+ * a la fecha: una sesión que se borró antes de tiempo ya no abre nada, aunque
+ * no hayan pasado las ocho horas.
+ *
+ * Lo que queda sin anotación ni sesión es `caduco` si pasaron las ocho horas, y
+ * `cerrada` si no. Esa última es casi siempre una contraseña nueva, que vacía
+ * las sesiones de la cuenta sin pasar por aquí (`resetPassword` de Payload); se
+ * dice con esas palabras y no con un motivo inventado.
+ */
+export function finDeLaEntrada(
+  entrada: { fecha: Date; motivoDelCierre: MotivoDelCierre | null; abierta: boolean },
+  ahora: Date,
+): FinDeLaEntrada {
+  if (entrada.motivoDelCierre) return entrada.motivoDelCierre
+  if (entrada.abierta) return 'abierta'
+  const vence = entrada.fecha.getTime() + HORAS_DE_SESION * 60 * 60_000
+  return vence <= ahora.getTime() ? 'caduco' : 'cerrada'
+}
+
+export const ETIQUETAS_DEL_FIN: Record<FinDeLaEntrada, string> = {
+  abierta: 'Abierta',
+  salio: 'Salió',
+  'otra-entrada': 'Se entró en otro equipo',
+  caduco: 'Caducó',
+  cerrada: 'Se cerró antes de caducar, casi siempre por una contraseña nueva',
+}
+
+/** Una entrada como la enseña el panel, ya sin la huella de la sesión. */
+export interface EntradaDelPanel {
+  id: string
+  /** En ISO, para que cruce del servidor al navegador sin perder la zona. */
+  fecha: string
+  equipo: string | null
+  ip: string | null
+  pais: string | null
+  cerroOtroEquipo: boolean
+  fin: FinDeLaEntrada
+}
+
+/** Una alerta de la cuenta, del registro de acciones. */
+export interface AlertaDelPanel {
+  fecha: string
+  detalle: string
+}

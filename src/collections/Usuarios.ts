@@ -11,6 +11,7 @@ import { anonimizarElRastroDeLaCuenta } from '@/lib/conservacionServidor'
 import { OPCIONES_DE_MODULO } from './opcionesDeModulo'
 import { ETAPAS_DE_FORMACION } from '@/lib/solicitudDeCuenta'
 import { PROFESIONES } from '@/lib/firmas'
+import { HORAS_DE_SESION } from '@/lib/entradas'
 
 /**
  * Cuántos intentos fallidos bloquean una cuenta, y por cuánto tiempo.
@@ -219,7 +220,8 @@ export const Usuarios: CollectionConfig = {
     // la verdad sin repetirlos.
     maxLoginAttempts: INTENTOS_ANTES_DE_BLOQUEAR,
     lockTime: MINUTOS_DE_BLOQUEO * 60 * 1000,
-    tokenExpiration: 8 * 60 * 60,
+    // De `entradas.ts`, que la usa para decir en el panel cuándo caducó una entrada.
+    tokenExpiration: HORAS_DE_SESION * 60 * 60,
     cookies: { sameSite: 'Lax', secure: process.env.NODE_ENV === 'production' },
     forgotPassword: {
       generateEmailSubject: () => 'TraumaHub · elegir una contraseña nueva',

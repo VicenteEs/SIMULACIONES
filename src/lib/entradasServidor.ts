@@ -5,6 +5,7 @@ import { enviarSinEsperar, hayCorreo } from '@/correo/enviar'
 import { mensajeDeEntradaSospechosa } from '@/correo/mensajes'
 import { registrarAccion } from '@/lib/registroServidor'
 import {
+  finDeLaEntrada,
   HORAS_ENTRE_CORREOS_DE_ALERTA,
   MINUTOS_QUE_MIRAN_LAS_REGLAS,
   motivosDeAlerta,
@@ -12,7 +13,9 @@ import {
   sesionesQueSeCierran,
   sidDelTestigo,
   sonEquiposDistintos,
+  type AlertaDelPanel,
   type DatosDelEquipo,
+  type EntradaDelPanel,
   type MotivoDelCierre,
   type SesionDeLaCuenta,
 } from '@/lib/entradas'
@@ -323,4 +326,86 @@ async function alertar(
     },
     'alerta de entrada sospechosa a los administradores',
   )
+}
+
+// ------------------------------------------- en «Usuarios y permisos»
+
+/** Cuántas entradas y alertas enseña el panel de una cuenta. */
+export const ENTRADAS_EN_EL_PANEL = 50
+export const ALERTAS_EN_EL_PANEL = 10
+
+/**
+ * Las últimas entradas de una cuenta y sus alertas, para «Usuarios y permisos».
+ *
+ * Sin comprobar quién pregunta: eso lo hace la acción que llama
+ * (`entradasDeUnaCuenta`, con `exigirAdmin`). La huella de la sesión no sale de
+ * aquí; con ella se pregunta a la cuenta qué sesiones siguen abiertas, que es lo
+ * único para lo que sirve fuera del gancho.
+ *
+ * Las alertas se leen del registro de acciones y no de las entradas, porque es
+ * ahí donde quedan, con el motivo en palabras. Duran lo que dura el registro,
+ * doce meses, más que las entradas que las dispararon: una alerta de hace cinco
+ * meses sale sin las entradas de entonces, y es lo que el aviso promete.
+ */
+export async function entradasDeLaCuenta(
+  payload: Payload,
+  cuenta: string | number,
+  ahora: Date = new Date(),
+): Promise<{ entradas: EntradaDelPanel[]; total: number; alertas: AlertaDelPanel[] }> {
+  const [leidas, usuario, registro] = await Promise.all([
+    payload.find({
+      collection: 'entradas',
+      where: { usuario: { equals: cuenta } },
+      sort: '-fecha',
+      limit: ENTRADAS_EN_EL_PANEL,
+      depth: 0,
+      overrideAccess: true,
+    }),
+    payload.findByID({
+      collection: 'usuarios',
+      id: cuenta,
+      depth: 0,
+      overrideAccess: true,
+      showHiddenFields: true,
+      disableErrors: true,
+    }),
+    payload.find({
+      collection: 'registro-de-acciones',
+      where: { and: [{ usuario: { equals: cuenta } }, { accion: { equals: 'entrada-sospechosa' } }] },
+      sort: '-fecha',
+      limit: ALERTAS_EN_EL_PANEL,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  ])
+
+  const sesiones = ((usuario as { sessions?: SesionDeLaCuenta[] } | null)?.sessions ?? []).filter(
+    (s) => new Date(s.expiresAt).getTime() > ahora.getTime(),
+  )
+  const abiertas = new Set(sesiones.map((s) => huellaDeSesion(s.id)))
+
+  const entradas = (leidas.docs as unknown as Fila[]).map((e): EntradaDelPanel => {
+    const fecha = new Date(String(e.fecha))
+    return {
+      id: String(e.id),
+      fecha: fecha.toISOString(),
+      equipo: (e.equipo as string | null) ?? null,
+      ip: (e.ip as string | null) ?? null,
+      pais: (e.pais as string | null) ?? null,
+      cerroOtroEquipo: e.cerroOtroEquipo === true,
+      fin: finDeLaEntrada(
+        {
+          fecha,
+          motivoDelCierre: (e.motivoDelCierre as MotivoDelCierre | null) ?? null,
+          abierta: typeof e.sesion === 'string' && abiertas.has(e.sesion),
+        },
+        ahora,
+      ),
+    }
+  })
+  const alertas = (registro.docs as unknown as Fila[]).map((r) => ({
+    fecha: new Date(String(r.fecha)).toISOString(),
+    detalle: String(r.detalle ?? ''),
+  }))
+  return { entradas, total: leidas.totalDocs, alertas }
 }

@@ -264,6 +264,7 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'admin.ts:cambiarActivoUsuario': { guardia: 'admin', argumentos: () => ['5', true] },
   'admin.ts:eliminarUsuario': { guardia: 'admin', argumentos: () => ['5'] },
   'admin.ts:generarEnlaceDeClave': { guardia: 'admin', argumentos: () => ['5'] },
+  'admin.ts:entradasDeUnaCuenta': { guardia: 'admin', argumentos: () => ['5'] },
   'admin.ts:resolverSolicitud': { guardia: 'admin', argumentos: () => ['5', 'activar', 'lector'] },
   'admin.ts:eliminarComentario': { guardia: 'admin', argumentos: () => ['5'] },
   // El editor resuelve comentarios —es quien arregla lo señalado— pero no los borra.

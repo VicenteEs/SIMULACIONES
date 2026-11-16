@@ -7,6 +7,7 @@ import {
   CircleSlash,
   Copy,
   Download,
+  History,
   Hourglass,
   KeyRound,
   Pencil,
@@ -38,6 +39,7 @@ import {
   resolverSolicitud,
 } from '@/app/(frontend)/acciones/admin'
 import { SolicitudesPendientes } from './SolicitudesPendientes'
+import { EntradasDeLaCuenta } from './EntradasDeLaCuenta'
 import { PROFESIONES, etiquetaDeProfesion, type Profesion } from '@/lib/firmas'
 import { ruta } from '@/lib/rutas'
 import './solicitudes.css'
@@ -302,6 +304,7 @@ export function TablaUsuarios({
   const [creando, setCreando] = useState(false)
   const [editando, setEditando] = useState<UsuarioDelPanel | null>(null)
   const [permisos, setPermisos] = useState<UsuarioDelPanel | null>(null)
+  const [entradas, setEntradas] = useState<UsuarioDelPanel | null>(null)
 
   /**
    * El rol elegido se ve mientras la acción viaja.
@@ -481,7 +484,7 @@ export function TablaUsuarios({
   const regionDeAvisos = useRef<HTMLDivElement>(null)
   const hayModalAbierto = useRef(false)
   useEffect(() => {
-    hayModalAbierto.current = creando || editando !== null || permisos !== null
+    hayModalAbierto.current = creando || editando !== null || permisos !== null || entradas !== null
   })
   useEffect(() => {
     if (!aviso || aviso.tipo === 'ok' || hayModalAbierto.current) return
@@ -903,6 +906,14 @@ export function TablaUsuarios({
                                 },
                               },
                               {
+                                // Para mirar qué pasó cuando llega una alerta
+                                // de entrada (D-390). Solo lee: no la frena
+                                // que la fila esté trabajando.
+                                etiqueta: 'Entradas a la plataforma',
+                                icono: History,
+                                alElegir: () => setEntradas(u),
+                              },
+                              {
                                 /*
                                   Apagada de verdad en una solicitud, porque no
                                   depende del momento sino de lo que la cuenta
@@ -1071,6 +1082,8 @@ export function TablaUsuarios({
           }
         />
       ) : null}
+
+      {entradas ? <EntradasDeLaCuenta cuenta={entradas} onCerrar={() => setEntradas(null)} /> : null}
 
       {editando ? (
         <ModalEditar

@@ -238,3 +238,17 @@ textarea[data-redimensionable='vertical'] { resize: vertical; }
     white-space: normal;
   }
 }
+
+/* ---------- modal de «Entradas a la plataforma» (D-390) ---------- */
+.entradas-explicacion { margin: 0 0 var(--e-3); font-size: var(--t-sm); color: var(--mudo); }
+/* Las alertas van antes que la tabla: son lo que trajo al administrador aquí. */
+.entradas-alertas { margin: 0 0 var(--e-4); }
+.entradas-alertas h3 { margin: 0 0 var(--e-2); font-size: var(--t-sm); }
+.entradas-alertas ul { margin: 0; padding-left: var(--e-4); font-size: var(--t-sm); }
+.entradas-alertas li + li { margin-top: var(--e-1); }
+.entradas-tabla td { vertical-align: top; }
+/* La fecha con su hora, en una línea: partida, la hora parecía otra columna. */
+.entradas-tabla time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.entradas-nota { margin-top: var(--e-1); font-size: var(--t-xs); color: var(--mudo); }
+/* Una IPv6 entera no cabe en la columna: que se parta antes que empujar la tabla. */
+.entradas-ip { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }

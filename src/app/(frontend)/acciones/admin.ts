@@ -25,6 +25,7 @@ import {
   mensajeDeSolicitudRechazada,
 } from '@/correo/mensajes'
 import { exigirAdmin, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
+import { entradasDeLaCuenta } from '@/lib/entradasServidor'
 import { comoListaDeModulos } from '@/lib/mantencion'
 import { esProfesion } from '@/lib/firmas'
 import {
@@ -1004,6 +1005,26 @@ export async function generarEnlaceDeClave(
       }
     }
     return { enlace, enviadoPorCorreo }
+  })
+}
+
+// ------------------------------------------------------------- entradas
+
+/**
+ * Las últimas entradas de una cuenta y sus alertas, para el modal «Entradas a la
+ * plataforma» de «Usuarios y permisos» (D-390).
+ *
+ * Una acción que se llama al abrir el modal, y no un dato más de cada fila de la
+ * tabla: son hasta cincuenta filas por cuenta, con su IP, y la tabla trae hasta
+ * quinientas cuentas que casi nunca se miran así. Solo para administradores,
+ * como la colección (`administracionDeUsuarios`).
+ */
+export async function entradasDeUnaCuenta(
+  id: unknown,
+): Promise<Respuesta<Awaited<ReturnType<typeof entradasDeLaCuenta>>>> {
+  return accion(async () => {
+    const { payload } = await exigirAdmin()
+    return entradasDeLaCuenta(payload, exigirIdentificador(id, 'El usuario'))
   })
 }
 

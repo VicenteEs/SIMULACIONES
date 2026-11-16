@@ -212,6 +212,37 @@ describe.skipIf(payload === null)('una sesión por cuenta', () => {
     correo.activo = false
   })
 
+  it('el administrador las ve en «Usuarios y permisos», y un editor no', async () => {
+    const { entradasDeUnaCuenta } = await import('@/app/(frontend)/acciones/admin')
+
+    // Desde la sesión de la propia cuenta, que es de editor.
+    peticion.cabeceras = cabecerasCon(telefono)
+    expect((await entradasDeUnaCuenta(cuentaId)).exito).toBe(false)
+
+    const { token } = await base.login({ collection: 'usuarios', data: { email: administrador, password } })
+    peticion.cabeceras = cabecerasCon(token as string)
+    const respuesta = await entradasDeUnaCuenta(cuentaId)
+    if (!respuesta.exito || !respuesta.datos) throw new Error(respuesta.exito ? 'sin datos' : respuesta.mensaje)
+    const { entradas: vistas, total, alertas: suyas } = respuesta.datos
+
+    // Las cinco de arriba, la más reciente primero.
+    expect(total).toBe(5)
+    expect(vistas.map((e) => [e.equipo, e.pais, e.fin])).toEqual([
+      ['Safari en iPhone', 'PE', 'abierta'],
+      ['Safari en iPhone', 'CL', 'otra-entrada'],
+      ['Chrome en Windows', 'CL', 'otra-entrada'],
+      ['Safari en iPhone', 'CL', 'otra-entrada'],
+      ['Chrome en Windows', 'CL', 'otra-entrada'],
+    ])
+    expect(vistas.map((e) => e.cerroOtroEquipo)).toEqual([false, true, true, true, false])
+    // Sin la huella de la sesión: con ella se pregunta a la cuenta, y no sale de ahí.
+    expect(vistas.every((e) => !('sesion' in e))).toBe(true)
+    // Las dos alertas, la del país primero.
+    expect(suyas).toHaveLength(2)
+    expect(suyas[0].detalle).toMatch(/^Entró desde Perú /)
+    expect(suyas[1].detalle).toMatch(/^En la última hora se entró 3 veces/)
+  })
+
   it('salir deja la entrada cerrada por «salió»', async () => {
     peticion.cabeceras = cabecerasCon(telefono)
     const { salir } = await import('@/app/(frontend)/acciones/sesion')
