@@ -4,8 +4,8 @@ import { getPayload, type Payload } from 'payload'
 import config from '@payload-config'
 import { COOKIE_VISTA_PREVIA, rolEfectivo } from '@/lib/vistaPrevia'
 import type { Rol } from '@/access/reglas'
-import { cuentaValeEnElLugar } from '@/access/reglas'
-import { idDeInstitucion } from '@/access/payload'
+import { comoValeEnElLugar } from '@/access/reglas'
+import { comoSoporte, idDeInstitucion } from '@/access/payload'
 import { testigoDeLaPeticion } from '@/lib/cookieDeSesion'
 import { motivoDelCierre } from '@/lib/entradasServidor'
 import { lugarDeLaPeticion, type LugarDeLaPeticion } from '@/lib/institucionesServidor'
@@ -44,6 +44,13 @@ export interface Sesion {
  * antes de vencer deja de servir en la petición siguiente, sin esperar a que
  * caduque su testigo.
  *
+ * La excepción es el administrador de TraumaHub en una institución abierta: el
+ * fantasma (D-371, D-404). Sale como `comoSoporte` lo deja, con la institución
+ * del lugar en la suya, así que todo lo que pregunta por la institución de la
+ * cuenta —las guardias, el filtro de las reglas, la marca de lo que crea— lo
+ * trata como al administrador de esa institución. Su cuenta, en la base, sigue
+ * siendo de TraumaHub, y por eso no aparece en las listas de la institución.
+ *
  * Es lo que tiene que preguntar toda ruta que mire la sesión, en vez de
  * `payload.auth` a secas: `payload.auth` cree cualquier testigo firmado, venga
  * de donde venga. Solo `salir` lo llama directo, porque matar la sesión vale
@@ -56,12 +63,20 @@ export async function cuentaEnSuLugar(
   const lugar = await lugarDeLaPeticion(payload, cabeceras)
   const delTestigo = ((await payload.auth({ headers: cabeceras })).user ?? null) as Record<string, unknown> | null
   const enUnSubdominioQueNoExiste = lugar.subdominio !== '' && lugar.institucion === null
-  const vale =
-    delTestigo !== null &&
-    !enUnSubdominioQueNoExiste &&
-    !(lugar.institucion && estaBloqueada(lugar.institucion.vence)) &&
-    cuentaValeEnElLugar(idDeInstitucion(delTestigo.institucion), lugar.institucion?.id ?? null)
-  return { user: vale ? delTestigo : null, delTestigo, lugar }
+  const como =
+    delTestigo !== null && !enUnSubdominioQueNoExiste && !(lugar.institucion && estaBloqueada(lugar.institucion.vence))
+      ? comoValeEnElLugar(delTestigo.rol, idDeInstitucion(delTestigo.institucion), lugar.institucion?.id ?? null)
+      : null
+  const user =
+    como === 'propia'
+      ? delTestigo
+      : // Con `activo` además: una cuenta de TraumaHub dada de baja no es soporte
+        // de nadie, y sin esto pasaría por administrador de la institución en
+        // las páginas que no miran `activo`.
+        como === 'soporte' && delTestigo?.activo === true && lugar.institucion
+        ? comoSoporte(delTestigo, lugar.institucion.id)
+        : null
+  return { user, delTestigo, lugar }
 }
 
 /**

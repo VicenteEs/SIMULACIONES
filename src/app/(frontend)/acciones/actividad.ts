@@ -3,7 +3,7 @@
 import { getPayload, type Where } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
-import { usuarioDeSesion } from '@/access/payload'
+import { esFantasma, usuarioDeSesion } from '@/access/payload'
 import { puedeVerModulo } from '@/access/reglas'
 import { modulosEnMantencion } from '@/lib/modulosEnMantencion'
 import {
@@ -79,6 +79,12 @@ async function anotar(
 ): Promise<boolean> {
   const { activo, usuarioEfectivo } = await obtenerSesion()
   if (!activo || !usuarioEfectivo) return false
+  // El soporte de TraumaHub dentro de una institución (D-404) no deja
+  // actividad: saldría en sus estadísticas como una lectura más, y el fantasma
+  // entra sin aparecer en ellas. Se le contesta como si hubiera quedado
+  // escrita, y no «su sesión ya no está activa», que sería falso: la ficha y la
+  // consola siguen como las ve la institución, sin nada suyo que guardar.
+  if (esFantasma(usuarioEfectivo)) return true
 
   const usuarioId = (usuarioEfectivo as { id?: unknown }).id
   if (!usuarioId) return false

@@ -73,7 +73,7 @@ export function subdominioDeLaPeticionEnCurso(): string {
  * Corre `trabajo` como si no hubiera petición: las conexiones que pida salen
  * sin barrera, como las de un guion.
  *
- * Existe para dos cosas, y conviene que no sean más. Cada uso nuevo es un
+ * Existe para cuatro cosas, y conviene que no sean más. Cada uso nuevo es un
  * agujero en la segunda barrera: que lo pida una decisión.
  *
  * - Borrar una cuenta desde su institución (D-401). La anonimización de D-293
@@ -85,6 +85,13 @@ export function subdominioDeLaPeticionEnCurso(): string {
  *   plataforma, y sin mirar más allá de la institución la solicitud chocaba
  *   con una cuenta que no veía. Solo se lee si existe y dónde; quien pide la
  *   cuenta recibe la misma respuesta en el mismo tiempo.
+ * - La entrada y la salida del soporte de TraumaHub en una institución, el
+ *   fantasma (D-404). Escriben en su cuenta, en su entrada y en el registro, y
+ *   las tres filas son de TraumaHub. Solo para esa cuenta: `entrar` lo decide
+ *   antes del `login`, y lo demás que se entra desde una institución sigue
+ *   con la barrera.
+ * - El registro de lo que hace ese soporte dentro (D-404): va al de TraumaHub,
+ *   con la institución dicha, y no al de la institución. Solo esa fila.
  *
  * Fuera de toda transacción de quien llama: la conexión es otra. Si `trabajo`
  * toca una fila que esa transacción ya tiene tomada, se esperan la una a la

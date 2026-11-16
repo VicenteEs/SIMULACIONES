@@ -1,6 +1,6 @@
 import type { CollectionConfig, PayloadRequest } from 'payload'
 import { administracionDeUsuarios, accesoAlPanel, idDeInstitucion } from '@/access/payload'
-import { cuentaValeEnElLugar } from '@/access/reglas'
+import { comoValeEnElLugar } from '@/access/reglas'
 import { lugarDeLaPeticion } from '@/lib/institucionesServidor'
 import { estaBloqueada } from '@/lib/instituciones'
 import { direccionDeLaInstitucion } from '@/lib/anfitrion'
@@ -405,7 +405,10 @@ export const Usuarios: CollectionConfig = {
           if (lugar.subdominio && !lugar.institucion) throw new CuentaDeOtroLugar()
           delLugar = lugar.institucion?.id ?? null
         }
-        if (!cuentaValeEnElLugar(idDeInstitucion((user as { institucion?: unknown }).institucion), delLugar)) {
+        // `soporte` es el administrador de TraumaHub que entra a una institución
+        // (el fantasma, D-404): entra, y después vale como su administrador.
+        const cuenta = user as { rol?: unknown; institucion?: unknown }
+        if (!comoValeEnElLugar(cuenta.rol, idDeInstitucion(cuenta.institucion), delLugar)) {
           throw new CuentaDeOtroLugar()
         }
         // Y la institución, abierta (D-403). Se lee aquí y no se fía de quien
@@ -438,7 +441,7 @@ export const Usuarios: CollectionConfig = {
     afterLogin: [
       // Primero, que es el que deja la cuenta con una sola sesión. Ver el gancho.
       unaSesionPorCuenta,
-      async ({ req, user }) => {
+      async ({ req, user, context }) => {
         try {
           await req.payload.update({
             collection: 'usuarios',
@@ -451,7 +454,18 @@ export const Usuarios: CollectionConfig = {
           req.payload.logger.error({ msg: 'No se pudo anotar el último acceso', err: error })
         }
         // Con el mismo `req`, por la misma razón que arriba. No lanza nunca.
-        await registrarAccion(req.payload, { accion: 'sesion-iniciada', usuario: user }, req)
+        //
+        // La del soporte de TraumaHub en una institución (D-404) se anota
+        // aparte, con su nombre: es lo que el registro central tiene que poder
+        // contar. `entrar` la dice en `soporteEn`.
+        const soporteEn = typeof context?.soporteEn === 'string' ? context.soporteEn : undefined
+        await registrarAccion(
+          req.payload,
+          soporteEn
+            ? { accion: 'entrada-como-soporte', usuario: user, titulo: soporteEn, soporteEn }
+            : { accion: 'sesion-iniciada', usuario: user },
+          req,
+        )
         return user
       },
     ],

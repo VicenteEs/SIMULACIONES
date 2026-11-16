@@ -22,6 +22,7 @@
 export const ACCIONES_DEL_REGISTRO = [
   { value: 'sesion-iniciada', label: 'Inició sesión' },
   { value: 'sesion-cerrada', label: 'Cerró sesión' },
+  { value: 'entrada-como-soporte', label: 'Entró como soporte a una institución' },
   { value: 'creo', label: 'Creó' },
   { value: 'modifico', label: 'Modificó' },
   { value: 'publico', label: 'Publicó' },

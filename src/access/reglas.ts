@@ -84,6 +84,30 @@ export const cuentaValeEnElLugar = (institucionDeLaCuenta: string | null, instit
   institucionDeLaCuenta === institucionDelLugar
 
 /**
+ * Cómo vale una cuenta en un lugar: como la suya (`propia`), como soporte de
+ * TraumaHub (`soporte`, el fantasma de D-371 y D-404) o de ningún modo.
+ *
+ * El soporte es solo el administrador de TraumaHub, y solo en el lugar de una
+ * institución: dentro trabaja como su administrador, sin ser de ella. Un
+ * editor o un lector de TraumaHub sigue sin valer fuera de la central, y el
+ * administrador de una institución, fuera de la suya.
+ *
+ * Que la institución esté abierta no se mira aquí: lo mira quien conoce su
+ * plazo, y en una bloqueada no vale nadie (D-403), el soporte tampoco.
+ */
+export type ComoValeLaCuenta = 'propia' | 'soporte'
+
+export const comoValeEnElLugar = (
+  rol: unknown,
+  institucionDeLaCuenta: string | null,
+  institucionDelLugar: string | null,
+): ComoValeLaCuenta | null => {
+  if (cuentaValeEnElLugar(institucionDeLaCuenta, institucionDelLugar)) return 'propia'
+  if (rol === 'admin' && institucionDeLaCuenta === null && institucionDelLugar !== null) return 'soporte'
+  return null
+}
+
+/**
  * Cómo se reparte una colección entre instituciones (D-396):
  *
  * - `compartido`, el contenido y sus archivos: lo central publicado lo lee

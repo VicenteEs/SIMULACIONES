@@ -54,6 +54,8 @@ export interface FilaDelRegistro {
   titulo: string
   detalle: string
   origen: string
+  /** La institución donde lo hizo el soporte de TraumaHub (D-404), o vacío. */
+  soporteEn: string
   modulosVisibles: string[]
   modulosEditables: string[]
 }
@@ -77,6 +79,7 @@ function filaDelRegistro(d: Registro): FilaDelRegistro {
     titulo: texto(d.titulo),
     detalle: texto(d.detalle),
     origen: texto(d.origen),
+    soporteEn: texto(d.soporteEn),
     modulosVisibles: lista(permisos.modulosVisibles),
     modulosEditables: lista(permisos.modulosEditables),
   }
@@ -209,7 +212,7 @@ export async function leerResumenDeCuentas(payload: Payload, ahora: Date = new D
     if (usuario === null || usuario === undefined) continue
     const id = String(typeof usuario === 'object' ? (usuario as Registro).id : usuario)
     const cuenta =
-      acto.accion === 'sesion-iniciada'
+      acto.accion === 'sesion-iniciada' || acto.accion === 'entrada-como-soporte'
         ? sesionesPorCuenta
         : acto.accion === 'sesion-cerrada'
           ? null
@@ -327,7 +330,14 @@ export type TipoDeAccion = (typeof TIPOS_DE_ACCION)[number]['clave']
  */
 export function tipoDeAccion(accion: unknown, coleccion: unknown): TipoDeAccion {
   if (accion === 'lectura') return coleccion === 'cirugias' ? 'simulador' : 'leer'
-  if (accion === 'sesion-iniciada' || accion === 'sesion-cerrada' || accion === 'entrada-sospechosa') return 'sesion'
+  if (
+    accion === 'sesion-iniciada' ||
+    accion === 'sesion-cerrada' ||
+    accion === 'entrada-sospechosa' ||
+    accion === 'entrada-como-soporte'
+  ) {
+    return 'sesion'
+  }
   if (coleccion === 'usuarios') return 'administrar'
   if (coleccion === 'comentarios') return 'comentar'
   if (['creo', 'modifico', 'elimino', 'publico', 'retiro'].includes(String(accion))) return 'editar'
@@ -393,6 +403,7 @@ export async function hojasDelRegistro(payload: Payload): Promise<HojaDePlanilla
         { titulo: 'Título', tipo: 'texto', ancho: 40 },
         { titulo: 'Detalle', tipo: 'texto', ancho: 50 },
         { titulo: 'Origen (si no fue una cuenta)', tipo: 'texto', ancho: 16 },
+        { titulo: 'Como soporte en', tipo: 'texto', ancho: 28 },
       ],
       filas: filas.map((f) => [
         f.fecha,
@@ -407,6 +418,7 @@ export async function hojasDelRegistro(payload: Payload): Promise<HojaDePlanilla
         f.titulo,
         f.detalle,
         f.origen,
+        f.soporteEn,
       ]),
     },
     {

@@ -2482,6 +2482,7 @@ export interface RegistroDeAccione {
     | boolean
     | null;
   origen?: string | null;
+  soporteEn?: string | null;
   /**
    * Vacía si es de TraumaHub. La pone la plataforma al crear la fila y no cambia.
    */
@@ -4507,6 +4508,7 @@ export interface RegistroDeAccionesSelect<T extends boolean = true> {
   detalle?: T;
   cambios?: T;
   origen?: T;
+  soporteEn?: T;
   institucion?: T;
   updatedAt?: T;
   createdAt?: T;

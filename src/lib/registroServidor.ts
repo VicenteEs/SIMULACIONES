@@ -15,6 +15,7 @@
  * texto).
  */
 import type { Payload, PayloadRequest } from 'payload'
+import { esFantasma, idDeInstitucion } from '@/access/payload'
 import {
   diaLocal,
   fotoDePermisos,
@@ -22,6 +23,8 @@ import {
   type AccionDelRegistro,
   type CambioDePermiso,
 } from './registro'
+import { sinLaPeticion, subdominioDeLaPeticionEnCurso } from './barreraDeInstitucion'
+import { institucionPorSubdominio } from './institucionesServidor'
 
 type Registro = Record<string, unknown>
 
@@ -36,7 +39,36 @@ export interface EntradaDelRegistro {
   cambios?: CambioDePermiso[]
   /** Quién fue cuando no fue una cuenta: «importador». */
   origen?: string
+  /**
+   * La institución donde actuó el soporte de TraumaHub (D-404). Se averigua
+   * sola desde la petición; solo la dice quien anota fuera de ella, como la
+   * entrada, que corre sin barrera.
+   */
+  soporteEn?: string
   fecha?: Date
+}
+
+/**
+ * Dónde actúa como soporte quien hace el acto, o `null` si no es el soporte de
+ * TraumaHub dentro de una institución (D-404).
+ *
+ * Desde el subdominio de una institución solo puede actuar una cuenta de
+ * TraumaHub si es el fantasma: las demás no tienen sesión allí. Llega de dos
+ * formas, y vale cualquiera: como la sesión la deja (`comoSoporte`, con la
+ * institución del lugar y la marca) o como la lee `payload.auth`, la cuenta
+ * tal cual, sin institución.
+ */
+async function soporteDeLaPeticion(payload: Payload, u: Registro | null): Promise<string | null> {
+  if (!u) return null
+  const subdominio = subdominioDeLaPeticionEnCurso()
+  if (!subdominio) return null
+  if (!esFantasma(u) && idDeInstitucion(u.institucion) !== null) return null
+  try {
+    const institucion = await institucionPorSubdominio(payload, subdominio)
+    return institucion ? `${institucion.nombre} (${institucion.subdominio})` : subdominio
+  } catch {
+    return subdominio
+  }
 }
 
 const idDe = (valor: unknown): number | null => {
@@ -50,6 +82,14 @@ const idDe = (valor: unknown): number | null => {
  * `req` se pasa cuando se anota desde un gancho: así la fila entra en la misma
  * transacción que el acto, y si el acto se deshace, la anotación también (no
  * queda constancia de algo que no ocurrió). Sin él, la escritura es aparte.
+ *
+ * Lo del soporte de TraumaHub dentro de una institución (D-404) va al registro
+ * de TraumaHub, con la institución en `soporteEn`, y no al de la institución:
+ * el fantasma entra sin aparecer en su registro (D-371). Desde el subdominio
+ * la segunda barrera no deja escribir una fila de TraumaHub, y por eso esa se
+ * escribe sin la petición (`sinLaPeticion`), en otra conexión y fuera de la
+ * transacción del acto: si el acto se deshace, la línea queda. Para lo que
+ * hace el soporte, sobra una línea antes que falte una.
  */
 export async function registrarAccion(
   payload: Payload,
@@ -59,10 +99,12 @@ export async function registrarAccion(
   try {
     const u = (entrada.usuario ?? null) as Registro | null
     const foto = fotoDePermisos(u)
-    await payload.create({
+    const soporteEn = entrada.soporteEn ?? (await soporteDeLaPeticion(payload, u))
+    const aparte = soporteEn !== null && subdominioDeLaPeticionEnCurso() !== ''
+    const crear = () => payload.create({
       collection: 'registro-de-acciones',
       overrideAccess: true,
-      ...(req ? { req: req as PayloadRequest } : {}),
+      ...(req && !aparte ? { req: req as PayloadRequest } : {}),
       data: {
         fecha: (entrada.fecha ?? new Date()).toISOString(),
         usuario: u ? idDe(u.id) : null,
@@ -77,8 +119,10 @@ export async function registrarAccion(
         detalle: entrada.detalle?.slice(0, 2000) ?? null,
         cambios: entrada.cambios?.length ? entrada.cambios : null,
         origen: u ? null : (entrada.origen ?? 'sistema'),
+        soporteEn: soporteEn?.slice(0, 200) ?? null,
       } as never,
     })
+    await (aparte ? sinLaPeticion(crear) : crear())
   } catch (error) {
     payload?.logger?.error({ msg: 'No se pudo anotar en el registro de acciones', err: error })
   }

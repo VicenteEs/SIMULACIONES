@@ -1435,7 +1435,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
      ficha impresa para pabellón puede ser justo lo que manda las últimas
      líneas a una hoja más. */
   nav, .barra, .miga, .boton, .boton-imprimir, .barra-acciones, .rastreador-actividad, .formulario-comentario, .comentar, .pie-de-pagina,
-  .examen-herramientas, .aviso-de-pruebas, .aviso-de-sesion-cerrada,
+  .examen-herramientas, .aviso-de-pruebas, .aviso-de-sesion-cerrada, .aviso-de-soporte,
   .pestana-eyebrow, .ficha-pestanas, .ficha-lateral, .firmas-de-la-ficha {
     display: none !important;
   }
@@ -2491,6 +2491,19 @@ dd > div blockquote p:last-child,
   line-height: 1.5;
 }
 .aviso-de-sesion-cerrada a { color: inherit; font-weight: 600; text-decoration: underline; }
+
+/* La franja del soporte de TraumaHub dentro de una institución (D-404). Con la forma de las dos de arriba y el
+   ámbar del servidor de pruebas: no es un error, pero sí algo que no tiene que pasarle desapercibido a quien la ve. */
+.aviso-de-soporte {
+  background: var(--ambar-tenue);
+  color: var(--ambar-texto);
+  border-bottom: 1px solid var(--ambar);
+  padding: var(--e-2) var(--e-6);
+  text-align: center;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+.aviso-de-soporte a { color: inherit; font-weight: 600; text-decoration: underline; }
 
 /* La firma con el logotipo de ChessCore. «Desarrollado por» y el logo van en una línea y el logo se
    alinea con la base del texto; en un teléfono de 320 px envuelven sin empujar la página. */

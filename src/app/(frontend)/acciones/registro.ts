@@ -3,6 +3,7 @@
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { obtenerSesion } from '@/lib/sesion'
+import { esFantasma } from '@/access/payload'
 import { registrarLatido } from '@/lib/registroServidor'
 import { sinPrefijo } from '@/lib/rutas'
 
@@ -17,12 +18,17 @@ import { sinPrefijo } from '@/lib/rutas'
  * No propaga nada, por lo mismo que `registrarVisita`: medir el tiempo es una
  * comodidad del panel y su fallo no puede estropear la lectura de una ficha.
  * Sin sesión activa no hace nada.
+ *
+ * Tampoco para el soporte de TraumaHub dentro de una institución (D-404): su
+ * tiempo saldría en las estadísticas de la institución, y el fantasma entra sin
+ * aparecer en ellas. La plantilla ya no le monta el latido; esto es por si lo
+ * manda una pestaña abierta antes.
  */
 export async function registrarLatidoDeActividad(rutaActual: unknown): Promise<void> {
   try {
     const { activo, usuario } = await obtenerSesion()
     const id = (usuario as { id?: unknown } | null)?.id
-    if (!activo || id === undefined || id === null) return
+    if (!activo || id === undefined || id === null || esFantasma(usuario)) return
     // Solo la ruta, sin datos de la consulta: pueden llevar un correo o una
     // búsqueda, y al registro solo le interesa en qué pantalla estaba.
     //

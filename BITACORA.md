@@ -11107,7 +11107,7 @@ El trazo hondo se apoya en lo que el ratón encuentra —un músculo, un vaso, e
   - Lo propio lo ve solo la institución que lo creó. Se publica con la misma revisión con doble firma de hoy, con revisores de la propia institución: un médico y un kinesiólogo con cuenta de docente.
   - Los cambios del simulador llegan a todas a la vez, porque es una sola plataforma.
 - **Los comentarios** van todos solo a TraumaHub, también los que hablan del contenido propio de una institución. Las instituciones no los ven.
-- **La entrada como fantasma.**
+- **La entrada como fantasma.** *(Hecho en D-404.)*
   - El administrador de TraumaHub entra a cualquier institución sin aparecer en sus listas, en su registro ni en sus estadísticas.
   - El registro central anota cada entrada y lo que hizo.
   - El contrato con la institución dice que el soporte de TraumaHub puede entrar.
@@ -11836,7 +11836,7 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - **La institución de la cuenta.** `usuarios` gana `institucion`, vacía para las cuentas de TraumaHub. Una cuenta solo vale en el anfitrión de su institución: en otro es como no tener sesión, y entrar se niega. La cookie de sesión ya es de cada anfitrión, así que esto es la segunda vuelta de llave, no la primera.
   - El texto libre que hoy se llama `institucion`, lo que cada persona escribió al pedir la cuenta, pasa a llamarse `procedencia`, con la misma etiqueta. La migración renombra la columna y no pierde nada.
 - **Los roles no se multiplican.** Administrador de institución es `admin` con institución, docente es `editor` con institución y alumno es `lector` con institución. Así siguen valiendo los permisos por módulo, la revisión con doble firma y todo lo que ya mira el rol. Lo que es solo de TraumaHub (Sistema, Difusión, Medios de la página, Equipo, Respaldos, Cotizaciones, Instituciones) pregunta además si la cuenta es central (`esCentral`), y una prueba recorre esas pantallas con un administrador de institución.
-- **La institución efectiva.** Las reglas no miran la marca de la cuenta sino su institución efectiva: la suya, o, para el administrador central que entra al subdominio de otra, la de ese subdominio (el fantasma, E5.9). `usuarioDeSesion` la lleva en `institucion`, junto a `fantasma`.
+- **La institución efectiva.** Las reglas no miran la marca de la cuenta sino su institución efectiva: la suya, o, para el administrador central que entra al subdominio de otra, la de ese subdominio (el fantasma, E5.9). `usuarioDeSesion` la lleva en `institucion`, junto a `fantasma`. *(Hecho en D-404: la lleva la cuenta de la sesión, `comoSoporte`, y el acceso de Payload la saca del lugar.)*
 - **Qué filas llevan la marca.** Las cuentas; los cinco módulos con sus versiones; medios y modelos 3D; y lo que deja cada persona: actividad, comentarios, registro, entradas, tiempo activo, revisiones y sesiones de revisión. Un gancho la pone al crear con la institución efectiva, y nadie la cambia después. Lo demás es central y se comparte: catálogos del simulador, atlas, ajustes, requisitos, equipo, textos y medios de la página, y cotizaciones. Las difusiones eligen institución en E6.
 - **El filtro (`reglas.ts`).**
   - El contenido: una cuenta de institución ve lo central publicado, sin poder editarlo, y lo de su institución con las reglas de siempre. Una cuenta central ve solo lo central: el contenido de una institución no aparece en la central.
@@ -12141,7 +12141,7 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
   - Cada descarga queda en el registro, con la acción nueva `exportacion-de-institucion`. La acción del registro es un campo de texto validado, así que no pide migración.
 - **La tabla de «Instituciones»** cuenta el bloqueo bajo el plazo: cuándo se avisará, cuándo se borrarán las cuentas, o que se borraron.
 - **Lo que no se hizo.**
-  - Qué ve el fantasma (E5.9) en una institución bloqueada: se decide allí.
+  - Qué ve el fantasma (E5.9) en una institución bloqueada: se decide allí. *(Decidido en D-404: no entra.)*
   - El administrador de la institución no sabe que su plazo vence hasta que se bloquea: el aviso de los cinco días está solo en la tabla de TraumaHub (D-400).
   - El aviso de privacidad nuevo (E8) tiene que decir este plazo: doce meses de bloqueo y treinta días.
 
@@ -12169,6 +12169,72 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) Cada archivo pedido desde un subdominio pregunta por la institución, aunque sea a la memoria del proceso.
 - (−) La exportación ocupa hasta 400 MB de memoria un momento, en un proceso.
 - (−) El correo de contacto de la ficha recibe el aviso aunque no tenga cuenta. Si es viejo, el aviso le llega a quien ya no está: por eso va también a TraumaHub.
+
+### D-404 · 2026-11-16 · vigente · P-016 E5.9 · el fantasma: el administrador de TraumaHub dentro de una institución
+**El administrador de TraumaHub entra en el subdominio de cualquier institución abierta con su cuenta de siempre, y dentro trabaja como su administrador. Su cuenta sigue siendo de TraumaHub, así que no aparece en las listas, el registro ni las estadísticas de la institución. El registro de TraumaHub anota su entrada, su salida y lo que hace, con el nombre de la institución.**
+
+- **Quién y dónde.** Lo decide `comoValeEnElLugar` (`reglas.ts`): una cuenta vale en un lugar como la suya, como soporte o de ningún modo.
+  - Es soporte solo el administrador de TraumaHub, y solo en el lugar de una institución.
+  - El editor y el lector de TraumaHub no son soporte de nadie, ni el administrador de una institución fuera de la suya.
+  - En una institución bloqueada no entra nadie, tampoco el soporte. D-403 lo dejó para aquí. Para mirar lo de una bloqueada está «Exportar», y para que vuelva, extender el plazo.
+- **Cómo entra.**
+  - En Contabo entra en el subdominio, con su correo y su contraseña: la cookie de sesión es de cada anfitrión. `beforeLogin` lo deja pasar.
+  - Sigue habiendo una sola sesión por cuenta (D-388): entrar en la institución cierra la de TraumaHub, y al volver hay que entrar otra vez. La franja de la central lo dice.
+  - En ved basta con elegir la institución en el selector, porque la cookie es la misma. Por eso en ved es el selector el que anota la entrada.
+- **Qué es dentro.** `cuentaEnSuLugar` devuelve una copia de su cuenta con la institución del lugar y `fantasma: true` (`comoSoporte`). La fila de la base no cambia.
+  - Todo lo que pregunta por la institución de la cuenta lo trata como al administrador de ella: las guardias, `payloadDelLugar`, el filtro de `reglas.ts` y la marca de lo que crea.
+  - `esDeTraumaHub` le contesta que no: dentro no ve Sistema, Instituciones, Respaldos ni Difusión. Eso se administra desde la central.
+  - Los archivos que sirve Payload (`/api/<colección>/file/…`) no pasan por la sesión de la plataforma, sino por la cuenta del testigo, sin institución. `conInstitucion` le da también a esa cuenta la institución del lugar. Sin eso, el fantasma vería las fichas sin sus imágenes.
+- **Lo que no deja.**
+  - Ni actividad ni tiempo activo: saldrían en las estadísticas de la institución. La ficha y la consola se portan igual, sin guardar nada suyo, y no le dicen que perdió la sesión.
+  - El aviso de privacidad no se le pide dentro. Lo acepta su cuenta en TraumaHub, y desde la institución no podría guardarlo.
+  - Una franja ámbar (`AvisoDeSoporte`) le dice dónde está y que lo que haga queda en el registro de TraumaHub. Sin ella, la página es igual a la de la central con otras fichas.
+- **El registro.**
+  - Hay una acción nueva, `entrada-como-soporte`, y un campo nuevo, `soporteEn`: «Nombre (subdominio)», en texto, como el nombre y el correo de la cuenta. Dice lo que era entonces aunque la institución cambie de nombre.
+  - `registrarAccion` reconoce solo al soporte: una cuenta de TraumaHub que actúa desde el subdominio de una institución, venga como la deja la sesión o como la lee `payload.auth`. Su fila va al registro de TraumaHub.
+  - La pantalla del registro y la planilla dicen «Como soporte en».
+- **La barrera.** Su cuenta, su entrada y su registro son filas de TraumaHub, y desde el subdominio la barrera no deja escribirlas. Hay dos usos nuevos de `sinLaPeticion`:
+  - la entrada y la salida del soporte. `entrar` mira, antes del `login`, si el correo es de un administrador de TraumaHub, y solo entonces entra sin la barrera; todo lo demás que se entra desde una institución sigue con ella. Sin esto, el `login` fallaba. Sin lo de la salida, se borraba la cookie y la sesión seguía viva en la base;
+  - su fila del registro, en otra conexión y fuera de la transacción del acto. Si el acto se deshace, la línea queda: para lo que hace el soporte, sobra una línea antes que falte una.
+- **Lo que deja dentro.** Una fila de una cuenta de TraumaHub creada desde el subdominio —asignar un revisor, devolver una ficha— se marca con la institución del lugar (`marcarInstitucion`). Es de la institución, y su historia muestra quién lo hizo.
+  - Solo cuando se pudo leer la cuenta y es de TraumaHub. Una que no se pudo leer, que desde el subdominio es la de otra institución, sigue quedando de TraumaHub, y la barrera la rechaza en vez de dejarla pasar.
+- **Migración** `20261116_180000_soporte_en_el_registro`: solo la columna. No toca la barrera, porque las políticas miran `institucion_id` y el permiso de `traumahub_app` es sobre la tabla entera.
+- **Lo que no se hizo.**
+  - Las versiones y las revisiones de la institución muestran el nombre de quien entró como soporte. Es lo que pasó, y es parte del contenido de la institución. Si molesta, se cambia por «Soporte de TraumaHub».
+  - Entrar con un botón desde el panel central, sin escribir la contraseña en el subdominio. Pide un testigo de un solo uso entre anfitriones y una sesión que no cierre la de TraumaHub. Queda para cuando se use a diario.
+  - El contrato y el aviso nuevos (E8) tienen que decir que el soporte de TraumaHub puede entrar (D-371).
+
+*Comprobado.*
+- Las unitarias:
+  - `anfitrion.test.ts`: la regla para cada rol y lugar, y que la cuenta no cambia;
+  - `usuarios.test.ts`: el gancho de entrada, con la abierta, la bloqueada, la que no existe y los otros roles;
+  - `marcaDeInstitucion.test.ts`: la marca del soporte, la de una cuenta de otra institución y la de una que no se pudo leer.
+- `tests/integration/fantasma.test.ts`, contra PostgreSQL y con la barrera puesta:
+  - entra en una abierta y la entrada queda en el registro de TraumaHub, que la institución no ve;
+  - el editor de TraumaHub no entra, nadie entra en una bloqueada y la cuenta de la institución entra como siempre;
+  - dentro vale como el administrador, en la central como siempre y en una bloqueada no vale;
+  - por la API ve lo de la institución, y en la central no;
+  - lo que hace va al registro de TraumaHub, de las dos formas en que llega su cuenta, y lo del administrador de la institución sigue en el de ella;
+  - lo que deja dentro es de la institución;
+  - no deja actividad ni tiempo activo;
+  - al salir, la sesión se da de baja en la base;
+  - en ved, el selector anota la entrada, y no la del editor ni la de una bloqueada.
+- La prueba de la entrada falla sin la entrada fuera de la barrera, y la del registro, sin la fila aparte.
+- La integración obligatoria, 394 de 394.
+- La suite entera: 7187 pasan; fallan las 13 del entorno Windows de siempre (las que leen el código en CRLF, la zona horaria, `directorioDeRespaldos` y las que vencen bajo carga, que pasan solas).
+- En el navegador, con la compilación servida en local:
+  - entra en `hprueba.localhost` con la franja puesta;
+  - en «Usuarios» está solo la cuenta de la institución, y el menú no trae las pantallas de TraumaHub;
+  - el registro de la institución no tiene su entrada, y el de TraumaHub la tiene, con «Como soporte en»;
+  - «Salir» deja la sesión dada de baja en la base.
+
+*Consecuencias.*
+- (+) TraumaHub da soporte viendo exactamente lo que ve la institución, sin crear ni borrar cuentas para eso.
+- (+) Cada entrada y cada acto del soporte quedan en el registro de TraumaHub, con la institución.
+- (−) Entrar en una institución cierra la sesión de TraumaHub (D-388).
+- (−) Dos agujeros más en la barrera, acotados a la cuenta del soporte.
+- (−) Cada archivo que pide una cuenta de TraumaHub desde un subdominio pregunta por la institución, aunque sea a la memoria del proceso.
+- (−) Si el acto del soporte se deshace, su línea del registro queda.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -18361,7 +18427,10 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - el bloqueo en la sesión, la plantilla, la entrada, la clave, la solicitud y los archivos;
     - el aviso a los doce meses, a la institución y a TraumaHub, y el borrado de sus cuentas treinta días después, dentro de la pasada de conservación;
     - la exportación del contenido en un ZIP, con el botón «Exportar» de la tabla;
-  - E5.9 · la entrada como fantasma;
+  - E5.9 · la entrada como fantasma. *Hecho en local el 2026-11-16, con los detalles en D-404:*
+    - el administrador de TraumaHub entra en el subdominio de una institución abierta y trabaja como su administrador, con una franja que lo dice;
+    - no aparece en sus listas, su registro ni sus estadísticas, y el registro de TraumaHub anota su entrada, su salida y lo que hace;
+    - en ved, el selector anota la entrada;
   - E5.10 · desplegar: ved, y Contabo con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381) y pone el dueño.
 - [ ] **E6 · Las difusiones (D-375).**
 - [ ] **E7 · El monitoreo (D-377).**

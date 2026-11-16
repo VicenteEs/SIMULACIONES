@@ -456,6 +456,13 @@ export default async function PaginaDelRegistro({
                         <span className="admin-card-note">{f.correo}</span>
                       </>
                     ) : null}
+                    {/* Lo que hizo el soporte dentro de una institución (D-404). */}
+                    {f.soporteEn ? (
+                      <>
+                        <br />
+                        <span className="admin-card-note">Como soporte en {f.soporteEn}</span>
+                      </>
+                    ) : null}
                   </td>
                   <td>{f.rol ? etiquetaDeRolEnRegistro(f.rol) : '—'}</td>
                   <td>{accionDelRegistroEnPalabras(f.accion)}</td>

@@ -1,6 +1,7 @@
 import type { Access, CollectionBeforeChangeHook, CollectionConfig, Field, PayloadRequest, Where } from 'payload'
 import { idDeInstitucion, usuarioDeSesion } from '@/access/payload'
-import { filtroDeInstitucion, type AlcanceDeInstitucion } from '@/access/reglas'
+import { comoValeEnElLugar, filtroDeInstitucion, type AlcanceDeInstitucion, type UsuarioSesion } from '@/access/reglas'
+import { estaBloqueada } from '@/lib/instituciones'
 import { subdominioDeLaPeticionEnCurso } from '@/lib/barreraDeInstitucion'
 import { institucionPorSubdominio } from '@/lib/institucionesServidor'
 
@@ -97,10 +98,13 @@ export const CAMPO_DE_INSTITUCION: Field = {
   },
 }
 
-/** La institución de la cuenta con ese identificador, o `null`. No lanza. */
-async function institucionDeLaCuenta(req: PayloadRequest, usuario: unknown): Promise<string | null> {
+/**
+ * La institución de la cuenta con ese identificador: `null` si es de
+ * TraumaHub, `undefined` si no se pudo leer. No lanza.
+ */
+async function institucionDeLaCuenta(req: PayloadRequest, usuario: unknown): Promise<string | null | undefined> {
   const id = idDeInstitucion(usuario)
-  if (!id) return null
+  if (!id) return undefined
   try {
     const cuenta = await req.payload.findByID({
       collection: 'usuarios',
@@ -112,7 +116,7 @@ async function institucionDeLaCuenta(req: PayloadRequest, usuario: unknown): Pro
     })
     return idDeInstitucion((cuenta as { institucion?: unknown }).institucion)
   } catch {
-    return null
+    return undefined
   }
 }
 
@@ -157,12 +161,49 @@ export const marcarInstitucion: CollectionBeforeChangeHook = async ({ data, oper
   }
   // `usuario` es la cuenta dueña de la fila en todas las colecciones de la
   // lista que tienen una. En `usuarios` no existe.
+  //
+  // Una cuenta de TraumaHub que deja una fila desde el subdominio de una
+  // institución es el soporte (el fantasma, D-404): lo que hace allí es de la
+  // institución —asignar un revisor, devolver una ficha—, y la barrera de la
+  // base no dejaría escribir una fila de TraumaHub. Por eso cae a la del lugar.
+  // Solo si se leyó la cuenta y es de TraumaHub: una que no se pudo leer
+  // —desde aquí, la de otra institución— sigue quedando de TraumaHub, y la
+  // barrera la rechaza en vez de dejarla pasar.
+  //
+  // Lo suyo que la institución no debe ver no llega aquí: su registro se
+  // escribe fuera de la petición (`registrarAccion`), y la actividad y el
+  // tiempo activo no se anotan.
   if ('usuario' in data && data.usuario !== null && data.usuario !== undefined && data.usuario !== '') {
-    data.institucion = comoGuardar(await institucionDeLaCuenta(req, data.usuario))
+    const deLaCuenta = await institucionDeLaCuenta(req, data.usuario)
+    data.institucion = comoGuardar(deLaCuenta === null ? await institucionDelLugar(req) : (deLaCuenta ?? null))
     return data
   }
   data.institucion = comoGuardar(await institucionDelLugar(req))
   return data
+}
+
+/**
+ * Quien pregunta, con la institución con que trabaja.
+ *
+ * Casi siempre es la de su cuenta. La excepción es el administrador de
+ * TraumaHub en el subdominio de una institución abierta, el fantasma (D-404):
+ * trabaja en ella. Las páginas ya se lo dicen a Payload —le pasan la cuenta como
+ * la deja la sesión (`comoSoporte`)—, pero lo que sirve la API, los archivos, lo
+ * lee Payload de su testigo, sin pasar por la sesión de la plataforma. Sin esto
+ * el fantasma vería las fichas de la institución sin sus imágenes.
+ */
+async function usuarioDelAcceso(req: PayloadRequest | undefined): Promise<UsuarioSesion | null> {
+  const u = usuarioDeSesion(req?.user)
+  if (!u || !u.activo || u.institucion || !req?.payload) return u
+  const subdominio = subdominioDeLaPeticionEnCurso()
+  if (!subdominio) return u
+  try {
+    const institucion = await institucionPorSubdominio(req.payload, subdominio)
+    const lugar = institucion && !estaBloqueada(institucion.vence) ? institucion.id : null
+    return comoValeEnElLugar(u.rol, null, lugar) === 'soporte' ? { ...u, institucion: lugar } : u
+  } catch {
+    return u
+  }
 }
 
 /**
@@ -187,7 +228,7 @@ function conInstitucion(
     // Sin acceso declarado, Payload deja pasar a cualquier sesión: lo mismo.
     const delRol = base ? await base(args) : Boolean(args.req?.user)
     if (delRol === false) return false
-    const deLaInstitucion = filtroDeInstitucion(usuarioDeSesion(args.req?.user), opciones)
+    const deLaInstitucion = filtroDeInstitucion(await usuarioDelAcceso(args.req), opciones)
     if (deLaInstitucion === false) return false
     if (delRol === true) return deLaInstitucion as Where
     return { and: [delRol, deLaInstitucion as Where] }

@@ -10,7 +10,8 @@ import {
   subdominioDeLaPeticion,
   subdominioDelAnfitrion,
 } from '@/lib/anfitrion'
-import { cuentaValeEnElLugar } from '@/access/reglas'
+import { comoValeEnElLugar, cuentaValeEnElLugar } from '@/access/reglas'
+import { comoSoporte, esFantasma, idDeInstitucion } from '@/access/payload'
 import { sinOrigen } from '@/collections/hooks/direccionSinPrefijo'
 
 /**
@@ -132,6 +133,30 @@ describe('una cuenta vale solo en su lugar', () => {
     expect(cuentaValeEnElLugar('3', '4')).toBe(false)
     expect(cuentaValeEnElLugar('3', null)).toBe(false)
     expect(cuentaValeEnElLugar(null, '3')).toBe(false)
+  })
+
+  it('salvo el administrador de TraumaHub, que vale en una institución como su soporte (D-404)', () => {
+    expect(comoValeEnElLugar('admin', null, '3')).toBe('soporte')
+    expect(comoValeEnElLugar('admin', null, null)).toBe('propia')
+    expect(comoValeEnElLugar('admin', '3', '3')).toBe('propia')
+    // Ni el editor ni el lector de TraumaHub, ni el administrador de otra
+    // institución, ni nadie en la central sin ser de ella.
+    expect(comoValeEnElLugar('editor', null, '3')).toBeNull()
+    expect(comoValeEnElLugar('lector', null, '3')).toBeNull()
+    expect(comoValeEnElLugar('admin', '4', '3')).toBeNull()
+    expect(comoValeEnElLugar('admin', '3', null)).toBeNull()
+    expect(comoValeEnElLugar(undefined, null, '3')).toBeNull()
+  })
+
+  it('el soporte trabaja con la institución del lugar, y su cuenta no cambia', () => {
+    const cuenta = { id: 1, rol: 'admin', activo: true, institucion: null, nombre: 'Soporte' }
+    const dentro = comoSoporte(cuenta, '3')
+    expect(dentro).toMatchObject({ id: 1, rol: 'admin', institucion: 3, fantasma: true })
+    expect(idDeInstitucion(dentro.institucion)).toBe('3')
+    expect(esFantasma(dentro)).toBe(true)
+    expect(esFantasma(cuenta)).toBe(false)
+    expect(esFantasma(null)).toBe(false)
+    expect(cuenta.institucion).toBeNull()
   })
 })
 

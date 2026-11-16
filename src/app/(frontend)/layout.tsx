@@ -19,6 +19,8 @@ import { AvisoDeSesionCerrada } from '@/components/AvisoDeSesionCerrada'
 import { PREFIJO_DEL_TITULO, servidorDePruebas } from '@/lib/servidorDePruebas'
 import { InstitucionQueNoExiste } from '@/components/InstitucionQueNoExiste'
 import { InstitucionBloqueada } from '@/components/InstitucionBloqueada'
+import { AvisoDeSoporte } from '@/components/AvisoDeSoporte'
+import { esFantasma } from '@/access/payload'
 import { estaBloqueada } from '@/lib/instituciones'
 import { direccionPublica } from '@/collections/Usuarios'
 
@@ -62,7 +64,11 @@ export default async function Layout({ children }: { children: React.ReactNode }
   // guardia que vive en un solo sitio no se puede olvidar en ninguno. Se mira
   // la cuenta real (`usuario`) y no la de la vista previa de rol, porque quien
   // acepta es la persona y no el papel que está mirando.
-  const pideElAviso = sesion.activo && debeAceptarElAviso(sesion.usuario)
+  // El soporte de TraumaHub dentro de una institución (D-404). El aviso de
+  // privacidad no se le pide aquí: lo acepta su cuenta en TraumaHub, y desde la
+  // institución no podría guardarlo, porque su cuenta no es de ella.
+  const fantasma = esFantasma(sesion.usuario)
+  const pideElAviso = sesion.activo && !fantasma && debeAceptarElAviso(sesion.usuario)
   const dentro = sesion.activo && !pideElAviso
   // El subdominio de una institución que no existe (D-396) no enseña ninguna
   // página, tampoco `/entrar`: en él no vale ninguna cuenta.
@@ -97,6 +103,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
             cuenta en otro (D-388): sin esto vería la portada de visitante sin
             saber por qué. */}
         {sesion.cierre === 'otra-entrada' ? <AvisoDeSesionCerrada /> : null}
+        {fantasma && lugar?.institucion ? (
+          <AvisoDeSoporte institucion={lugar.institucion.nombre} central={direccionPublica()} />
+        ) : null}
         {dentro ? (
           <Navegacion
             nombre={sesion.usuario?.nombre as string | undefined}
@@ -108,7 +117,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
         {/* Sin latido mientras el aviso espera: el tiempo activo es uno de los
             datos que se piden consentir, y contarlo antes del «acepto» sería
             guardarlo sin permiso. */}
-        {dentro ? <LatidoDeActividad /> : null}
+        {/* Ni para el soporte de TraumaHub (D-404): su tiempo saldría en las
+            estadísticas de la institución, y entra sin aparecer en ellas. */}
+        {dentro && !fantasma ? <LatidoDeActividad /> : null}
         {/* Los diálogos de confirmación y los avisos flotantes, para el sitio y
             el panel: los dos se montan dentro de este mismo layout. */}
         <ProveedoresDeUI>

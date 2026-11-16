@@ -40,8 +40,9 @@ export const mensajeSinSesion = (sesion: Pick<Sesion, 'usuario' | 'cierre'>, men
  * TraumaHub (D-396). Sobre el documento de la sesión, que la trae como número
  * o poblada.
  *
- * En una sola función porque el fantasma (E5.9) lo cambiará: el administrador
- * de TraumaHub que entra a una institución trabajará en ella sin ser de ella.
+ * El fantasma (D-404) no la cambia: el administrador de TraumaHub que entra a
+ * una institución llega aquí como la sesión lo deja (`comoSoporte`), con la
+ * institución del lugar en la suya, y trabaja en ella sin ser de ella.
  */
 export const lugarDeLaCuenta = (usuario: Record<string, unknown>): string | null => idDeInstitucion(usuario.institucion)
 

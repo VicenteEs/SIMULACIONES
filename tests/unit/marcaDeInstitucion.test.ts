@@ -133,10 +133,18 @@ describe('quién pone la marca al crear', () => {
       const { req } = peticion(null)
       expect((await marcar({ data: { email: 'a@b.cl' }, operation: 'create', req })).institucion).toBe(5)
       expect((await marcar({ data: { usuario: null, accion: 'x' }, operation: 'create', req })).institucion).toBe(5)
-      // Pero la fila de una cuenta es de la institución de la cuenta, esté
-      // donde esté la petición: la de una cuenta central sigue central.
-      const conCuenta = peticion(null, { '1': { institucion: null } })
-      expect((await marcar({ data: { usuario: 1 }, operation: 'create', req: conCuenta.req })).institucion).toBeNull()
+      // La fila de una cuenta es de la institución de la cuenta, esté donde
+      // esté la petición.
+      const deOtra = peticion(null, { '2': { institucion: { id: 8 } } })
+      expect((await marcar({ data: { usuario: 2 }, operation: 'create', req: deOtra.req })).institucion).toBe(8)
+      // Salvo la de una cuenta de TraumaHub, que desde aquí solo puede ser el
+      // soporte (el fantasma, D-404): lo que deja dentro es de la institución,
+      // y la barrera no dejaría escribir una fila de TraumaHub.
+      const delSoporte = peticion(null, { '1': { institucion: null } })
+      expect((await marcar({ data: { usuario: 1 }, operation: 'create', req: delSoporte.req })).institucion).toBe(5)
+      // Una cuenta que no se pudo leer no cae al lugar: queda en la central, y
+      // la barrera la rechaza en vez de dejarla pasar.
+      expect((await marcar({ data: { usuario: 99 }, operation: 'create', req })).institucion).toBeNull()
       // Y un subdominio sin institución no inventa ninguna.
       Object.assign(lugar, { subdominio: 'nadie', institucion: null })
       expect((await marcar({ data: { email: 'a@b.cl' }, operation: 'create', req })).institucion).toBeNull()

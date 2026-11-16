@@ -162,6 +162,18 @@ describe('la cuenta desactivada no obtiene testigo', () => {
     await expect(entrar({ ...deLaInstitucion, institucion: { id: 7, subdominio: 'u' } }, '7')).resolves.toBeTruthy()
   })
 
+  it('el administrador de TraumaHub entra en una institución abierta como su soporte (D-404)', async () => {
+    const soporte = { id: '1', email: 's@traumahub.cl', activo: true, rol: 'admin', institucion: null }
+    await expect(entrar(soporte, '7')).resolves.toBe(soporte)
+    // En una bloqueada no entra nadie, tampoco él; y en una que no existe, como siempre.
+    await expect(entrar(soporte, '9')).rejects.toThrow(InstitucionBloqueadaAlEntrar)
+    await expect(entrar(soporte, '11')).rejects.toThrow(CuentaDeOtroLugar)
+    // El editor y el lector de TraumaHub, no.
+    for (const rol of ['editor', 'lector']) {
+      await expect(entrar({ ...soporte, rol }, '7')).rejects.toThrow(CuentaDeOtroLugar)
+    }
+  })
+
   it('y no entra si su institución está bloqueada o ya no existe (D-403)', async () => {
     await expect(entrar({ id: '6', email: 'r@v.cl', activo: true, institucion: 9 }, '9')).rejects.toThrow(
       InstitucionBloqueadaAlEntrar,

@@ -53,7 +53,7 @@ import {
 import { codigoDeLaInstitucion, codigosIguales } from '@/lib/invitacionesServidor'
 import { sinLaPeticion } from '@/lib/barreraDeInstitucion'
 import { idDeInstitucion } from '@/access/payload'
-import { cuentaValeEnElLugar, filtroDelLugar } from '@/access/reglas'
+import { comoValeEnElLugar, cuentaValeEnElLugar, filtroDelLugar } from '@/access/reglas'
 import { estaBloqueada } from '@/lib/instituciones'
 
 /**
@@ -144,6 +144,41 @@ const DIEZ_MINUTOS = 10 * 60 * 1000
  */
 const LIMITE_DE_ENTRADAS = crearLimitador('entrar:direccion', { maximo: 30, ventanaMs: DIEZ_MINUTOS })
 
+/** Cómo nombra el registro la institución donde actuó el soporte (D-404). */
+const nombreDelSoporte = (institucion: { nombre: string; subdominio: string }): string =>
+  `${institucion.nombre} (${institucion.subdominio})`
+
+/**
+ * ¿Entra con ese correo el soporte de TraumaHub, el fantasma de D-404? Devuelve
+ * cómo lo nombrará el registro, o `undefined`.
+ *
+ * Se mira antes de entrar porque el soporte entra sin la barrera de la base, y
+ * eso se decide antes del `login`. Con la barrera puesta y sin más: desde una
+ * institución se leen sus cuentas y las de TraumaHub, que es justo lo que hace
+ * falta. Lo que se decide aquí es solo por dónde se entra; si puede entrar lo
+ * sigue diciendo `beforeLogin`, con la contraseña.
+ */
+async function soporteQueEntra(
+  payload: Awaited<ReturnType<typeof getPayload>>,
+  email: string,
+  institucion: { id: string; nombre: string; subdominio: string } | null,
+): Promise<string | undefined> {
+  if (!institucion) return undefined
+  const { docs } = await payload.find({
+    collection: 'usuarios',
+    where: { email: { equals: email } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+    select: { rol: true, institucion: true },
+  })
+  const cuenta = docs[0] as { rol?: unknown; institucion?: unknown } | undefined
+  if (!cuenta) return undefined
+  return comoValeEnElLugar(cuenta.rol, idDeInstitucion(cuenta.institucion), institucion.id) === 'soporte'
+    ? nombreDelSoporte(institucion)
+    : undefined
+}
+
 export async function entrar(
   correo: unknown,
   contrasena: unknown,
@@ -175,21 +210,40 @@ export async function entrar(
     // ninguna. `beforeLogin` lo vuelve a mirar por si se llega de otro modo.
     if (lugar.institucion && estaBloqueada(lugar.institucion.vence)) throw new Error(MENSAJE_INSTITUCION_BLOQUEADA)
 
+    let email: string
+    try {
+      email = exigirCorreo(correo)
+    } catch {
+      // Lo mismo que si no existiera: así decía antes, cuando el correo se
+      // validaba dentro del `login`.
+      throw new Error('Correo o contraseña incorrectos.')
+    }
+    const soporteEn = await soporteQueEntra(payload, email, lugar.institucion)
+
     let resultado: { token?: string; user?: { activo?: unknown; rol?: unknown; bienvenidaVistaEn?: unknown } }
     try {
-      resultado = await payload.login({
-        collection: 'usuarios',
-        data: { email: exigirCorreo(correo), password: contrasena },
-        // El equipo, la IP y el país de esta entrada, para el gancho que cierra
-        // las demás sesiones de la cuenta (`hooks/sesionUnica.ts`, D-388): la
-        // API local no le pasa las cabeceras de la petición. Y la institución
-        // del lugar, para `beforeLogin`, que no deja entrar a una cuenta de
-        // otra (`CuentaDeOtroLugar`).
-        context: {
-          entrada: datosDeLaPeticion(cabeceras, direccion),
-          institucionDelLugar: lugar.institucion?.id ?? null,
-        },
-      })
+      const iniciar = () =>
+        payload.login({
+          collection: 'usuarios',
+          data: { email, password: contrasena },
+          // El equipo, la IP y el país de esta entrada, para el gancho que
+          // cierra las demás sesiones de la cuenta (`hooks/sesionUnica.ts`,
+          // D-388): la API local no le pasa las cabeceras de la petición. La
+          // institución del lugar, para `beforeLogin`, que no deja entrar a una
+          // cuenta de otra (`CuentaDeOtroLugar`). Y si entra el soporte, dónde,
+          // para que el registro lo cuente.
+          context: {
+            entrada: datosDeLaPeticion(cabeceras, direccion),
+            institucionDelLugar: lugar.institucion?.id ?? null,
+            ...(soporteEn ? { soporteEn } : {}),
+          },
+        })
+      // El soporte entra sin la barrera de la institución (`sinLaPeticion`):
+      // entrar escribe en su cuenta, en su entrada y en el registro, y las tres
+      // filas son de TraumaHub. Con la barrera puesta, la base no las deja
+      // escribir y el `login` falla. Solo para él: lo demás que se entra desde
+      // una institución sigue con la barrera.
+      resultado = soporteEn ? await sinLaPeticion(iniciar) : await iniciar()
     } catch (fallo) {
       // La cuenta bloqueada se dice, y no se disfraza de contraseña mala.
       //
@@ -278,31 +332,45 @@ export async function entrar(
 async function revocarLaSesionActual(): Promise<void> {
   try {
     const payload = await getPayload({ config })
-    const { user } = await payload.auth({ headers: await headers() })
+    const cabeceras = await headers()
+    const { user } = await payload.auth({ headers: cabeceras })
     const sid = (user as { _sid?: unknown } | null)?._sid
     if (!user || typeof sid !== 'string') return
 
-    // Antes de quitar la sesión: después ya no se sabría quién era.
-    await registrarAccion(payload, { accion: 'sesion-cerrada', usuario: user })
+    // El soporte de TraumaHub sale de una institución sin la barrera (D-404),
+    // por lo mismo que entra sin ella: su cuenta y su entrada son de TraumaHub,
+    // y con la barrera puesta la base no deja tocarlas. Sin esto se borraba la
+    // cookie y la sesión seguía viva en la base.
+    const lugar = await lugarDeLaPeticion(payload, cabeceras)
+    const soporteEn =
+      lugar.institucion && idDeInstitucion((user as { institucion?: unknown }).institucion) === null
+        ? nombreDelSoporte(lugar.institucion)
+        : undefined
 
-    const cuenta = await payload.findByID({
-      collection: 'usuarios',
-      id: user.id,
-      depth: 0,
-      overrideAccess: true,
-      showHiddenFields: true,
-    })
-    const ahora = Date.now()
-    const vigentes = (cuenta.sessions ?? []).filter(
-      (sesion) => sesion.id !== sid && new Date(sesion.expiresAt).getTime() > ahora,
-    )
-    await payload.update({
-      collection: 'usuarios',
-      id: user.id,
-      data: { sessions: vigentes },
-      overrideAccess: true,
-    })
-    await cerrarLaEntrada(payload, sid, 'salio')
+    const darDeBaja = async () => {
+      // Antes de quitar la sesión: después ya no se sabría quién era.
+      await registrarAccion(payload, { accion: 'sesion-cerrada', usuario: user, soporteEn })
+
+      const cuenta = await payload.findByID({
+        collection: 'usuarios',
+        id: user.id,
+        depth: 0,
+        overrideAccess: true,
+        showHiddenFields: true,
+      })
+      const ahora = Date.now()
+      const vigentes = (cuenta.sessions ?? []).filter(
+        (sesion) => sesion.id !== sid && new Date(sesion.expiresAt).getTime() > ahora,
+      )
+      await payload.update({
+        collection: 'usuarios',
+        id: user.id,
+        data: { sessions: vigentes },
+        overrideAccess: true,
+      })
+      await cerrarLaEntrada(payload, sid, 'salio')
+    }
+    await (soporteEn ? sinLaPeticion(darDeBaja) : darDeBaja())
   } catch (fallo) {
     console.error('[sesion] no se pudo dar de baja la sesión al salir:', fallo)
   }

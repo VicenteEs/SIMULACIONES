@@ -92,5 +92,11 @@ export const RegistroDeAcciones: CollectionConfig = {
     // Cuando el acto lo hace el sistema y no una cuenta —un script de
     // importación, una tarea programada—, aquí va quién: «importador», por ejemplo.
     { name: 'origen', type: 'text', label: 'Origen (si no fue una cuenta)' },
+    // Lo que hizo el administrador de TraumaHub dentro de una institución, como
+    // soporte (el fantasma, D-404): la institución, por nombre y subdominio. En
+    // texto y no como relación, como el nombre y el correo de la cuenta: es lo
+    // que era entonces, y sigue diciéndolo aunque la institución cambie de
+    // nombre. Estas filas son de TraumaHub, y la institución no las ve.
+    { name: 'soporteEn', type: 'text', label: 'Como soporte en' },
   ],
 }

@@ -65,6 +65,27 @@ export function idDeInstitucion(valor: unknown): string | null {
   return null
 }
 
+/**
+ * La cuenta de TraumaHub, vista como administradora de la institución donde
+ * entró (el fantasma, D-404): una copia con esa institución y la marca
+ * `fantasma`. La fila de la base no cambia.
+ *
+ * La institución, como número, que es como la trae una cuenta leída de la base.
+ */
+export function comoSoporte(cuenta: Record<string, unknown>, institucion: string): Record<string, unknown> {
+  return { ...cuenta, institucion: /^\d+$/.test(institucion) ? Number(institucion) : institucion, fantasma: true }
+}
+
+/**
+ * ¿Es la sesión del soporte de TraumaHub dentro de una institución (D-404)?
+ *
+ * Lo preguntan las pocas cosas que el fantasma no hace como el administrador de
+ * la institución: no deja actividad ni tiempo activo, no se le pide el aviso de
+ * privacidad y su registro va a TraumaHub.
+ */
+export const esFantasma = (usuario: unknown): boolean =>
+  Boolean(usuario && typeof usuario === 'object' && (usuario as { fantasma?: unknown }).fantasma === true)
+
 const usuarioDe = (args: { req?: { user?: unknown } }): UsuarioSesion | null =>
   usuarioDeSesion(args?.req?.user)
 

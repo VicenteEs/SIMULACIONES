@@ -1,6 +1,6 @@
 'use server'
 
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
 import { accion, type Respuesta } from '@/lib/guardias'
@@ -8,6 +8,10 @@ import { COOKIE_DE_LA_INSTITUCION_DE_PRUEBA, normalizarSubdominioPedido } from '
 import { institucionPorSubdominio } from '@/lib/institucionesServidor'
 import { PATH_DE_LAS_COOKIES } from '@/lib/pathDeLasCookies'
 import { servidorDePruebas } from '@/lib/servidorDePruebas'
+import { comoValeEnElLugar } from '@/access/reglas'
+import { idDeInstitucion } from '@/access/payload'
+import { estaBloqueada } from '@/lib/instituciones'
+import { registrarAccion } from '@/lib/registroServidor'
 
 /**
  * El selector de institución de ved (D-371, D-396).
@@ -21,6 +25,11 @@ import { servidorDePruebas } from '@/lib/servidorDePruebas'
  * No toca la sesión. Al cambiar de lugar, la cuenta que había deja de valer
  * —una cuenta vale solo en el suyo—, y al volver vale otra vez: para probar,
  * eso es lo cómodo. Vacío vuelve a la central.
+ *
+ * La excepción es el administrador de TraumaHub, que en una institución vale
+ * como su soporte (el fantasma, D-404). En Contabo eso pide entrar en el
+ * subdominio, y la entrada queda en el registro; aquí basta con elegirla, así
+ * que es aquí donde se anota.
  */
 export async function elegirInstitucionDePrueba(subdominio: unknown): Promise<Respuesta> {
   return accion(async () => {
@@ -36,9 +45,8 @@ export async function elegirInstitucionDePrueba(subdominio: unknown): Promise<Re
       return null
     }
     const payload = await getPayload({ config })
-    if (!(await institucionPorSubdominio(payload, elegido))) {
-      throw new Error(`No hay ninguna institución con el subdominio «${elegido}».`)
-    }
+    const institucion = await institucionPorSubdominio(payload, elegido)
+    if (!institucion) throw new Error(`No hay ninguna institución con el subdominio «${elegido}».`)
     almacen.set(COOKIE_DE_LA_INSTITUCION_DE_PRUEBA, elegido, {
       httpOnly: true,
       sameSite: 'lax',
@@ -46,6 +54,18 @@ export async function elegirInstitucionDePrueba(subdominio: unknown): Promise<Re
       path: PATH_DE_LAS_COOKIES,
       maxAge: 30 * 24 * 60 * 60,
     })
+    // La cuenta tal cual, sin mirar el lugar: la petición todavía llega desde
+    // el anterior.
+    const { user } = await payload.auth({ headers: await headers() })
+    const cuenta = user as { rol?: unknown; activo?: unknown; institucion?: unknown } | null
+    if (
+      cuenta?.activo === true &&
+      !estaBloqueada(institucion.vence) &&
+      comoValeEnElLugar(cuenta.rol, idDeInstitucion(cuenta.institucion), institucion.id) === 'soporte'
+    ) {
+      const soporteEn = `${institucion.nombre} (${institucion.subdominio})`
+      await registrarAccion(payload, { accion: 'entrada-como-soporte', usuario: cuenta, titulo: soporteEn, soporteEn })
+    }
     return null
   })
 }
