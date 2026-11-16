@@ -4,6 +4,8 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import { COOKIE_VISTA_PREVIA, rolEfectivo } from '@/lib/vistaPrevia'
 import type { Rol } from '@/access/reglas'
+import { testigoDeLaPeticion } from '@/lib/cookieDeSesion'
+import { motivoDelCierre } from '@/lib/entradasServidor'
 
 export interface Sesion {
   usuario: Record<string, unknown> | null
@@ -11,6 +13,12 @@ export interface Sesion {
   rolReal: Rol | null
   rol: Rol | null
   simulando: boolean
+  /**
+   * Sin sesión, si es porque se entró con la cuenta en otro equipo (D-388): la
+   * cookie sigue aquí, pero su sesión ya no. Lo pinta la plantilla
+   * (`AvisoDeSesionCerrada`) y lo dicen las guardias de las acciones.
+   */
+  cierre?: 'otra-entrada' | null
 }
 
 /**
@@ -34,10 +42,23 @@ export const obtenerSesion = cache(async function obtenerSesion(): Promise<
   Sesion & { usuarioEfectivo: unknown }
 > {
   const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers: await siguientesCabeceras() })
+  const cabeceras = await siguientesCabeceras()
+  const { user } = await payload.auth({ headers: cabeceras })
 
   if (!user) {
-    return { usuario: null, activo: false, rolReal: null, rol: null, simulando: false, usuarioEfectivo: null }
+    // Solo cuando hay cookie y no hay sesión, que es raro: quien nunca entró no
+    // paga la consulta. `motivoDelCierre` no lanza.
+    const testigo = await testigoDeLaPeticion(cabeceras)
+    const motivo = testigo ? await motivoDelCierre(payload, testigo) : null
+    return {
+      usuario: null,
+      activo: false,
+      rolReal: null,
+      rol: null,
+      simulando: false,
+      usuarioEfectivo: null,
+      cierre: motivo === 'otra-entrada' ? motivo : null,
+    }
   }
 
   const registro = user as unknown as Record<string, unknown>

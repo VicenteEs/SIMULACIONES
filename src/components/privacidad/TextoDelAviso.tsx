@@ -14,7 +14,12 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { CORREO_DE_PRIVACIDAD, RESPONSABLE_DE_LOS_DATOS, diaDeLaVersion } from '@/lib/avisoDePrivacidad'
-import { MESES_DE_LAS_COTIZACIONES, MESES_DEL_REGISTRO_DE_ACCIONES, plazoEnPalabras } from '@/lib/conservacion'
+import {
+  MESES_DE_LAS_COTIZACIONES,
+  MESES_DE_LAS_ENTRADAS,
+  MESES_DEL_REGISTRO_DE_ACCIONES,
+  plazoEnPalabras,
+} from '@/lib/conservacion'
 
 /**
  * El cuerpo del aviso de privacidad (Q-005, D-258, D-294): sus diez apartados.
@@ -55,6 +60,12 @@ import { MESES_DE_LAS_COTIZACIONES, MESES_DEL_REGISTRO_DE_ACCIONES, plazoEnPalab
  * proveedor más: callarlo sería prometer menos de lo que pasa, que es lo que
  * el párrafo de arriba prohíbe.
  *
+ * La del 2026-11-16 suma lo que se guarda de cada entrada —equipo, IP y país—,
+ * con su plazo de `MESES_DE_LAS_ENTRADAS`, y que una cuenta solo puede estar
+ * abierta en un equipo a la vez (D-374, D-388). Con ella deja de ser verdad
+ * que la IP no se guarda en la base: se guarda la de cada entrada, y el texto
+ * lo dice donde antes lo negaba.
+ *
  * Los dos espacios en blanco —quién responde y a qué correo se escribe— salen
  * de `RESPONSABLE_DE_LOS_DATOS` y `CORREO_DE_PRIVACIDAD`. Vacíos, se pintan como
  * hueco a la vista (`EnBlanco`) y no con un valor de relleno, que se leería
@@ -70,6 +81,7 @@ export function TextoDelAviso() {
   )
   const plazoDelRegistro = plazoEnPalabras(MESES_DEL_REGISTRO_DE_ACCIONES)
   const plazoDeLasCotizaciones = plazoEnPalabras(MESES_DE_LAS_COTIZACIONES)
+  const plazoDeLasEntradas = plazoEnPalabras(MESES_DE_LAS_ENTRADAS)
 
   return (
     <>
@@ -110,8 +122,15 @@ export function TextoDelAviso() {
             la cuenta la creó un administrador.
           </li>
           <li>
-            La fecha de tu último acceso, tus sesiones abiertas y los intentos fallidos de entrada, que bloquean
-            la cuenta un rato si alguien prueba contraseñas.
+            La fecha de tu último acceso, tu sesión abierta y los intentos fallidos de entrada, que bloquean la
+            cuenta un rato si alguien prueba contraseñas.
+          </li>
+          <li>
+            De cada vez que entras: cuándo, desde qué equipo —el navegador y el sistema, como «Chrome en
+            Windows»—, desde qué dirección IP y, si se sabe, desde qué país, y cuándo y por qué se cerró esa
+            sesión. Tu cuenta solo puede estar abierta en un equipo a la vez: al entrar en uno, se cierra en el
+            otro. Si tu cuenta entra de una forma que no parece de una sola persona, como desde dos países en
+            poco tiempo o turnándose entre dos equipos, se avisa a los administradores.
           </li>
           <li>Qué fichas abres, cuáles marcas como leídas y en qué parte de cada una te quedaste.</li>
           <li>
@@ -152,9 +171,9 @@ export function TextoDelAviso() {
         <p>
           Tu navegador guarda una cookie de sesión, que te mantiene dentro hasta ocho horas, y algunas
           preferencias de pantalla y copias de lo que estás editando, que se quedan en tu equipo. Tu dirección IP
-          se usa para frenar abusos, como demasiados intentos de entrada: la plataforma la tiene en memoria para
-          eso y no la guarda en su base de datos. Cloudflare, por donde pasa cada visita, también la ve, como se
-          explica en «Dónde se guardan». No usamos cookies de publicidad ni herramientas de analítica de
+          se usa además para frenar abusos, como demasiados intentos de entrada: para eso la plataforma la tiene
+          solo en memoria. La que se guarda en su base de datos es la de cada entrada, como se dice más arriba.
+          Cloudflare, por donde pasa cada visita, también la ve, como se explica en «Dónde se guardan». No usamos cookies de publicidad ni herramientas de analítica de
           terceros.
         </p>
       </Seccion>
@@ -179,7 +198,10 @@ export function TextoDelAviso() {
             Para la docencia: que veas tu avance y retomes donde quedaste, y que los administradores sepan cómo
             avanza cada persona.
           </li>
-          <li>Para la seguridad: saber quién entró y quién cambió qué y con qué permisos, y frenar los abusos.</li>
+          <li>
+            Para la seguridad: saber quién entró y quién cambió qué y con qué permisos, frenar los abusos y que
+            cada cuenta la use una sola persona.
+          </li>
           <li>
             Para mejorar la plataforma y dar cuenta de su uso, con cifras agregadas que no identifican a nadie,
             como cuántas personas terminaron un caso.
@@ -247,7 +269,8 @@ export function TextoDelAviso() {
         </p>
         <p>
           Cuando una cuenta se elimina —porque nos lo pides o porque se rechaza la solicitud—, se borran con ella
-          los datos de la cuenta y el avance en las fichas y en el simulador. Queda, sin nada que lo una a ti:
+          los datos de la cuenta, sus entradas y el avance en las fichas y en el simulador. Queda, sin nada que
+          lo una a ti:
         </p>
         <ul>
           <li>lo que comentaste, sin tu nombre, porque vale por lo que dice de la ficha;</li>
@@ -264,6 +287,10 @@ export function TextoDelAviso() {
         <p>
           El registro de acciones se borra a los {plazoDelRegistro}: cada entrada desaparece cuando cumple{' '}
           {plazoDelRegistro}, exista o no la cuenta.
+        </p>
+        <p>
+          Cada entrada —cuándo, desde qué equipo, desde qué IP y desde qué país— se borra a los{' '}
+          {plazoDeLasEntradas}, aunque la cuenta siga.
         </p>
         <p>Una cotización se borra a los {plazoDeLasCotizaciones} de llegar, o antes si nos pides borrarla.</p>
         <p>

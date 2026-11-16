@@ -1141,6 +1141,12 @@ figcaption { font-size: var(--t-sm); color: var(--pizarra); margin-top: var(--e-
   border-radius: var(--r); cursor: pointer; font: inherit; font-size: var(--t-sm); font-weight: 600;
 }
 .aviso-actualizacion .aviso-aplazar { background: transparent; border-color: var(--sobre-tinta-borde-fuerte); }
+/* El «Entrar de nuevo» del aviso de sesión cerrada (D-388) es un enlace y no un botón, y lleva la misma forma. */
+.aviso-actualizacion .aviso-boton {
+  display: inline-flex; align-items: center; min-height: 36px; padding: 0 var(--e-3); flex-shrink: 0;
+  background: var(--marca); color: var(--superficie); border: 1px solid var(--marca);
+  border-radius: var(--r); font-size: var(--t-sm); font-weight: 600; text-decoration: none;
+}
 @keyframes surgir { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
 /* Aquí vivían seis clases del antiguo editor de encuadre, el que se montaba
@@ -1429,7 +1435,7 @@ input[type='checkbox'], input[type='radio'], input[type='range'] { accent-color:
      ficha impresa para pabellón puede ser justo lo que manda las últimas
      líneas a una hoja más. */
   nav, .barra, .miga, .boton, .boton-imprimir, .barra-acciones, .rastreador-actividad, .formulario-comentario, .comentar, .pie-de-pagina,
-  .examen-herramientas, .aviso-de-pruebas,
+  .examen-herramientas, .aviso-de-pruebas, .aviso-de-sesion-cerrada,
   .pestana-eyebrow, .ficha-pestanas, .ficha-lateral, .firmas-de-la-ficha {
     display: none !important;
   }
@@ -2459,6 +2465,19 @@ dd > div blockquote p:last-child,
   line-height: 1.5;
 }
 .aviso-de-pruebas a { color: inherit; font-weight: 600; text-decoration: underline; }
+
+/* La franja de la sesión cerrada por otra entrada (D-388), con la forma de la de pruebas y el azul de la marca:
+   no es un error, y el ámbar ya dice «servidor de pruebas» justo encima. */
+.aviso-de-sesion-cerrada {
+  background: var(--marca-tenue);
+  color: var(--marca-honda);
+  border-bottom: 1px solid var(--marca);
+  padding: var(--e-2) var(--e-6);
+  text-align: center;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+.aviso-de-sesion-cerrada a { color: inherit; font-weight: 600; text-decoration: underline; }
 
 /* La firma con el logotipo de ChessCore. «Desarrollado por» y el logo van en una línea y el logo se
    alinea con la base del texto; en un teléfono de 320 px envuelven sin empujar la página. */

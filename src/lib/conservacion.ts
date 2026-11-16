@@ -11,7 +11,10 @@
  *    de fuera que pidió una propuesta. Contestada o no, al año ya no hay nada
  *    que contestarle.
  *
- * Los dos plazos viven aquí y en ningún otro sitio. Los lee la purga diaria
+ * Desde D-388 hay un tercero, el de las entradas, que sí cuelgan de una cuenta
+ * viva pero guardan la IP: con la cuenta duran lo que dure ella, y eso es demasiado.
+ *
+ * Los plazos viven aquí y en ningún otro sitio. Los lee la purga diaria
  * (`conservacionServidor.ts`) y los lee el aviso de privacidad, que los escribe
  * con estas mismas constantes: si el plazo cambia, el aviso cambia con él en el
  * mismo cambio, y no puede quedarse prometiendo otro. Cambiar uno pide además
@@ -27,6 +30,17 @@ export const MESES_DEL_REGISTRO_DE_ACCIONES = 12
 
 /** Meses que se guarda una cotización, contados desde que llegó. */
 export const MESES_DE_LAS_COTIZACIONES = 12
+
+/**
+ * Meses que se guarda cada entrada a la plataforma —equipo, IP y país—, contados
+ * desde que se entró (D-388).
+ *
+ * Menos que el registro a propósito. Para lo que sirven, avisar de una cuenta
+ * que se presta, bastan horas; los meses de más son para que un administrador
+ * pueda mirar atrás cuando llega una alerta o una queja, y una IP es lo que
+ * menos falta hace guardar un año.
+ */
+export const MESES_DE_LAS_ENTRADAS = 3
 
 /**
  * El instante antes del cual lo guardado hace `meses` meses ya venció.

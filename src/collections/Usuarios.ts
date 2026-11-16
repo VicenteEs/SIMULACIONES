@@ -3,6 +3,7 @@ import { administracionDeUsuarios, accesoAlPanel } from '@/access/payload'
 import { ajustarPrimerUsuario } from './hooks/primerUsuario'
 import { impedirAutobloqueo, impedirBorradoDelUltimoAdmin } from './hooks/autobloqueo'
 import { limpiarRastroDeUsuario } from './hooks/bajaDeUsuario'
+import { unaSesionPorCuenta } from './hooks/sesionUnica'
 import { armarCorreo } from '@/correo/plantilla'
 import { mensajeDeClaveNueva } from '@/correo/mensajes'
 import { registrarAccion } from '@/lib/registroServidor'
@@ -324,7 +325,7 @@ export const Usuarios: CollectionConfig = {
               { id: usuarioId, email: (cuenta as { email?: unknown } | null)?.email },
               req,
             )
-            return r.propias + r.sobreElla + r.difusiones + r.preferencias
+            return r.propias + r.sobreElla + r.difusiones + r.preferencias + r.entradas
           },
         })
       },
@@ -351,6 +352,8 @@ export const Usuarios: CollectionConfig = {
     // inicio de sesión se queda esperando el bloqueo durante minutos. Con él,
     // la escritura entra en la transacción que ya está abierta.
     afterLogin: [
+      // Primero, que es el que deja la cuenta con una sola sesión. Ver el gancho.
+      unaSesionPorCuenta,
       async ({ req, user }) => {
         try {
           await req.payload.update({

@@ -231,6 +231,8 @@ const CLASE_DE: Record<string, Clase> = {
   'sesiones-de-revision': 'administracion',
   // El registro de acciones y el tiempo activo (D-145): solo el administrador.
   'registro-de-acciones': 'administracion',
+  // Equipo, IP y país de cada entrada (D-388): como el registro, solo el administrador.
+  entradas: 'administracion',
   'tiempo-activo': 'administracion',
   // Los ajustes de la plataforma (D-156): hoy, los módulos en mantención.
   ajustes: 'administracion',
@@ -474,6 +476,11 @@ const FABRICAS: Record<string, { titulo: string; fabricar: (nombre: string) => F
   'registro-de-acciones': {
     titulo: 'titulo',
     fabricar: (titulo) => ({ data: { titulo, fecha: new Date().toISOString(), accion: 'creo' } }),
+  },
+  // Sin cuenta: la matriz mira quién lee y escribe la colección, y el equipo hace de título.
+  entradas: {
+    titulo: 'equipo',
+    fabricar: (equipo) => ({ data: { equipo, fecha: new Date().toISOString() } }),
   },
   ajustes: {
     titulo: 'nombre',

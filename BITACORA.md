@@ -11340,6 +11340,7 @@ Lo pidió el dueño el mismo día, al cerrar el plan.
 - (−) Falta el contrato: el acuerdo de tratamiento de datos de Cloudflare (su DPA), descargado y guardado fuera de los servidores, como el de Contabo (paso 10 de E8 de P-011). El texto se apoya en él.
 - (−) No lo ha leído el abogado. Lo revisa con todo lo demás en E8 de P-016.
 - (−) E3 guardará la IP, el país y el equipo de cada sesión (D-374). Desde ese día «no la guarda en su base de datos» deja de ser cierto. El aviso cambia en el mismo cambio, con otra versión.
+  - *Hecho el 2026-11-16 en D-388*, con la versión del aviso del 2026-11-16.
 
 ### D-383 · 2026-11-15 · vigente · P-016 E2
 **El prefijo con que se compila sale del `.env` de cada servidor: la plantilla de `despliegue/paginas` es la misma para ved y para Contabo.**
@@ -11534,6 +11535,53 @@ Comprobado después:
 - las 5 cuentas siguen ahí (D-384), y no quedó ni la base ni la imagen del ensayo. `salud.sh` solo marca lo de siempre: los respaldos salen sin cifrar hasta tener la llave (D-295).
 
 *Pendiente:* la limpieza de los modelos sin usar de ved, con el OK del dueño y su elección del «ejemplo_vicente» que se queda.
+
+### D-388 · 2026-11-16 · vigente · P-016 E3 · sigue a D-374
+**Una sesión por cuenta: al entrar se cierran las demás, el equipo que se queda fuera lo sabe, cada entrada guarda su equipo, su IP y su país por tres meses, y una entrada que no parece de una sola persona se avisa al administrador.**
+
+- **Las demás sesiones se cierran en un gancho `afterLogin` de `usuarios`** (`hooks/sesionUnica.ts` → `anotarLaEntrada`), y no en `entrar()`.
+  - Así vale por cualquier puerta que llegue a `payload.login`. Hoy solo llega `entrar()`, porque `POST /api/usuarios/login` contesta 403.
+  - Va antes del gancho del último acceso y dentro de la transacción del inicio de sesión, con su `req`.
+  - Deja en `sessions` solo la nueva, con `payload.update` y no con `payload.db.updateOne`: el adaptador vacía los arreglos que no vienen en `data`.
+  - Nunca lanza. Si falla, la persona entra igual y la sesión vieja vive hasta caducar, como antes.
+  - Las sesiones abiertas al desplegar siguen hasta la siguiente entrada de su cuenta, como mucho ocho horas.
+- **La colección `entradas`**, con la migración `20261116_002803_sesion_unica_y_entradas`. Guarda cuándo, la cuenta, la huella de la sesión, el equipo, la IP, el país, si echó a otro equipo, y cuándo y por qué se cerró («salió» o «se entró en otro equipo»).
+  - Hace falta aparte porque Payload borra las sesiones cerradas, y para decirle al equipo de fuera qué pasó, y para ver que una cuenta se turna, hay que acordarse de ellas.
+  - La sesión se guarda por su SHA-256 (`huellaDeSesion`): su identificador es una llave, y `datosDeUnaCuenta` ya lo trataba así.
+  - El equipo es «Chrome en Windows» y no el agente entero (`describirEquipo`). Con la IP, el agente se parece a una huella del equipo, y para reconocer «el computador del pabellón» basta con esto.
+  - El país es la cabecera `CF-IPCountry` de Cloudflare (`paisDeLaPeticion`). En Contabo la pone Cloudflare; en ved, sin túnel, la puede escribir quien llama, y ahí solo cambia una alerta.
+  - La IP es la de `direccionDeQuienLlama`, la misma del freno de intentos (O-072).
+  - `entrar()` pasa los tres en el `context` de `payload.login`, porque la API local no le da al gancho las cabeceras.
+  - No deja huella en el registro de acciones (`COLECCIONES_SIN_REGISTRO`): cada entrada ya deja su «Inició sesión».
+- **El equipo que se queda fuera lo sabe** por tres sitios, con el mismo texto (`MENSAJE_DE_OTRA_ENTRADA`):
+  - la pestaña abierta, en menos de un minuto: el flujo de `/api/cambios`, que ya comprobaba la sesión cada minuto, manda el evento `sesion` antes de cerrarse, y `AvisoActualizacion` saca «Entrar de nuevo» sin «Más tarde»;
+  - la página que se abra después: `obtenerSesion` devuelve `cierre: 'otra-entrada'` cuando hay cookie y no hay sesión, y la plantilla pinta `AvisoDeSesionCerrada`, en el flujo de la página como la franja de ved;
+  - las acciones: `exigirRolReal` y la ficha del simulador dicen el mismo texto en lugar de «Acceso denegado» (`mensajeSinSesion`).
+  - Para saberlo se lee el `sid` de la cookie con su firma comprobada (`testigoVerificado`, HS256 con `payload.secret` y `node:crypto`) y se busca su entrada. Un testigo inventado no pregunta por nada.
+- **Las alertas** (`motivosDeAlerta`, puras y con sus constantes):
+  - otro país a menos de dos horas de la entrada anterior que sabe de dónde vino. Dos horas es el vuelo más corto de Santiago a otro país, con el aeropuerto;
+  - turnarse: esta entrada echó a otro equipo (otro equipo o otra IP, cuando se saben), y en la última hora ya van tres.
+  - Cada alerta deja una línea «Entró de una forma que no parece de una sola persona» en el registro de acciones, con el motivo en el detalle. Cuenta como «Entrar y salir».
+  - Por correo, a los administradores activos (`mensajeDeEntradaSospechosa`), con las últimas entradas de la cuenta, y como mucho uno al día por cuenta. No se bloquea nada.
+- **El plazo es de tres meses** (`MESES_DE_LAS_ENTRADAS`), menos que los doce del registro. Para avisar bastan horas; los meses son para mirar atrás cuando llega una alerta o una queja.
+  - La pasada diaria borra las vencidas y las que quedaron sin cuenta, y el borrado de una cuenta se lleva las suyas en el acto (`anonimizarElRastroDeLaCuenta`).
+  - Entran en la exportación de los datos de una cuenta, sin la huella de la sesión, y no viajan a la copia del ensayo.
+- **El aviso de privacidad pasa a la versión del 2026-11-16**, y con ella todas las cuentas lo aceptan otra vez al entrar (D-292). Dice qué se guarda de cada entrada, que la cuenta solo se abre en un equipo a la vez, que se avisa a los administradores y el plazo. Donde decía que la IP no se guarda en la base, ahora dice cuál se guarda (era lo pendiente de D-382).
+- **Lo que queda:**
+  - ver las entradas de una cuenta en «Usuarios y permisos». Hoy solo salen en el correo de la alerta y en la exportación de sus datos;
+  - con las instituciones de E5, que la alerta vaya solo al administrador de TraumaHub y no al de la institución, como pide D-374. Hoy no hay otro;
+  - que lo lea el abogado, con el resto del aviso, en E8.
+
+*Consecuencias.*
+- (+) Prestar la cuenta obliga a echarse el uno al otro, y eso se ve y se avisa.
+- (+) Quien se queda fuera sabe por qué, y no cree que la plataforma se cayó o que le quitaron la cuenta.
+- (+) La regla vale por cualquier puerta que reabra el inicio de sesión.
+- (−) Un alumno no puede tener la plataforma abierta en dos equipos a la vez (ya lo decía D-374).
+- (−) Dos personas en el mismo hospital, con el mismo navegador y la misma salida a internet, se ven como un solo equipo: turnarse entre ellas no avisa. Solo lo delataría el país, y ahí el país es el mismo.
+- (−) Sin Cloudflare no hay país, y la regla del país no corre. En ved, además, el país lo puede escribir quien llama.
+- (−) El aviso en vivo solo llega a las páginas de dentro, que son las que abren `/api/cambios`, y tarda hasta un minuto.
+- (−) Cada entrada escribe dos o tres filas más, y cada página que llega con una cookie sin sesión, una consulta más.
+- (−) Todas las cuentas vuelven a aceptar el aviso la primera vez que entren después de desplegar.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -17656,6 +17704,13 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - desplegado en ved el 2026-11-16 (`28bb000`): la migración enlazó los tres «ejemplo_vicente» con su preparación;
       - *pendiente:* la limpieza de los modelos sobrantes de ved, con el OK del dueño;
   - las sesiones: una por cuenta, con alertas de entradas imposibles (D-374).
+    - *hecho el 2026-11-16 (D-388):*
+      - el gancho `unaSesionPorCuenta`, que al entrar deja la cuenta con una sola sesión, y la colección `entradas`, con su migración `20261116_002803_sesion_unica_y_entradas`;
+      - «Se inició sesión con su cuenta en otro equipo» en la pestaña abierta, en la página siguiente y en las acciones;
+      - las alertas por otro país demasiado pronto y por turnarse entre equipos, en el registro y por correo a los administradores;
+      - el plazo de tres meses, y el aviso de privacidad en la versión del 2026-11-16;
+      - pruebas: `entradas.test.ts` (unitaria) y `tests/integration/entradas.test.ts`;
+      - *pendiente:* las entradas de una cuenta en «Usuarios y permisos», y la revisión del aviso con el abogado en E8;
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
 - [ ] **E5 · Las instituciones (D-371).**
   - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;

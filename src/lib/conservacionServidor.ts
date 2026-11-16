@@ -5,7 +5,10 @@
  * desde la base:
  *
  *  1. **Lo vencido se borra**: las entradas del registro de acciones y las
- *     cotizaciones de más de doce meses.
+ *     cotizaciones de más de doce meses, y las entradas a la plataforma —con su
+ *     equipo, su IP y su país— de más de tres (D-388). Estas, además, se van
+ *     enteras con su cuenta: sin ella no dicen nada que sirva, y la IP es lo
+ *     último que conviene dejar sin dueño.
  *  2. **Lo que deja una cuenta al eliminarla pierde el nombre y el correo**
  *     (D-291): sus entradas del registro siguen diciendo qué se hizo, pero ya no
  *     de quién. Lo mismo las que la nombran —«cambió los permisos de Fulana»— y
@@ -37,7 +40,13 @@
  * anota una sola línea con el resumen, como hace la importación de libros.
  */
 import type { Payload, PayloadRequest, Where } from 'payload'
-import { MESES_DE_LAS_COTIZACIONES, MESES_DEL_REGISTRO_DE_ACCIONES, plazoEnPalabras, vencimiento } from './conservacion'
+import {
+  MESES_DE_LAS_COTIZACIONES,
+  MESES_DE_LAS_ENTRADAS,
+  MESES_DEL_REGISTRO_DE_ACCIONES,
+  plazoEnPalabras,
+  vencimiento,
+} from './conservacion'
 import { registrarAccion } from './registroServidor'
 
 type Peticion = Partial<PayloadRequest> | undefined
@@ -214,6 +223,25 @@ async function borrarPreferenciasHuerfanas(payload: Payload, req: Peticion): Pro
   return huerfanas.length
 }
 
+// ------------------------------------------------------------- entradas
+
+/**
+ * Borra las entradas a la plataforma que casan, y dice cuántas eran. Con un
+ * `DELETE` directo, como el registro: no tienen ganchos ni tablas colgadas, y
+ * las de un residente que entra a diario son cientos.
+ */
+async function borrarEntradas(payload: Payload, where: Where, req: Peticion): Promise<number> {
+  const { totalDocs } = await payload.count({
+    collection: 'entradas',
+    where,
+    overrideAccess: true,
+    ...(req ? { req: req as PayloadRequest } : {}),
+  })
+  if (totalDocs === 0) return 0
+  await payload.db.deleteMany({ collection: 'entradas', where, ...(req ? { req } : {}) })
+  return totalDocs
+}
+
 // ------------------------------------------------- al eliminar una cuenta
 
 export interface RastroAnonimizado {
@@ -225,6 +253,8 @@ export interface RastroAnonimizado {
   difusiones: number
   /** Preferencias de pantalla de la cuenta, borradas antes de que la base suelte el vínculo. */
   preferencias: number
+  /** Sus entradas a la plataforma, borradas enteras (D-388). */
+  entradas: number
 }
 
 /**
@@ -270,7 +300,8 @@ export async function anonimizarElRastroDeLaCuenta(
     ? await retirarCorreosDeLasDifusiones(payload, (c) => c.trim().toLowerCase() === correo, req)
     : 0
   const preferencias = await borrarPreferenciasDe(payload, id, req)
-  return { propias, sobreElla, difusiones, preferencias }
+  const entradas = await borrarEntradas(payload, { usuario: { equals: id } }, req)
+  return { propias, sobreElla, difusiones, preferencias, entradas }
 }
 
 // ------------------------------------------------- la pasada de cada día
@@ -288,6 +319,10 @@ export interface ResultadoDeLaConservacion {
   difusionesRetocadas: number
   /** Preferencias de pantalla que quedaron sin dueño al borrar su cuenta. */
   preferenciasHuerfanas: number
+  /** Entradas a la plataforma de más del plazo (D-388). */
+  entradasVencidas: number
+  /** Entradas de cuentas que se borraron sin pasar por el gancho. */
+  entradasHuerfanas: number
 }
 
 /**
@@ -316,7 +351,12 @@ async function borrarLoVencido(payload: Payload, ahora: Date) {
   if (errors.length > 0) {
     payload.logger.error({ msg: 'No se pudieron borrar algunas cotizaciones vencidas', errors })
   }
-  return { accionesVencidas, cotizacionesVencidas: docs.length }
+  const entradasVencidas = await borrarEntradas(
+    payload,
+    { fecha: { less_than: vencimiento(MESES_DE_LAS_ENTRADAS, ahora).toISOString() } },
+    undefined,
+  )
+  return { accionesVencidas, cotizacionesVencidas: docs.length, entradasVencidas }
 }
 
 const filasVivasDe = async (payload: Payload, collection: 'usuarios' | 'cotizaciones', req: Peticion) =>
@@ -401,8 +441,12 @@ export async function anonimizarLoDeCuentasBorradas(payload: Payload, req?: Peti
     req,
   )
   const preferenciasHuerfanas = await borrarPreferenciasHuerfanas(payload, req)
+  // La base deja `usuario` a nulo al borrar la cuenta (`ON DELETE SET NULL`), y
+  // una entrada siempre se anota con su cuenta: sin ella, solo puede ser de una
+  // que se borró sin pasar por `anonimizarElRastroDeLaCuenta`.
+  const entradasHuerfanas = await borrarEntradas(payload, { usuario: { exists: false } }, req)
 
-  return { accionesAnonimizadas, titulosRetirados, difusionesRetocadas, preferenciasHuerfanas }
+  return { accionesAnonimizadas, titulosRetirados, difusionesRetocadas, preferenciasHuerfanas, entradasHuerfanas }
 }
 
 /** El resumen de una pasada, como lo lee el administrador en el registro. */
@@ -418,6 +462,10 @@ export function resumenDeLaConservacion(r: ResultadoDeLaConservacion): string {
   if (r.titulosRetirados > 0) partes.push(`corrigió el título de ${r.titulosRetirados} entradas`)
   if (r.difusionesRetocadas > 0) partes.push(`quitó direcciones de cuentas eliminadas en ${r.difusionesRetocadas} difusiones`)
   if (r.preferenciasHuerfanas > 0) partes.push(`borró ${r.preferenciasHuerfanas} preferencias de cuentas eliminadas`)
+  if (r.entradasVencidas > 0) {
+    partes.push(`borró ${r.entradasVencidas} entradas a la plataforma de más de ${plazoEnPalabras(MESES_DE_LAS_ENTRADAS)}`)
+  }
+  if (r.entradasHuerfanas > 0) partes.push(`borró ${r.entradasHuerfanas} entradas a la plataforma de cuentas eliminadas`)
   return partes.join(' · ')
 }
 

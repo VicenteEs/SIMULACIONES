@@ -42,6 +42,9 @@ export const ACCIONES_DEL_REGISTRO = [
   // Un administrador descargó todo lo que la plataforma guarda de una cuenta,
   // para responder a una solicitud de acceso o de portabilidad (D-293).
   { value: 'exportacion-de-datos', label: 'Exportó los datos de una cuenta' },
+  // La cuenta entró de una forma que no parece de una sola persona: desde otro
+  // país demasiado pronto, o turnándose entre equipos (D-388). El detalle dice cuál.
+  { value: 'entrada-sospechosa', label: 'Entró de una forma que no parece de una sola persona' },
 ] as const
 
 export type AccionDelRegistro = (typeof ACCIONES_DEL_REGISTRO)[number]['value']
@@ -79,13 +82,17 @@ export function quienEnElRegistro(entrada: { usuarioNombre?: unknown; origen?: u
  *   abierto, y su contenido —el tiempo de revisión— ya tiene su pantalla en
  *   Auditoría;
  * - `revisiones`: las escribe el servidor sin cuenta al lado, y su historial
- *   guarda cada cambio de estado con quién lo hizo.
+ *   guarda cada cambio de estado con quién lo hizo;
+ * - `entradas` (D-388): cada entrada ya deja su «Inició sesión», y la fila de
+ *   la entrada es ella misma un registro. Anotarla otra vez sería decir lo mismo
+ *   dos veces, y la segunda con la IP, por doce meses en lugar de tres.
  */
 export const COLECCIONES_SIN_REGISTRO: readonly string[] = [
   'registro-de-acciones',
   'tiempo-activo',
   'sesiones-de-revision',
   'revisiones',
+  'entradas',
 ]
 
 // ------------------------------------------------------ foto de la cuenta

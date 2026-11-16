@@ -45,6 +45,8 @@ export const COLECCIONES_SIN_COPIAR: readonly string[] = [
   'comentarios',
   'difusiones',
   'registro-de-acciones',
+  // Equipo, IP y país de cada entrada (D-388).
+  'entradas',
   'requisitos',
   'revisiones',
   'sesiones-de-revision',

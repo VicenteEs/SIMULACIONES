@@ -214,7 +214,7 @@ export interface AccionReciente {
 }
 
 /** Lo que el registro no cuenta como «trabajo del equipo»: entrar, salir y leer. */
-const NO_ES_TRABAJO = ['lectura', 'sesion-iniciada', 'sesion-cerrada']
+const NO_ES_TRABAJO = ['lectura', 'sesion-iniciada', 'sesion-cerrada', 'entrada-sospechosa']
 
 /** Las últimas `n` cosas que el equipo cambió, del registro de acciones (D-145). */
 export async function actividadReciente(payload: Payload, n = 5): Promise<AccionReciente[] | null> {

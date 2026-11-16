@@ -69,9 +69,11 @@ describe.skipIf(payload === null)('salir da de baja la sesión en la base', () =
     }
   })
 
-  it('el testigo copiado antes de salir deja de abrir sesión, y el de otro dispositivo no', async () => {
+  // Hasta D-388 se entraba también desde el teléfono y se comprobaba que esa
+  // sesión seguía viva. Ya no puede: entrar en el teléfono cierra la del
+  // pabellón antes de salir (`tests/integration/entradas.test.ts`).
+  it('el testigo copiado antes de salir deja de abrir sesión', async () => {
     const pabellon = await entrar()
-    const telefono = await entrar()
     expect((await base.auth({ headers: cabecerasCon(pabellon) })).user).not.toBeNull()
 
     const { salir } = await import('@/app/(frontend)/acciones/sesion')
@@ -81,8 +83,6 @@ describe.skipIf(payload === null)('salir da de baja la sesión en la base', () =
     expect(respuesta.exito).toBe(true)
     expect(peticion.borradas).toContain(`${base.config.cookiePrefix}-token`)
     expect((await base.auth({ headers: cabecerasCon(pabellon) })).user).toBeNull()
-    // Salir en el computador del pabellón no cierra la sesión del teléfono.
-    expect((await base.auth({ headers: cabecerasCon(telefono) })).user).not.toBeNull()
   })
 })
 

@@ -327,7 +327,7 @@ export type TipoDeAccion = (typeof TIPOS_DE_ACCION)[number]['clave']
  */
 export function tipoDeAccion(accion: unknown, coleccion: unknown): TipoDeAccion {
   if (accion === 'lectura') return coleccion === 'cirugias' ? 'simulador' : 'leer'
-  if (accion === 'sesion-iniciada' || accion === 'sesion-cerrada') return 'sesion'
+  if (accion === 'sesion-iniciada' || accion === 'sesion-cerrada' || accion === 'entrada-sospechosa') return 'sesion'
   if (coleccion === 'usuarios') return 'administrar'
   if (coleccion === 'comentarios') return 'comentar'
   if (['creo', 'modifico', 'elimino', 'publico', 'retiro'].includes(String(accion))) return 'editar'

@@ -1,7 +1,9 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
 import { ruta } from '@/lib/rutas'
+import { MENSAJE_DE_OTRA_ENTRADA } from '@/lib/entradas'
 import { NOMBRE_DE_MODULO } from '@/app/(frontend)/admin-panel/modulos'
 import { hayCambiosSinGuardar } from '@/admin/salidaDelEditor'
 import {
@@ -41,6 +43,9 @@ export function AvisoActualizacion() {
   /** `null`: no hay versión nueva. Un número: segundos que faltan. `'espera'`: aplazada o con cambios sin guardar. */
   const [versionNueva, setVersionNueva] = React.useState<number | 'espera' | null>(null)
   const memoria = React.useRef<MemoriaDelAviso | null>(null)
+  // Se entró con esta cuenta en otro equipo y aquí la sesión ya no vale (D-388).
+  // Gana a los otros dos avisos: recargar o ver contenido nuevo ya no sirve.
+  const [sesionCerrada, setSesionCerrada] = React.useState(false)
 
   React.useEffect(() => {
     const fuente = new EventSource(ruta('/api/cambios'))
@@ -66,6 +71,13 @@ export function AvisoActualizacion() {
       }
     }
 
+    // El servidor lo manda justo antes de cerrar el flujo (`api/cambios`). Se
+    // cierra también aquí: el reintento contestaría 401 y no diría nada más.
+    fuente.addEventListener('sesion', () => {
+      setSesionCerrada(true)
+      fuente.close()
+    })
+
     // Si la conexión se corta, el navegador reintenta solo. No se avisa de
     // nada: una caída de red no es contenido nuevo.
     fuente.onerror = () => {}
@@ -85,6 +97,20 @@ export function AvisoActualizacion() {
     }, 1000)
     return () => clearTimeout(reloj)
   }, [versionNueva])
+
+  if (sesionCerrada) {
+    // Sin «Más tarde»: lo que se haga aquí ya no se guarda. Lo que se estaba
+    // escribiendo en el panel queda en la copia local del navegador
+    // (`guardadoAutomatico.ts`), que no depende de la sesión.
+    return (
+      <div className="aviso-actualizacion" role="alert">
+        <span>{MENSAJE_DE_OTRA_ENTRADA}</span>
+        <Link className="aviso-boton" href="/entrar">
+          Entrar de nuevo
+        </Link>
+      </div>
+    )
+  }
 
   if (versionNueva !== null) {
     return (

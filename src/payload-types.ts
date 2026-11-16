@@ -91,6 +91,7 @@ export interface Config {
     revisiones: Revisione;
     'sesiones-de-revision': SesionesDeRevision;
     'registro-de-acciones': RegistroDeAccione;
+    entradas: Entrada;
     'tiempo-activo': TiempoActivo;
     ajustes: Ajuste;
     requisitos: Requisito;
@@ -129,6 +130,7 @@ export interface Config {
     revisiones: RevisionesSelect<false> | RevisionesSelect<true>;
     'sesiones-de-revision': SesionesDeRevisionSelect<false> | SesionesDeRevisionSelect<true>;
     'registro-de-acciones': RegistroDeAccionesSelect<false> | RegistroDeAccionesSelect<true>;
+    entradas: EntradasSelect<false> | EntradasSelect<true>;
     'tiempo-activo': TiempoActivoSelect<false> | TiempoActivoSelect<true>;
     ajustes: AjustesSelect<false> | AjustesSelect<true>;
     requisitos: RequisitosSelect<false> | RequisitosSelect<true>;
@@ -2411,6 +2413,24 @@ export interface RegistroDeAccione {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "entradas".
+ */
+export interface Entrada {
+  id: number;
+  fecha: string;
+  usuario?: (number | null) | Usuario;
+  sesion?: string | null;
+  equipo?: string | null;
+  ip?: string | null;
+  pais?: string | null;
+  cerroOtroEquipo?: boolean | null;
+  cerradaEn?: string | null;
+  motivoDelCierre?: ('salio' | 'otra-entrada') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "tiempo-activo".
  */
 export interface TiempoActivo {
@@ -2652,6 +2672,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'registro-de-acciones';
         value: number | RegistroDeAccione;
+      } | null)
+    | ({
+        relationTo: 'entradas';
+        value: number | Entrada;
       } | null)
     | ({
         relationTo: 'tiempo-activo';
@@ -4361,6 +4385,23 @@ export interface RegistroDeAccionesSelect<T extends boolean = true> {
   detalle?: T;
   cambios?: T;
   origen?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "entradas_select".
+ */
+export interface EntradasSelect<T extends boolean = true> {
+  fecha?: T;
+  usuario?: T;
+  sesion?: T;
+  equipo?: T;
+  ip?: T;
+  pais?: T;
+  cerroOtroEquipo?: T;
+  cerradaEn?: T;
+  motivoDelCierre?: T;
   updatedAt?: T;
   createdAt?: T;
 }

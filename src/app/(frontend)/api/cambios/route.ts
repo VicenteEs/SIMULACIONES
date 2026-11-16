@@ -5,6 +5,8 @@ import { versionActual } from '@/lib/publicaciones'
 import { despliegueActual } from '@/lib/despliegue'
 import { puedeVerModulo } from '@/access/reglas'
 import { leerMantencion } from '@/lib/mantencion'
+import { testigoDeLaPeticion } from '@/lib/cookieDeSesion'
+import { motivoDelCierre } from '@/lib/entradasServidor'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,6 +99,15 @@ export async function GET() {
         }
         if (!sesion) {
           clearInterval(intervalo)
+          // Antes de cerrar, el porqué, si es que se entró con la cuenta en otro
+          // equipo (D-388). Es la única forma de que lo sepa la pestaña que ya
+          // estaba abierta: al reabrirse, el flujo contesta 401 y `EventSource`
+          // deja de intentarlo sin leer nada. Un minuto como mucho, que es lo que
+          // tarda la comprobación de arriba.
+          const motivo = await motivoDelCierre(payload, await testigoDeLaPeticion(cabeceras))
+          if (motivo === 'otra-entrada') {
+            controlador.enqueue(codificador.encode('event: sesion\ndata: {"cierre":"otra-entrada"}\n\n'))
+          }
           controlador.close()
           return
         }

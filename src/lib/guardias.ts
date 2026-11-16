@@ -15,13 +15,22 @@ import config from '@payload-config'
 import { SLUGS_DE_MODULOS } from '@/collections'
 import { CATALOGOS_DEL_SIMULADOR } from '@/collections/catalogos'
 import { ESQUEMAS } from '@/admin/esquema'
-import { obtenerSesion } from '@/lib/sesion'
+import { obtenerSesion, type Sesion } from '@/lib/sesion'
+import { MENSAJE_DE_OTRA_ENTRADA } from '@/lib/entradas'
 
 const COLECCIONES_SOLO_ADMIN: ReadonlySet<string> = new Set(
   ESQUEMAS.filter((e) => e.soloAdmin).map((e) => e.slug),
 )
 
 export class ErrorDeAcceso extends Error {}
+
+/**
+ * Lo que se le dice a quien llama sin sesión: lo de siempre, salvo que la haya
+ * perdido porque se entró con su cuenta en otro equipo (D-388). Ahí «Acceso
+ * denegado» suena a permisos, y lo que pasó es otra cosa que tiene arreglo.
+ */
+export const mensajeSinSesion = (sesion: Pick<Sesion, 'usuario' | 'cierre'>, mensaje: string): string =>
+  !sesion.usuario && sesion.cierre === 'otra-entrada' ? MENSAJE_DE_OTRA_ENTRADA : mensaje
 
 export interface Contexto {
   payload: Payload
@@ -30,9 +39,10 @@ export interface Contexto {
 }
 
 async function exigirRolReal(roles: readonly string[], mensaje: string): Promise<Contexto> {
-  const { usuario, activo, rolReal } = await obtenerSesion()
+  const sesion = await obtenerSesion()
+  const { usuario, activo, rolReal } = sesion
   if (!usuario || !activo || !rolReal || !roles.includes(rolReal)) {
-    throw new ErrorDeAcceso(mensaje)
+    throw new ErrorDeAcceso(mensajeSinSesion(sesion, mensaje))
   }
   return {
     payload: await getPayload({ config }),

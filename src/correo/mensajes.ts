@@ -163,6 +163,45 @@ export function mensajeDeNuevaSolicitud(datos: {
   }
 }
 
+/**
+ * La alerta de una entrada que no parece de una sola persona (D-374, D-388), al
+ * administrador de TraumaHub y no al de la institución: el que puede mirar la
+ * cuenta entera, y el único que existe hoy.
+ *
+ * No acusa a nadie. Lo más común es una cuenta prestada; lo que importa más, una
+ * contraseña que otro conoce. Dice qué se vio y qué no se hizo —no se bloqueó
+ * nada—, para que quien lo lea decida con lo que hay.
+ */
+export function mensajeDeEntradaSospechosa(datos: {
+  nombre: string
+  correo: string
+  motivos: string[]
+  /** Las últimas entradas de la cuenta, ya en palabras: cuándo, y el equipo con su lugar. */
+  entradas: Array<[string, string]>
+  enlacePanel: string
+}): Correo {
+  return {
+    asunto: `TraumaHub · Entrada sospechosa en la cuenta de ${datos.nombre}`,
+    resumen: `La cuenta de ${datos.nombre} (${datos.correo}) entró de una forma que no parece de una sola persona.`,
+    titulo: 'Una entrada que no parece de una sola persona',
+    bloques: [
+      {
+        tipo: 'parrafo',
+        texto:
+          'Una cuenta de TraumaHub entró de una forma que una sola persona no suele hacer. Puede ser una cuenta prestada, o alguien que conoce la contraseña de otro.',
+      },
+      { tipo: 'datos', filas: [['Nombre', datos.nombre], ['Correo', datos.correo]] },
+      { tipo: 'lista', elementos: datos.motivos },
+      ...(datos.entradas.length > 0
+        ? ([{ tipo: 'parrafo', texto: 'Sus últimas entradas:' }, { tipo: 'datos', filas: datos.entradas }] as const)
+        : []),
+    ],
+    boton: { texto: 'Ver las cuentas', enlace: datos.enlacePanel },
+    nota: 'No se bloqueó nada: la cuenta sigue activa, con una sola sesión abierta. Si se presta, hable con la persona o desactívela en «Usuarios y permisos»; si cree que alguien más conoce la contraseña, pídale que la cambie. De la misma cuenta llega como mucho un correo al día: las demás alertas quedan en el registro de acciones.',
+    motivoDelEnvio: 'Recibe este correo porque es administrador de TraumaHub.',
+  }
+}
+
 export function mensajeDeCuentaActivada(datos: { nombre: string; enlaceEntrar: string }): Correo {
   return {
     asunto: 'TraumaHub · Su cuenta ya está activa',

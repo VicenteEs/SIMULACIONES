@@ -38,8 +38,12 @@
  * túnel de E2 de P-016 (D-382). Solo vale donde hay túnel: en ved, que no lo
  * tiene, este texto diría algo falso, y por eso ved no se actualiza con él
  * hasta pasar a pruebas.
+ *
+ * La del 2026-11-16 suma lo que se guarda de cada entrada —equipo, IP y país,
+ * por tres meses— y la sesión única por cuenta (D-374, D-388). Sin ella, el
+ * aviso seguía diciendo que la IP no se guarda en la base.
  */
-export const VERSION_DEL_AVISO_DE_PRIVACIDAD = '2026-11-15'
+export const VERSION_DEL_AVISO_DE_PRIVACIDAD = '2026-11-16'
 
 /**
  * Quién responde de los datos: el nombre de la persona o de la entidad que es

@@ -107,6 +107,8 @@ describe('el resumen que lee el administrador en el registro', () => {
     titulosRetirados: 0,
     difusionesRetocadas: 0,
     preferenciasHuerfanas: 0,
+    entradasVencidas: 0,
+    entradasHuerfanas: 0,
   }
 
   it('vacío si no hizo nada: una línea diaria de «nada» enterraría las que dicen algo', () => {
@@ -121,6 +123,8 @@ describe('el resumen que lee el administrador en el registro', () => {
       titulosRetirados: 1,
       difusionesRetocadas: 4,
       preferenciasHuerfanas: 6,
+      entradasVencidas: 7,
+      entradasHuerfanas: 8,
     })
     expect(texto.split(' · ')).toEqual([
       'borró 3 entradas del registro de más de 12 meses',
@@ -129,6 +133,8 @@ describe('el resumen que lee el administrador en el registro', () => {
       'corrigió el título de 1 entradas',
       'quitó direcciones de cuentas eliminadas en 4 difusiones',
       'borró 6 preferencias de cuentas eliminadas',
+      'borró 7 entradas a la plataforma de más de 3 meses',
+      'borró 8 entradas a la plataforma de cuentas eliminadas',
     ])
   })
 

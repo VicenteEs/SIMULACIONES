@@ -8,7 +8,7 @@
  */
 import { getPayload } from 'payload'
 import config from '@payload-config'
-import { accion, ErrorDeAcceso, type Respuesta } from '@/lib/guardias'
+import { accion, ErrorDeAcceso, mensajeSinSesion, type Respuesta } from '@/lib/guardias'
 import { obtenerSesion } from '@/lib/sesion'
 import { exigirIdentificador } from '@/lib/validacion'
 import { leerCatalogo } from '@/lib/catalogoDelAtlas'
@@ -44,8 +44,10 @@ export interface FichaParaElSimulador {
  */
 export async function leerFichaParaElSimulador(atlasId: unknown): Promise<Respuesta<FichaParaElSimulador | null>> {
   return accion(async () => {
-    const { usuario, activo } = await obtenerSesion()
-    if (!usuario || !activo) throw new ErrorDeAcceso('Acceso denegado: inicie sesión.')
+    const sesion = await obtenerSesion()
+    if (!sesion.usuario || !sesion.activo) {
+      throw new ErrorDeAcceso(mensajeSinSesion(sesion, 'Acceso denegado: inicie sesión.'))
+    }
     // Un músculo que el recorte del taller partió sale del modelo con el id de su trozo (`FJ1478#a`), no con el de la pieza,
     // y la almohadilla no pasa la validación: sin esto la ficha de cualquier músculo o hueso recortado no abría (D-353).
     const id = exigirIdentificador(typeof atlasId === 'string' ? atlasIdDeLaPieza(atlasId) : atlasId, 'La pieza')

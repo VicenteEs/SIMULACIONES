@@ -32,6 +32,7 @@ import {
 import { accion, type Respuesta } from '@/lib/guardias'
 import { registrarAccion } from '@/lib/registroServidor'
 import { PATH_DE_LAS_COOKIES } from '@/lib/pathDeLasCookies'
+import { nombreDeLaCookieDeSesion } from '@/lib/cookieDeSesion'
 import { crearLimitador, direccionDeQuienLlama } from '@/lib/ritmo'
 import { exigirContrasena, exigirCorreo, exigirTexto } from '@/lib/validacion'
 import { esperarElSuelo, exigirSinEnlaces } from '@/lib/formularioPublico'
@@ -39,30 +40,8 @@ import { LARGOS_DE_SOLICITUD, esEtapaDeFormacion, etiquetaDeEtapa, institucionCo
 import { VERSION_DEL_AVISO_DE_PRIVACIDAD } from '@/lib/avisoDePrivacidad'
 import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
 import { destinoAlEntrar } from '@/lib/bienvenida'
-
-/**
- * Nombre con el que Payload firma y lee la sesión: `<cookiePrefix>-token`.
- *
- * Se le pregunta a la configuración en lugar de escribirlo aquí porque el
- * nombre es la única salida al choque que se describe más abajo —la cookie que
- * las sesiones antiguas dejaron en `/`—, y tenía que poder moverse solo. Ya se
- * movió: `payload.config.ts` declara `cookiePrefix: 'traumahub'`, de modo que
- * Payload firma `traumahub-token`
- * (`auth/cookies.js` arma el nombre así) y lo busca con ese mismo nombre
- * (`auth/extractJWT.js`). Si aquí hubiera quedado escrito a mano el anterior,
- * esta acción escribiría una cookie que nadie lee: entrar respondería «exito» y
- * la plataforma seguiría cerrada, sin un error en ninguna parte. Y por eso
- * tampoco conviene escribir ahora el nuevo a mano: el siguiente cambio de
- * prefijo volvería a abrir ese mismo fallo mudo.
- *
- * El `?? 'payload'` es el mismo valor por omisión que pone `buildConfig`
- * cuando nadie declara el prefijo (`config/defaults.js`), y hace falta porque
- * las pruebas sustituyen el módulo de configuración por un objeto vacío.
- */
-async function nombreDeLaCookieDeSesion(): Promise<string> {
-  const { cookiePrefix } = await config
-  return `${cookiePrefix ?? 'payload'}-token`
-}
+import { datosDeLaPeticion } from '@/lib/entradas'
+import { cerrarLaEntrada } from '@/lib/entradasServidor'
 
 /**
  * Opciones de la cookie de sesión, y el cabo que dejó mudarla de `/` al prefijo.
@@ -165,7 +144,9 @@ export async function entrar(
     // acciones para que el servidor lo resuma.
     if (contrasena.length > 200) throw new Error('Correo o contraseña incorrectos.')
 
-    if (!LIMITE_DE_ENTRADAS.permitir(direccionDeQuienLlama(await headers()))) {
+    const cabeceras = await headers()
+    const direccion = direccionDeQuienLlama(cabeceras)
+    if (!LIMITE_DE_ENTRADAS.permitir(direccion)) {
       throw new Error(
         'Demasiados intentos de entrada desde esta conexión. Espere unos minutos y vuelva a intentarlo.',
       )
@@ -178,6 +159,10 @@ export async function entrar(
       resultado = await payload.login({
         collection: 'usuarios',
         data: { email: exigirCorreo(correo), password: contrasena },
+        // El equipo, la IP y el país de esta entrada, para el gancho que cierra
+        // las demás sesiones de la cuenta (`hooks/sesionUnica.ts`, D-388): la
+        // API local no le pasa las cabeceras de la petición.
+        context: { entrada: datosDeLaPeticion(cabeceras, direccion) },
       })
     } catch (fallo) {
       // La cuenta bloqueada se dice, y no se disfraza de contraseña mala.
@@ -255,8 +240,9 @@ export async function entrar(
  * `sid` ya no esté ahí; es lo que hace su propio `logout`
  * (`auth/operations/logout.js`), que aquí no se puede llamar porque solo existe
  * como extremo REST, cerrado en `(payload)/api/[...slug]/route.ts`. Se quita
- * solo esta sesión y no todas: salir en el computador del pabellón no tiene por
- * qué cerrar la del teléfono.
+ * solo esta sesión y no todas. Desde D-388 no suele haber otra, porque entrar
+ * cierra las demás, pero si algún día se permiten dos, salir en el computador
+ * del pabellón no tiene por qué cerrar la del teléfono.
  *
  * Nunca lanza. Si la base no contesta, la cookie se borra igual, que es lo que
  * la persona ve y lo que había antes; el fallo queda en el registro.
@@ -288,6 +274,7 @@ async function revocarLaSesionActual(): Promise<void> {
       data: { sessions: vigentes },
       overrideAccess: true,
     })
+    await cerrarLaEntrada(payload, sid, 'salio')
   } catch (fallo) {
     console.error('[sesion] no se pudo dar de baja la sesión al salir:', fallo)
   }

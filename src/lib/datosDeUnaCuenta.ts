@@ -22,6 +22,7 @@
  *    Las contraseñas cifradas y los testigos de sesión tampoco salen: no son
  *    información sobre nadie, son llaves.
  */
+import { MESES_DE_LAS_ENTRADAS, plazoEnPalabras } from '@/lib/conservacion'
 
 /** Una fila tal como la devuelve Payload con `depth: 0`. */
 export type Fila = Record<string, unknown>
@@ -38,6 +39,7 @@ export const CAMPOS_QUE_APUNTAN_A_UNA_CUENTA = {
   actividad: ['usuario'],
   comentarios: ['usuario'],
   difusiones: ['autor'],
+  entradas: ['usuario'],
   'registro-de-acciones': ['usuario'],
   requisitos: ['autor', 'votos'],
   revisiones: [
@@ -101,6 +103,16 @@ export function cuentaSinLlaves(cuenta: Fila): Fila {
  */
 export function entradaSobreLaCuenta(entrada: Fila): Fila {
   const { usuario: _usuario, usuarioNombre: _nombre, usuarioCorreo: _correo, permisos: _permisos, ...resto } = entrada
+  return resto
+}
+
+/**
+ * Una entrada a la plataforma, sin la huella de su sesión (D-388): es el
+ * resumen de una llave, como el identificador de la sesión que `cuentaSinLlaves`
+ * tampoco entrega, y a la persona no le dice nada.
+ */
+export function entradaALaPlataforma(entrada: Fila): Fila {
+  const { sesion: _sesion, usuario: _usuario, ...resto } = entrada
   return resto
 }
 
@@ -221,7 +233,7 @@ export const nombreDelArchivoDeDatos = (id: string | number, marca: string): str
  */
 export const QUE_CONTIENE = {
   cuenta:
-    'Los datos de tu cuenta: nombre, correo, institución, rol, permisos, fechas de solicitud, de aceptación del aviso y de último acceso, intentos fallidos de entrada y sesiones abiertas. No incluye tu contraseña: se guarda cifrada y nadie puede leerla.',
+    'Los datos de tu cuenta: nombre, correo, institución, rol, permisos, fechas de solicitud, de aceptación del aviso y de último acceso, intentos fallidos de entrada y la sesión abierta. No incluye tu contraseña: se guarda cifrada y nadie puede leerla.',
   avance: 'Las fichas que abriste o marcaste como leídas y tu avance en el simulador, una fila por ficha o caso.',
   comentarios: 'Los comentarios que dejaste en las fichas.',
   tiempoActivo: 'Tu tiempo activo: segundos por día y por hora, y la última página en que estuviste ese día.',
@@ -234,6 +246,8 @@ export const QUE_CONTIENE = {
     'Los correos masivos que escribiste, si eres administrador, y los que se te enviaron sin llegar, con el motivo que dio el servidor de correo.',
   cotizaciones: 'Las cotizaciones pedidas desde la portada con tu mismo correo.',
   preferencias: 'Preferencias de pantalla guardadas en el servidor.',
+  entradas:
+    `Cada vez que entraste en los últimos ${plazoEnPalabras(MESES_DE_LAS_ENTRADAS)}: cuándo, desde qué equipo (el navegador y el sistema), desde qué dirección IP y, si se supo, desde qué país, y cuándo y por qué se cerró esa sesión.`,
   fueraDeLaBase:
     'Tu navegador guarda además una cookie de sesión y algunas preferencias de pantalla en tu propio equipo: no están en el servidor y por eso no aparecen aquí.',
 } as const

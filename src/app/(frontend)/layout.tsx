@@ -15,6 +15,7 @@ import './estilos.css'
 import './ui.css'
 import { ruta } from '@/lib/rutas'
 import { AvisoDeServidorDePruebas } from '@/components/AvisoDeServidorDePruebas'
+import { AvisoDeSesionCerrada } from '@/components/AvisoDeSesionCerrada'
 import { PREFIJO_DEL_TITULO, servidorDePruebas } from '@/lib/servidorDePruebas'
 
 const TITULO = 'Plataforma docente de traumatología'
@@ -73,6 +74,10 @@ export default async function Layout({ children }: { children: React.ReactNode }
             privacidad delante: es en `/entrar` donde se decide en qué servidor
             se va a trabajar. */}
         {pruebas ? <AvisoDeServidorDePruebas produccion={pruebas.produccion} /> : null}
+        {/* Para el equipo que se quedó sin sesión porque se entró con la misma
+            cuenta en otro (D-388): sin esto vería la portada de visitante sin
+            saber por qué. */}
+        {sesion.cierre === 'otra-entrada' ? <AvisoDeSesionCerrada /> : null}
         {dentro ? (
           <Navegacion
             nombre={sesion.usuario?.nombre as string | undefined}

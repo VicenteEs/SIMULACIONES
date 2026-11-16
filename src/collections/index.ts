@@ -23,6 +23,7 @@ import { Difusiones } from './Difusiones'
 import { Revisiones } from './Revisiones'
 import { SesionesDeRevision } from './SesionesDeRevision'
 import { RegistroDeAcciones } from './RegistroDeAcciones'
+import { Entradas } from './Entradas'
 import { TiempoActivo } from './TiempoActivo'
 import { ResolucionesDeReferencia } from './ResolucionesDeReferencia'
 import { conRegistro } from './hooks/registrarAccion'
@@ -70,6 +71,7 @@ const DECLARADAS: CollectionConfig[] = [
   Revisiones,
   SesionesDeRevision,
   RegistroDeAcciones,
+  Entradas,
   TiempoActivo,
   Ajustes,
   Requisitos,

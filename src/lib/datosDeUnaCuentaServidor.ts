@@ -5,6 +5,7 @@ import {
   QUE_CONTIENE,
   cuentaSinLlaves,
   difusionDeLaCuenta,
+  entradaALaPlataforma,
   entradaSobreLaCuenta,
   enviosFallidosA,
   esCotizacionDe,
@@ -40,6 +41,7 @@ export interface DatosDeUnaCuenta {
   difusiones: { escritas: Fila[]; enviosFallidos: Fila[] }
   cotizaciones: Fila[]
   preferencias: Fila[]
+  entradas: Fila[]
 }
 
 /** Todas las filas que casan, sin páginas: una solicitud de acceso no se responde a medias. */
@@ -104,6 +106,7 @@ export async function datosDeUnaCuenta(
     difusiones,
     cotizaciones,
     preferencias,
+    entradas,
   ] = await Promise.all([
     todas(payload, 'actividad', dondeApareceLa('actividad', id), 'ultimaVisita'),
     todas(payload, 'comentarios', dondeApareceLa('comentarios', id), 'createdAt'),
@@ -133,6 +136,7 @@ export async function datosDeUnaCuenta(
     todas(payload, 'payload-preferences', {
       and: [{ 'user.value': { equals: id } }, { 'user.relationTo': { equals: 'usuarios' } }],
     }),
+    todas(payload, 'entradas', dondeApareceLa('entradas', id), 'fecha'),
   ])
 
   return {
@@ -166,5 +170,6 @@ export async function datosDeUnaCuenta(
     },
     cotizaciones: cotizaciones.filter((c) => esCotizacionDe(c, correo)),
     preferencias: preferencias.map(({ key, value, createdAt, updatedAt }) => ({ key, value, createdAt, updatedAt })),
+    entradas: entradas.map(entradaALaPlataforma),
   }
 }
