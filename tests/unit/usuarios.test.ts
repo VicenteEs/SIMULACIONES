@@ -1,6 +1,7 @@
 import { afterEach, describe, it, expect } from 'vitest'
 import type { Field, FieldAccess } from 'payload'
 import {
+  CuentaDeOtroLugar,
   CuentaDesactivada,
   MENSAJE_CUENTA_DESACTIVADA,
   Usuarios,
@@ -109,37 +110,48 @@ describe('la aceptación del aviso de privacidad la anota la solicitud y nadie m
  * salvaba después era el `activo` que comprueba cada guardia al resolver la
  * sesión, no el no tener sesión.
  *
- * El gancho se prueba llamándolo a secas: es una función pura sobre el usuario
- * que Payload le entrega y no toca la base ni la petición.
+ * El gancho se prueba llamándolo a secas, con el lugar ya dicho en el
+ * `context` como lo dice `entrar` (D-396): así no toca la base ni la petición.
  */
 const ganchoDeEntrada = () => {
   const ganchos = Usuarios.hooks?.beforeLogin
   if (!ganchos || ganchos.length !== 1) {
     throw new Error('Usuarios tiene que declarar exactamente un gancho beforeLogin')
   }
-  return (usuario: unknown) => ganchos[0]({ user: usuario } as never)
+  return (usuario: unknown, institucionDelLugar: string | null = null) =>
+    ganchos[0]({ user: usuario, context: { institucionDelLugar } } as never)
 }
 
 describe('la cuenta desactivada no obtiene testigo', () => {
   const entrar = ganchoDeEntrada()
 
-  it('rechaza la cuenta sin activar', () => {
-    expect(() => entrar({ id: '3', email: 'r@h.cl', activo: false })).toThrow(CuentaDesactivada)
+  it('rechaza la cuenta sin activar', async () => {
+    await expect(entrar({ id: '3', email: 'r@h.cl', activo: false })).rejects.toThrow(CuentaDesactivada)
   })
 
-  it('rechaza también la que no declara el campo, que es lo que manda un cliente a medias', () => {
+  it('rechaza también la que no declara el campo, que es lo que manda un cliente a medias', async () => {
     // `activo !== true` y no `!activo`: la comprobación es estricta a propósito,
     // porque lo que llega aquí puede venir de cualquier parte.
     for (const usuario of [{ id: '3' }, { id: '3', activo: null }, { id: '3', activo: 'sí' }]) {
-      expect(() => entrar(usuario)).toThrow(CuentaDesactivada)
+      await expect(entrar(usuario)).rejects.toThrow(CuentaDesactivada)
     }
   })
 
-  it('deja pasar la cuenta activa y devuelve el usuario tal cual', () => {
+  it('deja pasar la cuenta activa y devuelve el usuario tal cual', async () => {
     // Payload se queda con lo que devuelve el gancho (`user = await hook(…) || user`):
     // devolver otra cosa cambiaría el usuario que se firma en el testigo.
     const usuario = { id: '4', email: 'jefe@h.cl', activo: true }
-    expect(entrar(usuario)).toBe(usuario)
+    await expect(entrar(usuario)).resolves.toBe(usuario)
+  })
+
+  it('una cuenta solo entra en el lugar de su institución (D-396)', async () => {
+    const deLaInstitucion = { id: '5', email: 'r@u.cl', activo: true, institucion: 7 }
+    await expect(entrar(deLaInstitucion, '7')).resolves.toBe(deLaInstitucion)
+    await expect(entrar(deLaInstitucion, null)).rejects.toThrow(CuentaDeOtroLugar)
+    await expect(entrar(deLaInstitucion, '8')).rejects.toThrow(CuentaDeOtroLugar)
+    await expect(entrar({ id: '4', activo: true }, '7')).rejects.toThrow(CuentaDeOtroLugar)
+    // La institución puede llegar poblada.
+    await expect(entrar({ ...deLaInstitucion, institucion: { id: 7, subdominio: 'u' } }, '7')).resolves.toBeTruthy()
   })
 
   it('el rechazo sale legible por REST y no como un 500 mudo', () => {

@@ -5,7 +5,7 @@ import { Medios } from '@/collections/Medios'
 import { MediosPagina } from '@/collections/MediosPagina'
 import { Modelos3D } from '@/collections/Modelos3D'
 import { COLECCIONES } from '@/collections'
-import { guardarSinPrefijo } from '@/collections/hooks/direccionSinPrefijo'
+import { guardarSinPrefijo, leerSinOrigen } from '@/collections/hooks/direccionSinPrefijo'
 
 /**
  * Los archivos subidos: dónde viven y con qué dirección se piden.
@@ -82,7 +82,7 @@ describe('lo guardado no lleva el prefijo de la instalación (D-370)', () => {
   /** Los ganchos `beforeChange` del campo `name` dentro de `campos`, si lo hay. */
   const ganchosDe = (campos: Field[], name: string) => {
     const campo = campos.find((c) => 'name' in c && c.name === name) as
-      | (Field & { hooks?: { beforeChange?: unknown[] }; fields?: Field[] })
+      | (Field & { hooks?: { beforeChange?: unknown[]; afterRead?: unknown[] }; fields?: Field[] })
       | undefined
     return campo
   }
@@ -94,6 +94,9 @@ describe('lo guardado no lleva el prefijo de la instalación (D-370)', () => {
     expect(deSubida.map((c) => c.slug).sort()).toEqual(['medios', 'medios-pagina', 'modelos-3d'])
     for (const coleccion of deSubida) {
       expect(ganchosDe(coleccion.fields, 'url')?.hooks?.beforeChange, coleccion.slug).toContain(guardarSinPrefijo)
+      // Y la lee sin origen (D-396): en el subdominio de una institución, una
+      // dirección a la central llegaría sin la cookie del subdominio.
+      expect(ganchosDe(coleccion.fields, 'url')?.hooks?.afterRead, coleccion.slug).toContain(leerSinOrigen)
     }
   })
 
@@ -110,6 +113,7 @@ describe('lo guardado no lleva el prefijo de la instalación (D-370)', () => {
         expect(ganchosDe(subgrupo?.fields ?? [], 'url')?.hooks?.beforeChange, `${coleccion.slug}.${tamano}`).toContain(
           guardarSinPrefijo,
         )
+        expect(ganchosDe(subgrupo?.fields ?? [], 'url')?.hooks?.afterRead, `${coleccion.slug}.${tamano}`).toContain(leerSinOrigen)
       }
     }
   })

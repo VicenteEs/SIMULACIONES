@@ -23,7 +23,6 @@ import {
 } from '@/app/(frontend)/acciones/instrumental'
 import { CATEGORIAS_DE_INSTRUMENTAL, INSTRUMENTAL_BASE, slugDeInstrumento } from '@/lib/instrumental'
 import { hayRetoques, type AjustesDeInstrumento, type Cuaternion, type Vector3 } from '@/instrumental/modelo'
-import { ruta } from '@/lib/rutas'
 import { TIPOS_DE_TORNILLO } from '@/lib/tornillos'
 import { formularioDeArchivo, subidorQueAvisa } from '@/admin/subidas'
 
@@ -880,7 +879,9 @@ function EspacioDelInstrumento({
                   {info ? <li>Triángulos: {info.triangulos.toLocaleString('es-CL')}</li> : null}
                   {info?.meta?.articulaciones.length ? <li>Articulaciones: {info.meta.articulaciones.map((a) => a.etiqueta).join(', ')}</li> : <li>Sin articulaciones</li>}
                   <li>
-                    <a href={instrumento.modelo.url.startsWith('http') ? instrumento.modelo.url : ruta(instrumento.modelo.url)} download>
+                    {/* Tal cual: Payload la entrega con el prefijo puesto y, desde D-396, sin
+                        origen. Un `ruta()` encima lo doblaría (ver `rutas.ts`). */}
+                    <a href={instrumento.modelo.url} download>
                       Descargar el .glb
                     </a>
                   </li>

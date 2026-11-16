@@ -1,5 +1,9 @@
 import type { CollectionConfig, PayloadRequest } from 'payload'
-import { administracionDeUsuarios, accesoAlPanel } from '@/access/payload'
+import { administracionDeUsuarios, accesoAlPanel, idDeInstitucion } from '@/access/payload'
+import { cuentaValeEnElLugar } from '@/access/reglas'
+import { lugarDeLaPeticion } from '@/lib/institucionesServidor'
+import { direccionDeLaInstitucion } from '@/lib/anfitrion'
+import { servidorDePruebas } from '@/lib/servidorDePruebas'
 import { ajustarPrimerUsuario } from './hooks/primerUsuario'
 import { impedirAutobloqueo, impedirBorradoDelUltimoAdmin } from './hooks/autobloqueo'
 import { limpiarRastroDeUsuario } from './hooks/bajaDeUsuario'
@@ -36,8 +40,13 @@ export const MINUTOS_DE_BLOQUEO = 10
  * recorte de la barra volvería a estar escrito dos veces, que es exactamente lo
  * que produjo la barra doble de abajo.
  */
-export function direccionPublica(): string {
-  return (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
+export function direccionPublica(subdominio = ''): string {
+  const central = (process.env.NEXT_PUBLIC_SERVER_URL || '').replace(/\/+$/, '')
+  // Una cuenta de institución entra solo desde su subdominio (D-396), así que
+  // sus enlaces llevan a él. En el servidor de pruebas no: ved no tiene
+  // subdominios y la institución se elige con el selector de la franja.
+  if (!subdominio || !central || servidorDePruebas(process.env.SERVIDOR_DE_PRUEBAS)) return central
+  return direccionDeLaInstitucion(subdominio, central)
 }
 
 /**
@@ -68,8 +77,8 @@ export function direccionPublica(): string {
  * emitió, y lanzar ahí no salva nada. Quien pueda negarse a tiempo —el panel—
  * pregunta antes a `direccionPublica()`.
  */
-export function enlaceDeClave(testigo: string): string {
-  return `${direccionPublica()}/clave/${testigo}`
+export function enlaceDeClave(testigo: string, subdominio = ''): string {
+  return `${direccionPublica(subdominio)}/clave/${testigo}`
 }
 
 /**
@@ -151,6 +160,22 @@ export class CuentaDesactivada extends Error {
   constructor() {
     super(MENSAJE_CUENTA_DESACTIVADA)
     this.name = 'CuentaDesactivada'
+  }
+}
+
+/**
+ * La cuenta es de otra institución que la del anfitrión, o central en el de una
+ * (D-396). `entrar` la convierte en «Correo o contraseña incorrectos», igual
+ * que una contraseña mala: decir «esta cuenta es de otra institución» le
+ * contaría a cualquiera qué correos tiene cada una.
+ */
+export class CuentaDeOtroLugar extends Error {
+  readonly status = 401
+  readonly isPublic = false
+
+  constructor() {
+    super('La cuenta no es de esta institución.')
+    this.name = 'CuentaDeOtroLugar'
   }
 }
 
@@ -339,9 +364,27 @@ export const Usuarios: CollectionConfig = {
     // eso el mensaje puede admitir que la cuenta existe: quien llega aquí ya la
     // conocía— y todavía no se ha firmado nada que haya que revocar.
     beforeLogin: [
-      ({ user }) => {
+      async ({ user, context, req }) => {
         if ((user as { activo?: unknown } | null | undefined)?.activo !== true) {
           throw new CuentaDesactivada()
+        }
+        // Dónde se entra (D-396). Las acciones de la pantalla propia lo dicen
+        // en `institucionDelLugar`, porque la API local no trae las cabeceras
+        // de la petición. Sin eso se miran las cabeceras: es lo que pasaría si
+        // se reabriera `POST /api/usuarios/login`, hoy cerrada en
+        // `(payload)/api/[...slug]/route.ts`, que sí trae la del proxy. Una
+        // llamada local que no diga nada queda en la central: así, olvidarlo
+        // deja fuera a una cuenta de institución, y no dentro de otra.
+        let delLugar: string | null
+        if (context && 'institucionDelLugar' in context) {
+          delLugar = typeof context.institucionDelLugar === 'string' ? context.institucionDelLugar : null
+        } else {
+          const lugar = await lugarDeLaPeticion(req.payload, req.headers)
+          if (lugar.subdominio && !lugar.institucion) throw new CuentaDeOtroLugar()
+          delLugar = lugar.institucion?.id ?? null
+        }
+        if (!cuentaValeEnElLugar(idDeInstitucion((user as { institucion?: unknown }).institucion), delLugar)) {
+          throw new CuentaDeOtroLugar()
         }
         return user
       },

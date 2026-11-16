@@ -120,7 +120,8 @@ describe('nadie más arma /clave/ a mano', () => {
     // devuelve a la pantalla: desde que el panel envía por su cuenta
     // (`enviarCorreo`), dos armados serían otra vez dos copias esperando a
     // divergir.
-    expect(cuerpo).toContain('const enlace = enlaceDeClave(testigo)')
+    // Con el subdominio de la cuenta, que es el único donde entra (D-396).
+    expect(cuerpo).toContain('const enlace = enlaceDeClave(testigo, subdominio)')
     expect(cuerpo).toContain('mensajeDeClaveNueva(enlace)')
     expect(cuerpo).toContain('return { enlace, enviadoPorCorreo }')
     expect(cuerpo.indexOf('if (!direccionPublica())')).toBeGreaterThan(-1)

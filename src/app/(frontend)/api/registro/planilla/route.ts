@@ -1,6 +1,7 @@
 import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { cuentaEnSuLugar } from '@/lib/sesion'
 import { crearPlanilla } from '@/lib/planilla'
 import { hojasDelRegistro } from '@/lib/registroPanel'
 import { marcaDeTiempo } from '@/lib/respaldos'
@@ -17,7 +18,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET() {
   const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers: await siguientesCabeceras() })
+  // `cuentaEnSuLugar` y no `payload.auth`: la cuenta tiene que valer en este
+  // anfitrión (D-396).
+  const { user } = await cuentaEnSuLugar(payload, await siguientesCabeceras())
   const esAdmin = Boolean(
     user && (user as { activo?: boolean }).activo && (user as { rol?: string }).rol === 'admin',
   )

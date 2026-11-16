@@ -11860,6 +11860,32 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) En el subdominio de una institución se ven las cuentas centrales en la base, porque el fantasma y los autores del contenido central lo necesitan. Que no se listen depende del filtro de Payload.
 - (−) Las cuentas centrales, en la central, no tienen segunda barrera: entre ellas y lo de las instituciones solo está el filtro de `reglas.ts`.
 
+### D-397 · 2026-11-16 · vigente · P-016 E5.2 · el anfitrión, por dentro
+**Lo que D-396 dejó dicho para el anfitrión se escribió así. En siete puntos hubo que elegir cómo.**
+
+- **La entrada.** `beforeLogin` compara la institución de la cuenta con la del lugar.
+  - `entrar` y `fijarClaveNueva` le dicen el lugar en el `context` (`institucionDelLugar`), porque la API local no trae las cabeceras de la petición. Sin ese dato se mira la cabecera del proxy, que es lo que pasaría si se reabriera `POST /api/usuarios/login`, hoy cerrada.
+  - Una llamada local que no diga nada queda en la central. Así, un guion que se olvide deja fuera a la cuenta de una institución, y no dentro de otra.
+  - El rechazo se dice como una contraseña mala: «esta cuenta es de otra institución» contaría de qué institución es cada correo.
+- **La sesión.** `cuentaEnSuLugar` (`sesion.ts`) es lo que pregunta toda lectura de la sesión: `obtenerSesion`, la ruta del PDF y las cinco rutas de API que llamaban a `payload.auth` a secas. `payload.auth` cree cualquier testigo firmado, venga de donde venga. Solo `salir` la sigue llamando directo, porque cerrar la sesión vale en cualquier parte.
+- **Los enlaces de los correos** (la clave nueva, la invitación, «su cuenta ya está activa») van al subdominio de la cuenta, con `direccionPublica(subdominio)`. En ved no, porque allí la institución se elige con el selector. Pedir una clave nueva desde otro lugar no emite testigo y contesta lo mismo de siempre: cada testigo invalida el anterior, y desde otro subdominio no se debe poder dejar muerto el enlace de nadie.
+- **«Esta institución no existe»** la pinta la plantilla en lugar de la página, sin barra ni sesión. Sale con estado 200, porque `notFound()` desde la plantilla raíz no tiene dónde caer.
+- **Los archivos.** La `url` se lee sin el origen (`leerSinOrigen`) y con el prefijo puesto, y el navegador la pide al anfitrión en el que está. El taller de instrumental le ponía `ruta()` al modelo para descargarlo, y con la dirección relativa doblaba el prefijo: se quitó.
+- **La lista CSRF.** `OrigenesDeConfianza` es un `Array` cuyo `includes` acepta además un subdominio de un solo nivel del dominio, con el esquema y el puerto de la dirección pública. Con ella, una institución nueva funciona sin reiniciar nada. Payload conserva la instancia al sanear la configuración (`config.csrf ?? []`), y una prueba de integración falla el día que la copie.
+- **El PDF.** Chromium abre la ficha en `http://<subdominio>.localhost:<puerto>` y no en `127.0.0.1`, donde la cuenta de la institución no valdría:
+  - Chromium lleva todo `*.localhost` a la propia máquina sin preguntar a ningún DNS, y `localhost` es siempre uno de los dominios de las instituciones (`anfitrion.ts`);
+  - lo que el servidor trae por su cuenta va a `127.0.0.1`, con el anfitrión en la cabecera `Host` y por `node:http`, porque Node no siempre resuelve `*.localhost` y su `fetch` descarta esa cabecera (comprobado en Node 24).
+- **El selector de ved** es un campo de texto y no una lista: ved se abre a quien tenga la dirección, y una lista daría los nombres de las instituciones sin entrar. Cambiar de lugar no toca la sesión. La cuenta que no es del lugar deja de valer, y vuelve a valer al regresar.
+
+*Lo que queda para otros pasos:* el registro desde el subdominio de una institución (E5.7), y los avisos al equipo —comentarios, solicitudes, alertas de entrada—, que hoy llevan la dirección central y van a todos los administradores (E5.3).
+
+*Consecuencias.*
+- (+) Una cuenta llevada a otro subdominio no abre nada: ni las páginas, ni las acciones, ni las rutas de API que miran la sesión.
+- (+) Ni el proxy ni la lista CSRF tienen que conocer las instituciones: una nueva funciona al crearla.
+- (−) El subdominio que no existe contesta 200 y no 404.
+- (−) `localhost` queda como dominio para siempre. Quien llegue al puerto del servidor con `Host: x.localhost` está en la institución x, aunque desde fuera no se llega: Cloudflare solo deja pasar los nombres de su zona, y ved, los de Tailscale. Y estar en el lugar no da nada sin una cuenta de él.
+- (−) Los PDF de una institución dependen de que Chromium siga llevando `*.localhost` a la propia máquina. `pdf.test.ts` vigila el origen que se le da, no a Chromium.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -18008,7 +18034,19 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - la marca se guarda como número: Payload valida el tipo del identificador, y un «3» de texto no pasa;
     - `instituciones` viaja a la copia del ensayo: el contenido propio apunta a su fila;
     - comprobado: `typecheck` limpio, `lint` con los 15 avisos de siempre, la suite unitaria sin fallos nuevos (los 12 de Windows de siempre), `test:integration` con 312 de 312, y `build`;
-  - E5.2 · el anfitrión: `proxy.ts`, la cuenta que solo vale en el suyo, «esta institución no existe», los archivos sin origen, la lista CSRF y el selector de ved;
+  - E5.2 · el anfitrión: `proxy.ts`, la cuenta que solo vale en el suyo, «esta institución no existe», los archivos sin origen, la lista CSRF y el selector de ved. *Hecho en local el 2026-11-16, con los detalles en D-397:*
+    - `proxy.ts` y `lib/anfitrion.ts`, con la institución de cada petición leída en `lib/institucionesServidor.ts`, que la guarda 30 segundos;
+    - la entrada (`beforeLogin`) y la sesión (`cuentaEnSuLugar`), también en el PDF y en cinco rutas de API;
+    - los enlaces de los correos al subdominio de la cuenta;
+    - las direcciones de los archivos sin origen, la lista CSRF que acepta los subdominios, y el PDF impreso desde `<subdominio>.localhost`;
+    - el selector en la franja de ved;
+    - comprobado: `typecheck` limpio, `lint` con los 15 avisos de siempre, la suite unitaria sin fallos nuevos (los de Windows de siempre), `test:integration` con 323 de 323, y `build`;
+    - y una prueba de humo contra el servidor compilado (`next start`) y la base desechable:
+      - cada cuenta abre la ficha solo en su lugar;
+      - el subdominio inexistente dice que no existe;
+      - un `Origin` del subdominio pasa y uno ajeno no;
+      - el PDF de la institución sale (200, un PDF de verdad) y pedido desde la central da 401;
+      - en modo de pruebas, la cookie del selector hace lo mismo que el subdominio;
   - E5.3 · el filtro de `reglas.ts`, y la matriz de roles cruzando instituciones;
   - E5.4 · la segunda barrera en PostgreSQL;
   - E5.5 · la pestaña «Instituciones», con «Crear institución», el plazo y el cupo;

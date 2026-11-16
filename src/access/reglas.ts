@@ -71,6 +71,19 @@ export const esCentral = (u: UsuarioSesion | null | undefined): boolean =>
   habilitada(u) && (u.institucion === null || u.institucion === undefined)
 
 /**
+ * ¿Vale esta cuenta en este lugar (D-396)? Una cuenta solo vale en el
+ * anfitrión de su institución, y una central solo en la central.
+ *
+ * Recibe los dos identificadores ya leídos (`null` es la central) y no la
+ * cuenta, porque la usan la sesión y la entrada, que tienen el documento de
+ * Payload y no un `UsuarioSesion`. La cookie de sesión ya es de cada anfitrión;
+ * esto es lo que queda si un día no lo fuera, y lo que separa las
+ * instituciones en ved, donde comparten anfitrión (D-371).
+ */
+export const cuentaValeEnElLugar = (institucionDeLaCuenta: string | null, institucionDelLugar: string | null): boolean =>
+  institucionDeLaCuenta === institucionDelLugar
+
+/**
  * Crear, extender y bloquear instituciones (D-371): solo el administrador de
  * TraumaHub. El de una institución administra sus cuentas, no la institución.
  */

@@ -9,6 +9,7 @@ import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import { COLECCIONES } from '@/collections'
 import { TECHO_DE_MEDIOS_BYTES, TECHO_DE_MODELOS_3D_BYTES } from '@/admin/esquema'
 import { origenDe } from '@/lib/rutas'
+import { dominioDeInstituciones, OrigenesDeConfianza } from '@/lib/anfitrion'
 import { agregarTablasInternas } from '@/lib/tablasInternas'
 import { migrations } from './migrations'
 import { editorClinico } from '@/blocks'
@@ -64,6 +65,12 @@ export default buildConfig({
   // prefijo hace que descarte la cookie de sesion en toda peticion que traiga
   // esa cabecera (observacion O-018).
   serverURL: origenDe(process.env.NEXT_PUBLIC_SERVER_URL || ''),
+
+  // La lista de orígenes de confianza, que además de `serverURL` (lo agrega
+  // Payload) acepta los subdominios de las instituciones (D-396). Con la lista
+  // por omisión, toda acción de servidor de `uchile.traumahub.cl` llegaría sin
+  // sesión: su `Origin` no estaría en ella. Ver `OrigenesDeConfianza`.
+  csrf: new OrigenesDeConfianza(process.env.NEXT_PUBLIC_SERVER_URL || '', dominioDeInstituciones()),
 
   // Sin el prefijo. Payload ya lo pone él.
   //

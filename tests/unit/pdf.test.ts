@@ -36,6 +36,11 @@ describe('el origen interno', () => {
     expect(origenInterno(undefined)).toBe('http://127.0.0.1:3000')
     expect(origenInterno('3000@otra.maquina')).toBe('http://127.0.0.1:3000')
   })
+
+  it('para una institución, su subdominio bajo `localhost`, que Chromium lleva a la propia máquina (D-396)', () => {
+    expect(origenInterno('3100', 'uchile')).toBe('http://uchile.localhost:3100')
+    expect(origenInterno(undefined, '')).toBe('http://127.0.0.1:3000')
+  })
 })
 
 describe('lo que la página puede pedir mientras se imprime', () => {
@@ -127,7 +132,10 @@ describe('el botón', () => {
 
   it('la ruta comprueba la sesión antes de abrir el navegador', () => {
     const ruta = fuente('src', 'app', '(frontend)', 'api', 'pdf', '[pagina]', '[id]', 'route.ts')
-    expect(ruta.indexOf('payload.auth(')).toBeGreaterThan(0)
-    expect(ruta.indexOf('payload.auth(')).toBeLessThan(ruta.indexOf('imprimirFicha('))
+    // `obtenerSesion` y no `payload.auth`: la cuenta tiene que valer en este
+    // anfitrión (D-396).
+    expect(ruta.indexOf('await obtenerSesion()')).toBeGreaterThan(0)
+    expect(ruta.indexOf('await obtenerSesion()')).toBeLessThan(ruta.indexOf('imprimirFicha('))
+    expect(ruta).not.toContain('payload.auth(')
   })
 })

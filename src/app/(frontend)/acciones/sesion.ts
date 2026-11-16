@@ -42,6 +42,9 @@ import { COOKIE_VISTA_PREVIA } from '@/lib/vistaPrevia'
 import { destinoAlEntrar } from '@/lib/bienvenida'
 import { datosDeLaPeticion } from '@/lib/entradas'
 import { cerrarLaEntrada } from '@/lib/entradasServidor'
+import { lugarDeLaPeticion } from '@/lib/institucionesServidor'
+import { idDeInstitucion } from '@/access/payload'
+import { cuentaValeEnElLugar } from '@/access/reglas'
 
 /**
  * Opciones de la cookie de sesión, y el cabo que dejó mudarla de `/` al prefijo.
@@ -153,6 +156,10 @@ export async function entrar(
     }
 
     const payload = await getPayload({ config })
+    // Dónde se entra (D-396). En un subdominio sin institución no entra nadie:
+    // la página ya dice que no existe, y la acción se podría llamar igual.
+    const lugar = await lugarDeLaPeticion(payload, cabeceras)
+    if (lugar.subdominio && !lugar.institucion) throw new Error('Correo o contraseña incorrectos.')
 
     let resultado: { token?: string; user?: { activo?: unknown; rol?: unknown; bienvenidaVistaEn?: unknown } }
     try {
@@ -161,8 +168,13 @@ export async function entrar(
         data: { email: exigirCorreo(correo), password: contrasena },
         // El equipo, la IP y el país de esta entrada, para el gancho que cierra
         // las demás sesiones de la cuenta (`hooks/sesionUnica.ts`, D-388): la
-        // API local no le pasa las cabeceras de la petición.
-        context: { entrada: datosDeLaPeticion(cabeceras, direccion) },
+        // API local no le pasa las cabeceras de la petición. Y la institución
+        // del lugar, para `beforeLogin`, que no deja entrar a una cuenta de
+        // otra (`CuentaDeOtroLugar`).
+        context: {
+          entrada: datosDeLaPeticion(cabeceras, direccion),
+          institucionDelLugar: lugar.institucion?.id ?? null,
+        },
       })
     } catch (fallo) {
       // La cuenta bloqueada se dice, y no se disfraza de contraseña mala.
@@ -343,7 +355,8 @@ export async function pedirEnlaceDeClave(correo: unknown): Promise<Respuesta> {
       // Los tres frenos, y callados: ver `LIMITE_DE_CLAVE_POR_CORREO`. Por
       // dirección primero, para que quien abusa desde una sola gaste su cupo y
       // no el de todos.
-      const direccion = direccionDeQuienLlama(await headers())
+      const cabeceras = await headers()
+      const direccion = direccionDeQuienLlama(cabeceras)
       if (
         !(await LIMITE_DE_CLAVE_POR_DIRECCION.permitir(direccion)) ||
         !(await LIMITE_DE_CLAVE_POR_CORREO.permitir(email)) ||
@@ -352,6 +365,27 @@ export async function pedirEnlaceDeClave(correo: unknown): Promise<Respuesta> {
         payload.logger.warn({
           msg: 'Se descartó una petición de enlace de clave nueva por exceso de ritmo',
         })
+        return null
+      }
+      // La cuenta tiene que ser de este lugar (D-396), y se mira antes de
+      // pedir el testigo: cada uno invalida el anterior, y desde otro
+      // subdominio no se debe poder dejar muerto el enlace de nadie. Callado,
+      // como lo demás: si no, el formulario diría de qué institución es cada
+      // correo.
+      const lugar = await lugarDeLaPeticion(payload, cabeceras)
+      if (lugar.subdominio && !lugar.institucion) return null
+      const { docs } = await payload.find({
+        collection: 'usuarios',
+        where: { email: { equals: email } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+        select: { institucion: true },
+      })
+      if (
+        !docs[0] ||
+        !cuentaValeEnElLugar(idDeInstitucion((docs[0] as { institucion?: unknown }).institucion), lugar.institucion?.id ?? null)
+      ) {
         return null
       }
       const testigo = await payload.forgotPassword({
@@ -365,7 +399,7 @@ export async function pedirEnlaceDeClave(correo: unknown): Promise<Respuesta> {
       if (testigo) {
         enviarSinEsperar(
           payload,
-          { para: email, correo: mensajeDeClaveNueva(enlaceDeClave(testigo)) },
+          { para: email, correo: mensajeDeClaveNueva(enlaceDeClave(testigo, lugar.subdominio)) },
           'enlace de clave nueva',
         )
       }
@@ -791,11 +825,16 @@ export async function fijarClaveNueva(
     const claveNueva = exigirContrasena(contrasena)
 
     const payload = await getPayload({ config })
+    // `resetPassword` también pasa por `beforeLogin`, que mira dónde se está
+    // (D-396): el enlace del correo lleva al subdominio de la cuenta, y desde
+    // otro no sirve.
+    const lugar = await lugarDeLaPeticion(payload, await headers())
     const resultado = await payload
       .resetPassword({
         collection: 'usuarios',
         data: { token: testigo, password: claveNueva },
         overrideAccess: true,
+        context: { institucionDelLugar: lugar.institucion?.id ?? null },
       })
       .catch((fallo: unknown) => {
         // La cuenta sin activar también llega por aquí, y decirle que el enlace

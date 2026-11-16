@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs'
+import { request as pedirPorHttp } from 'node:http'
 import puppeteer from 'puppeteer-core'
 import { destinoDePeticion, leerCookies, origenInterno } from './pdf'
 import { PREFIJO } from './rutas'
@@ -88,16 +89,63 @@ async function pedirTurno(): Promise<() => void> {
 const IMAGEN_MAXIMA_BYTES = 25 * 1024 * 1024
 
 /**
+ * Un `GET` al propio servidor con las cabeceras dadas, `host` incluida.
+ *
+ * Con `node:http` y no con `fetch`: `fetch` pone el anfitrión de la dirección y
+ * descarta el de las cabeceras, y la institución de la petición sale de ahí
+ * (D-396). `null` si la respuesta pasa de `IMAGEN_MAXIMA_BYTES`.
+ */
+function traerPorDentro(
+  origen: URL,
+  camino: string,
+  cabeceras: Record<string, string>,
+): Promise<{ status: number; contentType?: string; body: Buffer } | null> {
+  return new Promise((resolver, rechazar) => {
+    const peticion = pedirPorHttp(
+      { hostname: origen.hostname, port: origen.port, path: camino, method: 'GET', headers: cabeceras },
+      (respuesta) => {
+        if (Number(respuesta.headers['content-length'] ?? 0) > IMAGEN_MAXIMA_BYTES) {
+          respuesta.destroy()
+          return resolver(null)
+        }
+        const trozos: Buffer[] = []
+        let total = 0
+        respuesta.on('data', (trozo: Buffer) => {
+          total += trozo.length
+          if (total > IMAGEN_MAXIMA_BYTES) {
+            respuesta.destroy()
+            return resolver(null)
+          }
+          trozos.push(trozo)
+        })
+        respuesta.on('end', () =>
+          resolver({
+            status: respuesta.statusCode ?? 502,
+            contentType: respuesta.headers['content-type'],
+            body: Buffer.concat(trozos),
+          }),
+        )
+        respuesta.on('error', rechazar)
+      },
+    )
+    peticion.on('error', rechazar)
+    peticion.end()
+  })
+}
+
+/**
  * Imprime `camino` (sin el prefijo, p. ej. `/biblioteca/12`) con las cookies
  * de quien lo pide y devuelve el PDF con el título de la ficha.
  *
  * `origenPublico` es el `serverURL` de Payload, el origen con el que escribe la
- * dirección de los archivos subidos (ver `destinoDePeticion`).
+ * dirección de los archivos subidos (ver `destinoDePeticion`). `subdominio`, el
+ * de la institución de quien lo pide, o `''` (ver `origenInterno`).
  */
 export async function imprimirFicha(
   camino: string,
   cabeceraDeCookies: string | null,
   origenPublico: string | null,
+  subdominio = '',
 ): Promise<{ bytes: Uint8Array; titulo: string | null }> {
   const ejecutable = buscarNavegador()
   const soltar = await pedirTurno()
@@ -128,12 +176,16 @@ export async function imprimirFicha(
     })
 
   try {
-    const origen = origenInterno(process.env.PORT)
+    const origen = origenInterno(process.env.PORT, subdominio)
     const cookies = leerCookies(cabeceraDeCookies)
     if (cookies.length) {
       const { hostname } = new URL(origen)
       await navegador.setCookie(...cookies.map((c) => ({ ...c, domain: hostname, path: '/' })))
     }
+    // Lo que el servidor pide por su cuenta va a `127.0.0.1` con el anfitrión
+    // en la cabecera: Node no siempre sabe resolver `uchile.localhost`.
+    const directo = new URL(origenInterno(process.env.PORT))
+    const anfitrion = new URL(origen).host
 
     const pagina = await navegador.newPage()
     await pagina.setRequestInterception(true)
@@ -152,17 +204,12 @@ export async function imprimirFicha(
         // petición que no la trae (`extractJWT`): a un cliente que no es un
         // navegador no le cree la sesión.
         const { pathname, search } = new URL(peticion.url())
-        void fetch(`${origen}${pathname}${search}`, {
-          headers: { cookie: cabeceraDeCookies ?? '', 'sec-fetch-site': 'same-origin' },
+        void traerPorDentro(directo, `${pathname}${search}`, {
+          host: anfitrion,
+          cookie: cabeceraDeCookies ?? '',
+          'sec-fetch-site': 'same-origin',
         })
-          .then(async (r) => {
-            if (Number(r.headers.get('content-length') ?? 0) > IMAGEN_MAXIMA_BYTES) return peticion.abort()
-            return peticion.respond({
-              status: r.status,
-              contentType: r.headers.get('content-type') ?? undefined,
-              body: Buffer.from(await r.arrayBuffer()),
-            })
-          })
+          .then((r) => (r ? peticion.respond(r) : peticion.abort()))
           .catch(() => peticion.abort().catch(() => undefined))
       }
     })

@@ -1,5 +1,5 @@
 import type { Field, FieldHook } from 'payload'
-import { PREFIJO, sinPrefijo } from '@/lib/rutas'
+import { origenDe, PREFIJO, sinPrefijo } from '@/lib/rutas'
 
 /**
  * La `url` de cada archivo subido se guarda sin el prefijo de la instalación
@@ -32,6 +32,34 @@ export const guardarSinPrefijo: FieldHook = ({ value }) =>
   typeof value === 'string' ? sinPrefijo(value, process.env.NEXT_BASE_PATH || PREFIJO) : value
 
 /**
+ * La dirección sin el origen de la dirección pública: `/traumahub/api/…` en vez
+ * de `https://servidor/traumahub/api/…`. Lo demás, igual: una dirección de otro
+ * origen no es de esta instalación y no se toca.
+ */
+export function sinOrigen(direccion: string, origen: string | null): string {
+  if (!origen || !direccion.startsWith(origen)) return direccion
+  const resto = direccion.slice(origen.length)
+  return resto.startsWith('/') ? resto : direccion
+}
+
+/**
+ * Al leer, la `url` sale sin origen (D-396).
+ *
+ * Payload la arma absoluta, con `serverURL`, que es la central. En el
+ * subdominio de una institución, `<img src="https://traumahub.cl/api/medios/…">`
+ * se pediría a la central, que no recibe la cookie del subdominio —cada
+ * anfitrión tiene la suya— y contestaría «sin acceso»: toda imagen, todo vídeo
+ * y todo modelo 3D de la institución saldrían rotos. Sin origen, el navegador
+ * la pide al anfitrión en el que está.
+ *
+ * Corre detrás del gancho de lectura de Payload por la misma fusión que el de
+ * guardar (ver arriba), y recibe ya la dirección armada. El prefijo se queda:
+ * lo puso Payload, y por eso nadie le pone `ruta()` encima.
+ */
+export const leerSinOrigen: FieldHook = ({ value }) =>
+  typeof value === 'string' ? sinOrigen(value, origenDe(process.env.NEXT_PUBLIC_SERVER_URL || '') || null) : value
+
+/**
  * Los campos que hay que sumar a una colección de subida para que su `url`, y
  * la de cada tamaño de imagen, se guarde sin prefijo.
  *
@@ -42,7 +70,11 @@ export const guardarSinPrefijo: FieldHook = ({ value }) =>
  * `tests/unit/archivosSubidos.test.ts` compara las dos listas.
  */
 export function camposDeDireccionSinPrefijo(tamanos: readonly string[] = []): Field[] {
-  const url = (): Field => ({ name: 'url', type: 'text', hooks: { beforeChange: [guardarSinPrefijo] } })
+  const url = (): Field => ({
+    name: 'url',
+    type: 'text',
+    hooks: { beforeChange: [guardarSinPrefijo], afterRead: [leerSinOrigen] },
+  })
   if (tamanos.length === 0) return [url()]
   return [
     url(),

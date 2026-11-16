@@ -1,6 +1,7 @@
 import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { cuentaEnSuLugar } from '@/lib/sesion'
 import { versionActual } from '@/lib/publicaciones'
 import { despliegueActual } from '@/lib/despliegue'
 import { puedeVerModulo } from '@/access/reglas'
@@ -34,7 +35,9 @@ export async function GET() {
 
   /** La cuenta que llama, leída de la base ahora, o `null` si ya no puede ver nada. */
   const sesionVigente = async (): Promise<Sesion | null> => {
-    const { user } = await payload.auth({ headers: cabeceras })
+    // `cuentaEnSuLugar` y no `payload.auth`: la cuenta tiene que valer en este
+    // anfitrión (D-396).
+    const { user } = await cuentaEnSuLugar(payload, cabeceras)
     if (!user || !(user as { activo?: boolean }).activo) return null
     return user as unknown as Sesion
   }

@@ -20,7 +20,9 @@ import { AvisoDeServidorDePruebas } from '@/components/AvisoDeServidorDePruebas'
  * la base, el navegador o el enrutador de Next.
  */
 
-const { sesionActual } = vi.hoisted(() => ({ sesionActual: { activo: false } }))
+const { sesionActual } = vi.hoisted(() => ({
+  sesionActual: { activo: false, lugar: undefined as undefined | { subdominio: string; institucion: null | Record<string, unknown> } },
+}))
 vi.mock('@/lib/sesion', () => ({
   obtenerSesion: async () => ({
     usuario: sesionActual.activo ? { nombre: 'Residente', versionDelAvisoDePrivacidad: null } : null,
@@ -29,7 +31,13 @@ vi.mock('@/lib/sesion', () => ({
     rol: sesionActual.activo ? 'lector' : null,
     simulando: false,
     usuarioEfectivo: null,
+    lugar: sesionActual.lugar,
   }),
+}))
+// El selector de institución pide el enrutador de Next y una acción de servidor.
+vi.mock('@/components/SelectorDeInstitucionDePrueba', () => ({
+  SelectorDeInstitucionDePrueba: ({ actual }: { actual: { subdominio: string } | null }) =>
+    `selector:${actual ? actual.subdominio : 'central'}`,
 }))
 vi.mock('@/components/Navegacion', () => ({ Navegacion: () => null }))
 vi.mock('@/components/AvisoActualizacion', () => ({ AvisoActualizacion: () => null }))
@@ -99,6 +107,32 @@ describe('la plantilla de la plataforma', () => {
       expect(html).toMatch(/<body[^>]*><div class="aviso-de-pruebas"/)
     })
   }
+
+  it('lleva el selector de institución, con la que se está mirando (D-396)', async () => {
+    sesionActual.activo = false
+    vi.stubEnv('SERVIDOR_DE_PRUEBAS', 'https://traumahub.cl')
+    expect(await pintar()).toContain('selector:central')
+    sesionActual.lugar = { subdominio: 'uchile', institucion: { id: '1', subdominio: 'uchile', nombre: 'Universidad' } }
+    try {
+      expect(await pintar()).toContain('selector:uchile')
+    } finally {
+      sesionActual.lugar = undefined
+    }
+  })
+
+  it('en el subdominio de una institución que no existe, lo dice en vez de la página (D-396)', async () => {
+    sesionActual.activo = false
+    vi.stubEnv('SERVIDOR_DE_PRUEBAS', '')
+    sesionActual.lugar = { subdominio: 'nadie', institucion: null }
+    try {
+      const html = await pintar()
+      expect(html).toContain('Esta institución no existe')
+      expect(html).toContain('<strong>nadie</strong>')
+      expect(html).not.toContain('contenido')
+    } finally {
+      sesionActual.lugar = undefined
+    }
+  })
 
   it('no la pinta en producción', async () => {
     sesionActual.activo = false

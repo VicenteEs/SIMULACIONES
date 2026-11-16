@@ -1,6 +1,7 @@
 import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { obtenerSesion } from '@/lib/sesion'
 import { esIdDeFicha, esPaginaConPdf, nombreDelPdf, origenDe } from '@/lib/pdf'
 import { FichaNoDisponible, imprimirFicha, Ocupado, SinNavegador } from '@/lib/pdfServidor'
 
@@ -30,14 +31,17 @@ export async function GET(_peticion: Request, { params }: { params: Promise<{ pa
 
   const cabeceras = await siguientesCabeceras()
   const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers: cabeceras })
-  if (!user || !(user as { activo?: boolean }).activo) return texto(401, 'Hay que entrar para guardar el PDF.')
+  // `obtenerSesion` y no `payload.auth`: una cuenta de otra institución que la
+  // del anfitrión no tiene sesión aquí (D-396), y no debe costar una impresión.
+  const sesion = await obtenerSesion()
+  if (!sesion.usuario || !sesion.activo) return texto(401, 'Hay que entrar para guardar el PDF.')
 
   try {
     const { bytes, titulo } = await imprimirFicha(
       `/${pagina}/${id}`,
       cabeceras.get('cookie'),
       origenDe(payload.config.serverURL),
+      sesion.lugar?.subdominio ?? '',
     )
     return new Response(new Blob([bytes as BlobPart]), {
       headers: {

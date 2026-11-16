@@ -2465,6 +2465,19 @@ dd > div blockquote p:last-child,
   line-height: 1.5;
 }
 .aviso-de-pruebas a { color: inherit; font-weight: 600; text-decoration: underline; }
+/* El selector de institución de ved (D-396), en la misma línea de la franja y con su letra: es una herramienta de
+   quien prueba, no parte de la plataforma, y no debe parecerlo. */
+.selector-de-institucion-formulario { display: inline-flex; gap: var(--e-1); align-items: center; flex-wrap: wrap; }
+.selector-de-institucion-formulario input {
+  font: inherit; width: 10rem; padding: 0 var(--e-2); border: 1px solid var(--ambar); border-radius: 4px;
+  background: var(--superficie, #fff); color: inherit;
+}
+.selector-de-institucion-formulario button {
+  font: inherit; padding: 0 var(--e-2); border: 1px solid var(--ambar); border-radius: 4px;
+  background: transparent; color: inherit; cursor: pointer;
+}
+.selector-de-institucion-formulario button:disabled { opacity: .6; cursor: default; }
+.selector-de-institucion-error { font-weight: 600; }
 
 /* La franja de la sesión cerrada por otra entrada (D-388), con la forma de la de pruebas y el azul de la marca:
    no es un error, y el ámbar ya dice «servidor de pruebas» justo encima. */

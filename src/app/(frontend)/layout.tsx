@@ -17,6 +17,8 @@ import { ruta } from '@/lib/rutas'
 import { AvisoDeServidorDePruebas } from '@/components/AvisoDeServidorDePruebas'
 import { AvisoDeSesionCerrada } from '@/components/AvisoDeSesionCerrada'
 import { PREFIJO_DEL_TITULO, servidorDePruebas } from '@/lib/servidorDePruebas'
+import { InstitucionQueNoExiste } from '@/components/InstitucionQueNoExiste'
+import { direccionPublica } from '@/collections/Usuarios'
 
 const TITULO = 'Plataforma docente de traumatología'
 
@@ -60,6 +62,10 @@ export default async function Layout({ children }: { children: React.ReactNode }
   // acepta es la persona y no el papel que está mirando.
   const pideElAviso = sesion.activo && debeAceptarElAviso(sesion.usuario)
   const dentro = sesion.activo && !pideElAviso
+  // El subdominio de una institución que no existe (D-396) no enseña ninguna
+  // página, tampoco `/entrar`: en él no vale ninguna cuenta.
+  const lugar = sesion.lugar
+  const noExiste = Boolean(lugar?.subdominio) && !lugar?.institucion
   // La paleta del simulador (P-014 E7), en `<body>` y en ningún otro sitio. La consola aparece en tres lugares
   // —la página del caso, su silueta de carga y el editor del caso, dentro del panel— y de aquí cuelgan los
   // tres. Antes iba en el `<main>` de la página y en el contorno del panel, y la silueta, que no puede preguntar
@@ -73,7 +79,14 @@ export default async function Layout({ children }: { children: React.ReactNode }
         {/* Lo primero de la página, también antes de entrar y con el aviso de
             privacidad delante: es en `/entrar` donde se decide en qué servidor
             se va a trabajar. */}
-        {pruebas ? <AvisoDeServidorDePruebas produccion={pruebas.produccion} /> : null}
+        {pruebas ? (
+          <AvisoDeServidorDePruebas
+            produccion={pruebas.produccion}
+            institucion={
+              lugar?.institucion ? { subdominio: lugar.institucion.subdominio, nombre: lugar.institucion.nombre } : null
+            }
+          />
+        ) : null}
         {/* Para el equipo que se quedó sin sesión porque se entró con la misma
             cuenta en otro (D-388): sin esto vería la portada de visitante sin
             saber por qué. */}
@@ -93,7 +106,9 @@ export default async function Layout({ children }: { children: React.ReactNode }
         {/* Los diálogos de confirmación y los avisos flotantes, para el sitio y
             el panel: los dos se montan dentro de este mismo layout. */}
         <ProveedoresDeUI>
-          {pideElAviso ? (
+          {noExiste ? (
+            <InstitucionQueNoExiste subdominio={lugar?.subdominio ?? ''} central={direccionPublica()} />
+          ) : pideElAviso ? (
             <PantallaDelAviso nombre={sesion.usuario?.nombre as string | undefined} />
           ) : (
             children

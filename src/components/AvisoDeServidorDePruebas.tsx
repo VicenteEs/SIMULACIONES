@@ -1,5 +1,6 @@
 import React from 'react'
 import type { ServidorDePruebas } from '@/lib/servidorDePruebas'
+import { SelectorDeInstitucionDePrueba } from '@/components/SelectorDeInstitucionDePrueba'
 
 /**
  * La franja de ved, el servidor de pruebas (D-385), en lo alto de cada página.
@@ -15,8 +16,14 @@ import type { ServidorDePruebas } from '@/lib/servidorDePruebas'
  *
  * El enlace va con la dirección entera, sin `ruta()`: lleva a otro servidor, y
  * el prefijo de este no tiene nada que ver con el de aquel.
+ *
+ * Desde E5 lleva también el selector de institución (D-396): ved no tiene
+ * subdominios, y es la única forma de probar allí una institución.
  */
-export function AvisoDeServidorDePruebas({ produccion }: ServidorDePruebas) {
+export function AvisoDeServidorDePruebas({
+  produccion,
+  institucion,
+}: ServidorDePruebas & { institucion?: { subdominio: string; nombre: string } | null }) {
   return (
     <div className="aviso-de-pruebas" role="note" aria-label="Servidor de pruebas">
       <strong>Servidor de pruebas.</strong> Lo que se haga aquí se queda aquí y no llega a la plataforma.
@@ -26,6 +33,7 @@ export function AvisoDeServidorDePruebas({ produccion }: ServidorDePruebas) {
           El contenido se crea en <a href={produccion}>{new URL(produccion).host}</a>.
         </>
       ) : null}
+      <SelectorDeInstitucionDePrueba actual={institucion ?? null} />
     </div>
   )
 }

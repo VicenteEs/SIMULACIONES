@@ -155,6 +155,29 @@ describe.skipIf(intento.payload === null)('la base sin prefijo (D-370)', () => {
     expect(fila.sizes_ancho_url).toMatch(/^\/api\/medios\/file\/[^/]+$/)
   })
 
+  it('al leer, la url y la de cada tamaño salen sin origen (D-396)', async () => {
+    // Payload las arma con `serverURL`, que en las pruebas va vacía: se le pone
+    // una, la de Contabo, solo durante esta lectura.
+    const medio = await subirImagen('sin-origen')
+    const antes = { serverURL: payload.config.serverURL, publica: process.env.NEXT_PUBLIC_SERVER_URL }
+    payload.config.serverURL = 'https://traumahub.example.net'
+    process.env.NEXT_PUBLIC_SERVER_URL = 'https://traumahub.example.net'
+    try {
+      const leido = (await payload.findByID({ collection: 'medios', id: medio.id, overrideAccess: true })) as unknown as {
+        url: string
+        sizes: Record<string, { url?: string | null }>
+      }
+      expect(leido.url).toMatch(/^\/(?:[^/]+\/)?api\/medios\/file\//)
+      for (const [nombre, tamano] of Object.entries(leido.sizes ?? {})) {
+        if (tamano?.url) expect(tamano.url, nombre).toMatch(/^\/(?:[^/]+\/)?api\/medios\/file\//)
+      }
+    } finally {
+      payload.config.serverURL = antes.serverURL
+      if (antes.publica === undefined) delete process.env.NEXT_PUBLIC_SERVER_URL
+      else process.env.NEXT_PUBLIC_SERVER_URL = antes.publica
+    }
+  })
+
   it('la migración quita cualquier prefijo de lo que ya estaba, y deja lo demás', async () => {
     const modelo = await subirModelo('viejo')
     const sinTocar = await subirModelo('sin-tocar')

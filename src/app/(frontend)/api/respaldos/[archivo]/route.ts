@@ -4,6 +4,7 @@ import { Readable } from 'node:stream'
 import { headers as siguientesCabeceras } from 'next/headers'
 import { getPayload } from 'payload'
 import config from '@payload-config'
+import { cuentaEnSuLugar } from '@/lib/sesion'
 import { esNombreDeRespaldo, estaCifrado } from '@/lib/respaldos'
 import { rutaDeRespaldo } from '@/lib/respaldosServidor'
 
@@ -25,7 +26,9 @@ export async function GET(
   { params }: { params: Promise<{ archivo: string }> },
 ) {
   const payload = await getPayload({ config })
-  const { user } = await payload.auth({ headers: await siguientesCabeceras() })
+  // `cuentaEnSuLugar` y no `payload.auth`: la cuenta tiene que valer en este
+  // anfitrión (D-396).
+  const { user } = await cuentaEnSuLugar(payload, await siguientesCabeceras())
 
   const esAdmin = Boolean(
     user && (user as { activo?: boolean }).activo && (user as { rol?: string }).rol === 'admin',

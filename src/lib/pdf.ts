@@ -40,9 +40,18 @@ export const esIdDeFicha = (valor: string): boolean => /^[1-9]\d{0,9}$/.test(val
  * `next start` y el `server.js` de la imagen dejan en `PORT` el puerto donde
  * escuchan, y todos atienden en `127.0.0.1`: la imagen escucha en `0.0.0.0` y
  * el servidor de Windows en `127.0.0.1` a propósito.
+ *
+ * Para la ficha de una institución, `<subdominio>.localhost` (D-396). La página
+ * tiene que pintarse en el lugar de quien la pide: en `127.0.0.1` sería la
+ * central, la cuenta de la institución no valdría allí y el PDF saldría como
+ * «sin acceso». Chromium lleva cualquier nombre terminado en `.localhost` a su
+ * propia máquina sin preguntar a ningún DNS (RFC 6761), y `anfitrion.ts` tiene
+ * `localhost` siempre entre los dominios de las instituciones. Node no siempre
+ * lo resuelve —depende del sistema—, y por eso lo que pide el servidor por su
+ * cuenta va a `127.0.0.1` con el anfitrión en la cabecera (`pdfServidor.ts`).
  */
-export const origenInterno = (puerto: string | undefined): string =>
-  `http://127.0.0.1:${/^\d{1,5}$/.test(puerto ?? '') ? puerto : '3000'}`
+export const origenInterno = (puerto: string | undefined, subdominio = ''): string =>
+  `http://${subdominio ? `${subdominio}.localhost` : '127.0.0.1'}:${/^\d{1,5}$/.test(puerto ?? '') ? puerto : '3000'}`
 
 /**
  * Qué hacer con cada petición de la página mientras se imprime: dejarla seguir,

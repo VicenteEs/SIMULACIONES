@@ -27,6 +27,7 @@ interface Cuenta {
   rol?: string
   activo?: boolean
   pendiente?: boolean
+  institucion?: number | null
 }
 
 const { estado, contar, buscar, crear, actualizar, pedirTestigo, enviar, registrarError } = vi.hoisted(() => ({
@@ -529,6 +530,12 @@ describe('la solicitud de cuenta', { timeout: 30_000 }, () => {
 })
 
 describe('el enlace de contraseña nueva', { timeout: 30_000 }, () => {
+  // Desde D-396 se mira la cuenta antes de pedir el testigo: tiene que ser de
+  // este lugar, la central en estas pruebas.
+  beforeEach(() => {
+    estado.existentes = [{ id: 5, email: SOLICITUD.correo, activo: true }]
+  })
+
   it('pide el testigo sin el correo de Payload y lo manda con la plantilla', async () => {
     const respuesta = await pedirEnlaceDeClave('Ana.Perez@hospital.cl')
 
@@ -542,15 +549,29 @@ describe('el enlace de contraseña nueva', { timeout: 30_000 }, () => {
     expect(avisos[0].correo).toEqual(mensajeDeClaveNueva(`${BASE}/clave/testigo-de-una-hora`))
   })
 
-  it('sin cuenta con ese correo no manda nada y contesta lo mismo', async () => {
+  it('sin cuenta con ese correo no pide el testigo, no manda nada y contesta lo mismo', async () => {
     const conCuenta = await pedirEnlaceDeClave(SOLICITUD.correo)
     enviar.mockClear()
-    pedirTestigo.mockResolvedValue(null)
+    pedirTestigo.mockClear()
 
     const sinCuenta = await pedirEnlaceDeClave('nadie@hospital.cl')
 
     expect(sinCuenta).toEqual(conCuenta)
-    expect(pedirTestigo).toHaveBeenLastCalledWith(expect.objectContaining({ disableEmail: true }))
+    expect(pedirTestigo).not.toHaveBeenCalled()
+    expect(enviar).not.toHaveBeenCalled()
+  })
+
+  it('la cuenta de una institución, pedida desde la central, tampoco (D-396)', async () => {
+    const deLaCentral = await pedirEnlaceDeClave(SOLICITUD.correo)
+    enviar.mockClear()
+    pedirTestigo.mockClear()
+    estado.existentes = [{ id: 5, email: SOLICITUD.correo, activo: true, institucion: 7 }]
+
+    const deOtroLugar = await pedirEnlaceDeClave(SOLICITUD.correo)
+
+    // Callado: si no, el formulario diría de qué institución es cada correo.
+    expect(deOtroLugar).toEqual(deLaCentral)
+    expect(pedirTestigo).not.toHaveBeenCalled()
     expect(enviar).not.toHaveBeenCalled()
   })
 

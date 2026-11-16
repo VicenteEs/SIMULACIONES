@@ -33,7 +33,14 @@ const { estado, llamadas } = vi.hoisted(() => ({
   llamadas: [] as string[],
 }))
 
-vi.mock('@/lib/sesion', () => ({ obtenerSesion: async () => estado.sesion }))
+vi.mock('@/lib/sesion', () => ({
+  obtenerSesion: async () => estado.sesion,
+  // Lo que preguntan las rutas de API (D-396): aquí, la misma cuenta.
+  cuentaEnSuLugar: async () => {
+    const usuario = (estado.sesion as { usuario?: unknown } | null)?.usuario ?? null
+    return { user: usuario, delTestigo: usuario, lugar: { subdominio: '', institucion: null } }
+  },
+}))
 
 vi.mock('next/navigation', async (original) => ({
   ...((await original()) as object),

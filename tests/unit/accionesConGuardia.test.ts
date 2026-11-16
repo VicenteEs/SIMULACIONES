@@ -473,9 +473,11 @@ const GUARDIAS: Record<string, Clasificacion> = {
   'sesion.ts:salir': { guardia: 'publica', permitidos: ['auth', 'findByID', 'update', 'create'], argumentos: () => [] },
   // El correo sale por `enviarSinEsperar`, que sin SMTP no llama a nada; con él,
   // `sendEmail` es lo único más que puede tocar.
+  // `find`, para mirar que la cuenta sea del lugar antes de pedir el testigo
+  // (D-396): cada testigo invalida el anterior.
   'sesion.ts:pedirEnlaceDeClave': {
     guardia: 'publica',
-    permitidos: ['forgotPassword', 'sendEmail'],
+    permitidos: ['find', 'forgotPassword', 'sendEmail'],
     argumentos: () => ['a@prueba.invalid'],
   },
   // La primera acción pública que escribe: cuenta las cuentas (para no fabricar
@@ -509,6 +511,10 @@ const GUARDIAS: Record<string, Clasificacion> = {
     argumentos: () => ['Intruso', 'intruso@prueba.invalid', 'una-clave-larga-de-prueba'],
   },
   'sesion.ts:faltaLaPrimeraCuenta': { guardia: 'publica', permitidos: ['count'], argumentos: () => [] },
+  // El selector de ved (D-396). Pública porque se usa antes de entrar, para
+  // elegir dónde; fuera del servidor de pruebas se niega sin tocar nada, y en
+  // él solo busca si la institución existe.
+  'institucionDePrueba.ts:elegirInstitucionDePrueba': { guardia: 'publica', permitidos: ['find'], argumentos: () => ['uchile'] },
 }
 
 /**

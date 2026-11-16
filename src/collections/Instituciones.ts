@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { administracionCentral } from '@/access/payload'
+import { olvidarInstituciones } from '@/lib/institucionesServidor'
 import {
   MODALIDADES,
   motivoDeSubdominioInvalido,
@@ -45,6 +46,22 @@ export const Instituciones: CollectionConfig = {
           data.vence = vencimientoDelPiloto(new Date(data.inicio as string)).toISOString()
         }
         return data
+      },
+    ],
+    // Lo que el proceso guardó de las instituciones (`institucionesServidor.ts`)
+    // se borra al escribir una: si no, un subdominio recién creado diría «no
+    // existe» unos segundos, y un plazo extendido no se vería en medio minuto.
+    // Los otros procesos lo ven al vencer lo suyo.
+    afterChange: [
+      ({ doc }) => {
+        olvidarInstituciones()
+        return doc
+      },
+    ],
+    afterDelete: [
+      ({ doc }) => {
+        olvidarInstituciones()
+        return doc
       },
     ],
   },

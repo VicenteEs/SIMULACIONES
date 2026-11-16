@@ -1,11 +1,14 @@
 import { cache } from 'react'
 import { headers as siguientesCabeceras, cookies as siguientesCookies } from 'next/headers'
-import { getPayload } from 'payload'
+import { getPayload, type Payload } from 'payload'
 import config from '@payload-config'
 import { COOKIE_VISTA_PREVIA, rolEfectivo } from '@/lib/vistaPrevia'
 import type { Rol } from '@/access/reglas'
+import { cuentaValeEnElLugar } from '@/access/reglas'
+import { idDeInstitucion } from '@/access/payload'
 import { testigoDeLaPeticion } from '@/lib/cookieDeSesion'
 import { motivoDelCierre } from '@/lib/entradasServidor'
+import { lugarDeLaPeticion, type LugarDeLaPeticion } from '@/lib/institucionesServidor'
 
 export interface Sesion {
   usuario: Record<string, unknown> | null
@@ -19,6 +22,40 @@ export interface Sesion {
    * (`AvisoDeSesionCerrada`) y lo dicen las guardias de las acciones.
    */
   cierre?: 'otra-entrada' | null
+  /**
+   * Dónde está la petición (D-396): el subdominio y su institución. Opcional
+   * para las pruebas que imitan una sesión; la de verdad lo trae siempre.
+   */
+  lugar?: LugarDeLaPeticion
+}
+
+/**
+ * La cuenta de la petición, si vale en el lugar al que llega (D-396), con lo
+ * que se leyó para decidirlo.
+ *
+ * Una cuenta de otra institución, o una central en el subdominio de una, es
+ * aquí como no tener sesión. No se le dice por qué: la cookie de sesión es de
+ * cada anfitrión, y si llega una de otro lado alguien la trajo. En un
+ * subdominio sin institución no vale ninguna, la central tampoco, aunque sus
+ * dos lados digan «ninguna institución».
+ *
+ * Es lo que tiene que preguntar toda ruta que mire la sesión, en vez de
+ * `payload.auth` a secas: `payload.auth` cree cualquier testigo firmado, venga
+ * de donde venga. Solo `salir` lo llama directo, porque matar la sesión vale
+ * en cualquier parte.
+ */
+export async function cuentaEnSuLugar(
+  payload: Payload,
+  cabeceras: Headers,
+): Promise<{ user: Record<string, unknown> | null; delTestigo: Record<string, unknown> | null; lugar: LugarDeLaPeticion }> {
+  const lugar = await lugarDeLaPeticion(payload, cabeceras)
+  const delTestigo = ((await payload.auth({ headers: cabeceras })).user ?? null) as Record<string, unknown> | null
+  const enUnSubdominioQueNoExiste = lugar.subdominio !== '' && lugar.institucion === null
+  const vale =
+    delTestigo !== null &&
+    !enUnSubdominioQueNoExiste &&
+    cuentaValeEnElLugar(idDeInstitucion(delTestigo.institucion), lugar.institucion?.id ?? null)
+  return { user: vale ? delTestigo : null, delTestigo, lugar }
 }
 
 /**
@@ -43,7 +80,7 @@ export const obtenerSesion = cache(async function obtenerSesion(): Promise<
 > {
   const payload = await getPayload({ config })
   const cabeceras = await siguientesCabeceras()
-  const { user } = await payload.auth({ headers: cabeceras })
+  const { user, delTestigo, lugar } = await cuentaEnSuLugar(payload, cabeceras)
 
   if (!user) {
     // Solo cuando hay cookie y no hay sesión, que es raro: quien nunca entró no
@@ -57,7 +94,8 @@ export const obtenerSesion = cache(async function obtenerSesion(): Promise<
       rol: null,
       simulando: false,
       usuarioEfectivo: null,
-      cierre: motivo === 'otra-entrada' ? motivo : null,
+      cierre: motivo === 'otra-entrada' && !delTestigo ? motivo : null,
+      lugar,
     }
   }
 
@@ -75,5 +113,6 @@ export const obtenerSesion = cache(async function obtenerSesion(): Promise<
     rol,
     simulando: rol !== rolReal,
     usuarioEfectivo: { ...registro, rol },
+    lugar,
   }
 })

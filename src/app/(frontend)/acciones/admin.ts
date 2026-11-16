@@ -26,6 +26,7 @@ import {
 } from '@/correo/mensajes'
 import { exigirAdmin, exigirEditor, accion, type Respuesta } from '@/lib/guardias'
 import { entradasDeLaCuenta } from '@/lib/entradasServidor'
+import { subdominioDeLaCuenta } from '@/lib/institucionesServidor'
 import { comoListaDeModulos } from '@/lib/mantencion'
 import { esProfesion } from '@/lib/firmas'
 import {
@@ -552,7 +553,7 @@ export async function crearUsuario(
       )
     }
 
-    const enlace = enlaceDeClave(testigo)
+    const enlace = enlaceDeClave(testigo, await subdominioDeLaCuenta(payload, (creado as { institucion?: unknown }).institucion))
     try {
       await enviarCorreo(payload, {
         para: correo,
@@ -696,16 +697,20 @@ export async function actualizarUsuario(
 function avisarDeCuentaActivada(payload: Payload, cuenta: Record<string, unknown>): void {
   const correo = typeof cuenta.email === 'string' ? cuenta.email : ''
   if (!correo) return
-  enviarSinEsperar(
-    payload,
-    {
-      para: correo,
-      correo: mensajeDeCuentaActivada({
-        nombre: typeof cuenta.nombre === 'string' ? cuenta.nombre : '',
-        enlaceEntrar: `${direccionPublica()}/entrar`,
-      }),
-    },
-    `aviso de cuenta activada a ${correo}`,
+  // El enlace va al subdominio de la cuenta (D-396), que es el único donde
+  // entra. `subdominioDeLaCuenta` no lanza, así que esto sigue sin esperar.
+  void subdominioDeLaCuenta(payload, cuenta.institucion).then((subdominio) =>
+    enviarSinEsperar(
+      payload,
+      {
+        para: correo,
+        correo: mensajeDeCuentaActivada({
+          nombre: typeof cuenta.nombre === 'string' ? cuenta.nombre : '',
+          enlaceEntrar: `${direccionPublica(subdominio)}/entrar`,
+        }),
+      },
+      `aviso de cuenta activada a ${correo}`,
+    ),
   )
 }
 
@@ -988,7 +993,9 @@ export async function generarEnlaceDeClave(
     // `…/traumahub//clave/<testigo>`, que contesta con el 404 de otra página del
     // servidor compartido—. Sin SMTP, este enlace es el único camino para que
     // alguien elija clave, y caduca en una hora.
-    const enlace = enlaceDeClave(testigo)
+    // Al subdominio de la cuenta, que es el único donde entra (D-396).
+    const subdominio = await subdominioDeLaCuenta(payload, (cuenta as { institucion?: unknown }).institucion)
+    const enlace = enlaceDeClave(testigo, subdominio)
 
     // `enviadoPorCorreo` dice lo que pasó, no lo que se intentó: con `true`, la
     // pantalla le cuenta al administrador que el enlace ya está en el buzón, y
