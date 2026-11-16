@@ -11662,6 +11662,7 @@ Comprobado después:
 - Pinchar la mesa abre «Pida un instrumento».
 - El fondo verde, la base de la camilla y la mesa con la funda del color del paño: todos los `.glb` del pabellón con 200 y ningún error ni en el servidor ni en la consola.
 - «Pantalla completa» está en la consola del residente y en la del editor, y llama a `requestFullscreen` sobre `.consola`. Entrar no se pudo ver: el panel del navegador de la app de escritorio deja la petición sin responder (el clic simulado no cuenta como gesto del usuario). Falta que alguien lo pulse en Chrome, Edge o Firefox.
+- Desplegado el 2026-11-16 en `9a618a2`, a pedido del dueño: ved a las 14:28 (su respaldo del despliegue sale en claro, como se sabe) y Contabo a las 14:35, con respaldo verificado `base-`/`medios-20261116-143119`, el override igual a la plantilla y el ensayo de los casos en 2 casos y 0 errores. Los dos sirven los dos `.glb` con su tamaño exacto (1 475 200 y 148 120 bytes) y la salud en 200; Contabo corre sus 4 procesos. Antes de subir se pasaron tipos, lint, la suite entera (7372 pasan; las 4 que fallan son del entorno de la máquina del dueño y pasan con él limpio) y el build.
 
 *Consecuencias.*
 - (+) Se mira el tobillo de lado y en diagonal, de pie junto a la camilla, que era lo que no dejaba avanzar.
