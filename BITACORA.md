@@ -11779,6 +11779,7 @@ D-392 midió que un solo proceso de Node usaba poco más de uno de los seis núc
 - **Las otras pruebas:** `variosProcesos.test.ts` arranca el principal con un `server.js` de juguete: tres procesos, el mismo instante de arranque, y el que se cae vuelve. `difusion.test.ts` y `accionesDeDifusion.test.ts` cubren el latido y la marca. En local se arrancó además la salida de producción con dos procesos contra la base desechable: los dos atendieron, y uno matado a mano volvió en un segundo.
 - **Los guiones de la prueba de carga** pasan al repositorio, como dejó dicho D-392: `scripts/carga`, con su `LEEME.md`.
 - **Al desplegar**, en cada servidor hay que copiar la plantilla nueva del override (`despliegue/paginas/docker-compose.override.yml`), que le pasa `PROCESOS` al contenedor: sin esa línea, escribirla en el `.env` no haría nada.
+- *Desplegado en ved (`fb84dbb`) y en Contabo (`487fa73`) el 2026-11-16, con la plantilla copiada en los dos.* En los dos salen 4 procesos.
 
 *Consecuencias.*
 - (+) La aplicación usa cuatro núcleos en vez de uno, y nada de lo que dependía de un solo proceso se parte.
@@ -17801,7 +17802,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1, E2 y E9 hechas
+### P-016 · 2026-11-15 · en curso: E1, E2, E3 y E9 hechas
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -17918,7 +17919,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
      - el PDF de la ficha 1707 de la biblioteca: 200, `application/pdf`, una página con sus 2 imágenes, en 14,7 s. Esas imágenes las trae el servidor por dentro (`destinoDePeticion`), y salen bien con `serverURL` en `https://traumahub.cl`, sin prefijo. Los 14,7 s se miden en E4;
      - el simulador, caso 10: el modelo baja con 200 y la tibia se dibuja en el lienzo. No se eligió práctica ni evaluación, para no dejar un avance en la cuenta del dueño: la tarjeta de la elección se ocultó un momento en la pantalla para mirar el lienzo, y se volvió a mostrar.
   7. **ved pasa a pruebas:** ~~cuentas inventadas (paso 12 de E8 de P-011)~~. *Hecho el 2026-11-15, con las cuentas del equipo tal como están (D-384):* ved queda como servidor de pruebas, sin borrar nada, porque las 5 cuentas son del equipo y no hay usuarios reales. Desde las 18:53 la producción es `traumahub.cl`, y hasta las 19:25 no había cambiado ninguna fila de ved después de la copia. El aviso del 15 de noviembre, que nombra a Cloudflare, puede llegar a ved con la próxima actualización: a ved no se entra por Cloudflare, pero en el servidor de pruebas solo está el equipo.
-- [ ] **E3 · Proteger lo que ya existe**, antes de abrir a instituciones:
+- [x] **E3 · Proteger lo que ya existe**, antes de abrir a instituciones. *Terminada el 2026-11-16 y desplegada en Contabo esa noche (`5bb5ee6`). Le quedan dos pendientes que no son de código: grabar la referencia de cada caso publicado, que es del equipo, y revisar el aviso con el abogado, que va en E8.*
   - los casos, con versión de formato y con el ensayo antes de cada despliegue (D-373);
     - *la versión de formato, hecha el 2026-11-15:*
       - `formatoDelCaso.ts` lleva `VERSION_DEL_FORMATO_DEL_CASO = 1` y `CONVERSIONES`, una por versión, y una prueba lo exige;
@@ -17961,7 +17962,8 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - *hecho en local el 2026-11-16 (D-394):* el `ETag` de los archivos subidos, con su 304;
   - *desplegados en ved el 2026-11-16 (`fb84dbb`):* D-393 y D-394, con la plantilla nueva del override. Cuatro procesos, la migración en el lote 28, y salud 200 por fuera;
   - *comprobado el 2026-11-16 (nota en D-376):* Cloudflare ya guarda lo estático sin regla;
-  - *pendiente, en el orden de D-392:* desplegar D-393 y D-394 en Contabo; repetir la prueba con fichas publicadas y con el PDF, y con ella decidir la caché del contenido publicado (D-395).
+  - *desplegados en Contabo el 2026-11-16, a las 05:56 en Chile (`487fa73`), con el OK del dueño en cada paso:* D-393, D-394 y D-395. Ver la nota al final de las etapas;
+  - *pendiente, en el orden de D-392:* repetir la prueba con fichas publicadas y con el PDF, y con ella decidir la caché del contenido publicado (D-395). Espera a que haya fichas publicadas en producción y a que el dueño cree otra cuenta de prueba.
 - [ ] **E5 · Las instituciones (D-371).**
   - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;
   - el subdominio, con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381);
@@ -17989,6 +17991,13 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
 - `actualizar.sh` pasó de `4111080` a `5bb5ee6`. El ensayo, el primero en Contabo, abrió los 2 casos publicados con 0 errores y 2 avisos: todavía no tienen su resolución de referencia;
 - las 4 migraciones están en la base (lote 25) y no hay lote `-1`. Siguen las 5 cuentas, la salud por fuera da 200, `salud.sh` dice «Todo en orden», y traumahub.cl trae el logo enlazado;
 - desde aquí cada cuenta acepta el aviso del 2026-11-16 al entrar, y entrar cierra la sesión abierta en otro equipo.
+
+*Desplegado en Contabo el 2026-11-16, a las 05:56 en Chile (`487fa73`), con el OK del dueño en cada paso:* lo de E4 hasta ahora (D-393, D-394 y D-395).
+- antes, un respaldo cifrado y verificado (`base-` y `medios-20261116-053746`). La plantilla nueva del override, que pasa `PROCESOS`, se copió desde el repositorio del propio servidor; la de antes está en `~/antes-d393/`;
+- `actualizar.sh` pasó de `5bb5ee6` a `487fa73`. El ensayo abrió los 2 casos publicados con 0 errores y los mismos 2 avisos de antes;
+- en el contenedor, `arrancar.mjs` con 4 procesos `next-server`, y el registro dice «el 1 primero, para las migraciones» y «los 4 procesos están lanzados»;
+- la migración `20261116_033200_estado_compartido` está en el lote 26, con las tablas `intentos`, `presencias` y `publicaciones`, y las columnas `trabajador` y `latido_del_trabajador` de las difusiones;
+- por fuera: salud, portada, `/entrar`, `/biblioteca` y `/simulador` con 200, y un archivo de `medios` sin sesión, 403. `salud.sh` dice «Todo en orden», y el registro no trae ningún error en los primeros minutos.
 
 E2 va después de E1, para copiar una base ya limpia. E5 necesita el comodín de E2 y las protecciones de E3. E4 puede ir en paralelo a E3. E9 no depende de nada y puede salir con el despliegue de E1.
 
