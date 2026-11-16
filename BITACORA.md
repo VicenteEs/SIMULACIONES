@@ -11688,6 +11688,8 @@ Comprobado después:
 - el enlace lleva a `https://chesscore.cl`, en otra pestaña y con `rel="noopener"`, y se anuncia con su texto alternativo;
 - a 1280 y a 375 px de ancho, cada logo mide lo mismo que la imagen sin envolver (120 × 72 en el pie, 100 × 60 en la barra, 73 × 44 en la portada y en la tarjeta) y ninguna caja se desborda. Para eso hizo falta el `flex-shrink: 0`: el primer vistazo dio 95 × 57 en la barra.
 
+*Desplegado en ved el 2026-11-16 (`a14b99d`).* `actualizar.sh` pasó ved de `6ea9dc6` a `a14b99d`, y el ensayo abrió los 2 casos publicados con 0 errores y los 2 avisos de siempre. Después: las 5 cuentas siguen ahí (D-384), la página de créditos trae las dos versiones del logo enlazadas con su texto alternativo, la salud por fuera da 200, y `salud.sh` solo marca los respaldos sin cifrar (D-295).
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -17835,7 +17837,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
     - que cada institución es responsable de los datos de sus alumnos;
   - el contrato con cada institución (art. 15 bis);
   - los términos de uso.
-- [x] **E9 · Los logos de ChessCore llevan a chesscore.cl (D-378).** *Hecha el 2026-11-16 (D-391):*
+- [x] **E9 · Los logos de ChessCore llevan a chesscore.cl (D-378).** *Hecha el 2026-11-16 (D-391) y desplegada en ved ese día (`a14b99d`):*
   - el enlace, dentro de `LogoChessCore`;
   - una prueba de que los cuatro sitios lo traen;
   - la comprobación con el teclado, sobre fondo claro y oscuro;
