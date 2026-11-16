@@ -17806,7 +17806,8 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - `scripts/ensayar-casos.sh` en `deploy.sh`, entre construir y levantar, con `SIN_ENSAYO=1` para saltarlo;
       - pruebas: `ensayoDeLosCasos.test.ts`, `ensayoEnElDespliegue.test.ts`, `resolucionDeReferencia.test.ts`, `botonDeLaReferencia.test.ts` y `tests/integration/resolucionDeReferencia.test.ts`;
       - desplegado en ved el 2026-11-16, donde el ensayo abrió los 2 casos publicados sin errores;
-      - *pendiente:* grabar la referencia de cada caso publicado, que es trabajo del equipo (el ensayo avisa de los que no la tienen), y el primer despliegue con el ensayo en Contabo;
+      - el primer despliegue con el ensayo en Contabo, el 2026-11-16 (`5bb5ee6`), con los 2 casos publicados sin errores;
+      - *pendiente:* grabar la referencia de cada caso publicado, que es trabajo del equipo (el ensayo avisa de los que no la tienen);
   - los modelos: uno en uso no se borra, y se reemplaza con «Reemplazar por…» (D-372). Además, borrar una preparación se lleva los modelos que exportó y nadie usa, cada archivo lleva un nombre único, y se limpian una vez los modelos sobrantes de ved, con el OK del dueño;
     - *hecho el 2026-11-16 (D-387):*
       - el gancho `negarElBorradoDeUnModeloEnUso`, que lee del catálogo de PostgreSQL las columnas que apuntan a los modelos, y «Dónde se usa» con «Reemplazar por…» en la ficha del modelo;
@@ -17847,6 +17848,12 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - una prueba de que los cuatro sitios lo traen;
   - la comprobación con el teclado, sobre fondo claro y oscuro;
   - además, `flex-shrink: 0` en el enlace, que el logo de la barra del panel encogía al envolverlo.
+
+*Desplegado en Contabo el 2026-11-16 a las 23:34 de Chile (`5bb5ee6`), con el OK del dueño en cada paso:* lo de E3 (D-373, D-385 a D-388 y D-390), E9 (D-391) y el arreglo de `es_archivo_age` de E2.
+- antes, un respaldo cifrado y verificado (`base-` y `medios-20261115-232018`). La plantilla nueva del override, con `SERVIDOR_DE_PRUEBAS` vacía, se copió desde el repositorio del propio servidor; la de antes está en `~/antes-d391/`;
+- `actualizar.sh` pasó de `4111080` a `5bb5ee6`. El ensayo, el primero en Contabo, abrió los 2 casos publicados con 0 errores y 2 avisos: todavía no tienen su resolución de referencia;
+- las 4 migraciones están en la base (lote 25) y no hay lote `-1`. Siguen las 5 cuentas, la salud por fuera da 200, `salud.sh` dice «Todo en orden», y traumahub.cl trae el logo enlazado;
+- desde aquí cada cuenta acepta el aviso del 2026-11-16 al entrar, y entrar cierra la sesión abierta en otro equipo.
 
 E2 va después de E1, para copiar una base ya limpia. E5 necesita el comodín de E2 y las protecciones de E3. E4 puede ir en paralelo a E3. E9 no depende de nada y puede salir con el despliegue de E1.
 
