@@ -12492,6 +12492,33 @@ Decisiones del dueño, el 2026-11-16:
 - (−) Ninguna prueba corre el guion del anfitrión, que necesita `/proc` y Docker. Una prueba fija que escribe lo que la aplicación lee; el resto se comprueba en Contabo.
 - (−) Falta desplegarlo en Contabo, un paso a la vez, y que el dueño cree el token de Cloudflare.
 
+### D-409 · 2026-11-16 · vigente · P-016 E7 · Umami 3.4.1 responde 200 por un sitio que no existe
+**La plataforma da por existente el sitio de Umami solo si Umami lo devuelve con el identificador de `UMAMI_SITIO`. Al crearlo, comprueba que Umami lo respetó.**
+
+*Qué pasó.* Al desplegar E7 en Contabo (D-408), el registro dijo «[umami] Listo», pero Umami no tenía ningún sitio.
+- La plataforma pide `GET /api/websites/<id>`. Umami 3.4.1 responde 200 con `null` cuando el sitio no existe, y no 404.
+- La plataforma se fiaba del 200: escribía «Listo» y no creaba nada.
+- Cada visita iba a un sitio que no existía, y la pestaña habría mostrado ceros, como si nadie entrara.
+
+*Por qué no lo vieron las pruebas.* El Umami de mentira de `monitoreoServidor` respondía 404, como cabía esperar de una API, y el de la vista previa también. D-408 ya avisaba de dos respuestas que no están en la documentación de Umami. Esta era una tercera, que nadie había puesto en duda.
+
+*Lo que cambia.*
+- **Se lee el cuerpo.** Es el sitio solo si trae un `id` igual a `UMAMI_SITIO`. Un 200 con otra cosa, o un 404, lleva a crearlo.
+- **Después de crearlo se mira el `id` de la respuesta.** Si Umami hubiera puesto uno suyo, las visitas no llegarían a él. Lo dice, y no se da por listo.
+- **El Umami de mentira imita ahora el 200 con `null`.** Hay además un caso para el 404 y otro para el `id` ignorado. Con el código de antes fallan cinco pruebas.
+
+*Comprobado.*
+- `monitoreoServidor` pasa 18 de 18. Con `contadorDeVisitas` y `monitoreo`, 75 de 75.
+- En Contabo, desde el contenedor de la aplicación: tanto el sitio propio como uno inventado responden `200 null`, y el listado de sitios da 0.
+- Las cinco de «Antes de subir», en un worktree:
+  - `typecheck`, `lint`, `test:integration` (406 de 406) y `build` pasan;
+  - `test:coverage` dio 12 fallos de 7347, los mismos de D-408 y ninguno nuevo. Las de `autoria` y `crearComentarioDelTaller` pasan solas, 21 de 21.
+
+*Consecuencias.*
+- (+) Las pruebas imitan lo que hace el Umami de la producción, no lo que se suponía.
+- (−) Contabo no cuenta visitas hasta desplegar esta corrección. Las otras dos partes de la pestaña funcionan.
+- (−) Ninguna prueba contra el Umami de verdad comprueba que acepte el `id` al crear el sitio. Se ve al desplegar: si no lo acepta, el registro lo dice.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -18470,7 +18497,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6 y E9 hechas y desplegadas; E7 hecha, falta desplegarla en Contabo; E8 en borrador, con el abogado; falta repetir la carga de E4
+### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6 y E9 hechas y desplegadas; E7 desplegada en ved y Contabo, falta que Umami cree su sitio (D-409); E8 en borrador, con el abogado; falta repetir la carga de E4
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -18694,7 +18721,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - la campana de la barra, que abre sola los avisos nuevos, y «Retirar el aviso»;
   - el enlace del botón, al lugar de cada cuenta;
   - las lecturas, con su barrera, en la descarga de datos y fuera del ensayo;
-- [ ] **E7 · El monitoreo (D-377).** *Hecha el 2026-11-16 (D-408); falta desplegarla en Contabo:*
+- [ ] **E7 · El monitoreo (D-377).** *Hecha el 2026-11-16 (D-408) y desplegada ese día en ved y Contabo; falta desplegar D-409, que crea el sitio de Umami:*
   - la pestaña «Monitoreo», con el servidor, las visitas por página y Cloudflare;
   - Umami escondido tras la plataforma, que limpia cada visita y lo prepara sola;
   - `scripts/preparar-monitoreo.sh`, que lo enciende en un servidor;
@@ -18739,7 +18766,7 @@ E2 va después de E1, para copiar una base ya limpia. E5 necesita el comodín de
 
 #### Sin decidir
 
-- La «otra cosa» que el dueño marcó para el monitoreo.
+- ~~La «otra cosa» que el dueño marcó para el monitoreo.~~ *Resuelto el 2026-11-16: la marcó sin querer (D-408).*
 - Los instrumentos sin modelo de ved: quedan fuera de la limpieza de E3, y se revisan con el dueño en el servidor.
 - Un contenedor propio para la institución que lo exija por contrato (D-371).
 - Las medidas descartadas por ahora contra las cuentas compartidas: equipos registrados y marca de agua (D-374).

@@ -119,20 +119,35 @@ function dominioPropio(): string {
   }
 }
 
+/** Si lo que devolvió Umami es nuestro sitio. Lee el cuerpo: el código de estado no basta (D-409). */
+async function esNuestroSitio(respuesta: Response, sitio: string): Promise<boolean> {
+  const cuerpo = (await respuesta.json().catch(() => null)) as { id?: unknown } | null
+  return cuerpo?.id === sitio
+}
+
 async function asegurarElSitio(configuracion: ConfiguracionDelContador, testigo: string): Promise<void> {
   if (memoria().sitioListo) return
   const existe = await pedir(configuracion, `/api/websites/${configuracion.sitio}`, { testigo })
-  if (existe.ok) {
+  // Umami 3.4.1 responde 200 con `null` por un sitio que no existe, no 404.
+  // Fiarse del 200 dejó la producción sin sitio: la plataforma lo daba por
+  // creado, escribía «Listo» y cada visita iba a un sitio que no había (D-409).
+  if (existe.ok && (await esNuestroSitio(existe, configuracion.sitio))) {
     memoria().sitioListo = true
     return
   }
-  if (existe.status !== 404) throw new ErrorDeUmami(`Umami respondió ${existe.status} al buscar el sitio.`)
+  if (!existe.ok && existe.status !== 404) throw new ErrorDeUmami(`Umami respondió ${existe.status} al buscar el sitio.`)
   const creado = await pedir(configuracion, '/api/websites', {
     metodo: 'POST',
     testigo,
     cuerpo: { id: configuracion.sitio, name: NOMBRE_DEL_SITIO, domain: dominioPropio() },
   })
   if (!creado.ok) throw new ErrorDeUmami(`Umami respondió ${creado.status} al crear el sitio.`)
+  // El guion de cada página manda las visitas a `UMAMI_SITIO`. Si Umami no
+  // respetara el identificador que se le pide y pusiera uno suyo, las visitas
+  // irían a un sitio que no existe sin que nada lo dijera: se comprueba aquí.
+  if (!(await esNuestroSitio(creado, configuracion.sitio))) {
+    throw new ErrorDeUmami('Umami creó el sitio con otro identificador que UMAMI_SITIO: las visitas no llegarían a él.')
+  }
   memoria().sitioListo = true
 }
 

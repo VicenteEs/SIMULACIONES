@@ -25,6 +25,11 @@ function umamiDePrueba() {
     sitios: new Map<string, Record<string, unknown>>(),
     caido: false,
     rechazarElPrimerTestigo: false,
+    // Umami 3.4.1, el de la producción, responde 200 con `null` por un sitio
+    // que no existe (D-409). Se imita eso por omisión; '404' es lo que cabría
+    // esperar de una API y lo que imitaba esta prueba cuando dejó pasar el fallo.
+    sitioQueNoExiste: 'nulo' as 'nulo' | '404',
+    ignorarElId: false,
     pedidas: [] as string[],
   }
   const responder = async (url: string, init: RequestInit = {}): Promise<Response> => {
@@ -51,12 +56,15 @@ function umamiDePrueba() {
       return Response.json({ ok: true })
     }
     if (pathname === '/api/websites' && metodo === 'POST') {
-      umami.sitios.set(cuerpo.id, cuerpo)
-      return Response.json(cuerpo)
+      const creado = umami.ignorarElId ? { ...cuerpo, id: '11111111-2222-4333-8444-555555555555' } : cuerpo
+      umami.sitios.set(creado.id, creado)
+      return Response.json(creado)
     }
     const sitio = pathname.match(/^\/api\/websites\/([^/]+)(\/.*)?$/)
     if (sitio) {
-      if (!umami.sitios.has(sitio[1])) return new Response('', { status: 404 })
+      if (!umami.sitios.has(sitio[1])) {
+        return sitio[2] === undefined && umami.sitioQueNoExiste === 'nulo' ? Response.json(null) : new Response('', { status: 404 })
+      }
       switch (sitio[2]) {
         case undefined:
           return Response.json(umami.sitios.get(sitio[1]))
@@ -101,6 +109,31 @@ describe('dejar Umami listo', () => {
     expect(await prepararUmami(configuracion)).toEqual({ estado: 'listo' })
     expect(umami.clave).toBe(configuracion.clave)
     expect(umami.sitios.get(SITIO)).toEqual({ id: SITIO, name: 'TraumaHub', domain: 'traumahub.cl' })
+  })
+
+  it('un 200 con `null` no es un sitio: lo crea igual (D-409)', async () => {
+    // Lo que pasó en la producción: Umami 3.4.1 respondió 200 y `null`, la
+    // plataforma escribió «Listo» y no creó nada.
+    expect(umami.sitioQueNoExiste).toBe('nulo')
+    await prepararUmami(configuracion)
+    expect(umami.pedidas).toContain('POST /api/websites')
+    expect(umami.sitios.has(SITIO)).toBe(true)
+  })
+
+  it('con un Umami que dice 404 por el sitio que falta, también lo crea', async () => {
+    umami.sitioQueNoExiste = '404'
+    expect(await prepararUmami(configuracion)).toEqual({ estado: 'listo' })
+    expect(umami.sitios.has(SITIO)).toBe(true)
+  })
+
+  it('si Umami pone otro identificador al crearlo, lo dice: las visitas no llegarían', async () => {
+    umami.ignorarElId = true
+    const resultado = await prepararUmami(configuracion)
+    expect(resultado).toEqual({ estado: 'error', detalle: expect.stringMatching(/UMAMI_SITIO/) })
+    // Y no se da por listo: la próxima vez lo vuelve a mirar.
+    umami.pedidas.length = 0
+    await prepararUmami(configuracion)
+    expect(umami.pedidas.some((p) => p.startsWith(`GET /api/websites/${SITIO}`))).toBe(true)
   })
 
   it('una segunda vez, en otro proceso, no cambia nada', async () => {
