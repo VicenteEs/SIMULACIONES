@@ -12355,6 +12355,57 @@ Antes de escribir E5 se miró qué toca. El código pregunta por el rol de admin
 - (−) La página de difusión lee todas las cuentas activas, aunque solo dos columnas. Con decenas de miles convendría contar en la base.
 - (−) En los otros procesos, un aviso nuevo o retirado tarda hasta medio minuto en verse.
 
+### D-407 · 2026-11-16 · vigente · P-016 E8 · los borradores legales: el aviso nuevo, el contrato con cada institución y los términos
+**Tres borradores para revisar con el abogado antes del primer piloto, en un documento de Claude: «Borradores legales de TraumaHub (E8)», https://claude.ai/artifact/TrFRnxaoVBz3Gj4SGR2cbU. Nada está publicado: la plataforma sigue mostrando el aviso del 2026-11-16.**
+
+- **El reparto que proponen.** En traumahub.cl responde Chesscore SpA. En el subdominio de una institución responde ella, y Chesscore SpA trata los datos por encargo suyo (art. 15 bis de la Ley 19.628, con el texto de la Ley 21.719). Es lo que D-371 anotó como lo habitual; lo decide el abogado.
+- **Lo que dicen de la plataforma sale del código en `875906a`**, como el aviso vigente (D-292). Si el abogado pide decir algo que la plataforma no hace, se cambia la plataforma o el texto. No se promete de más.
+- **El aviso** tiene trece apartados, cada uno marcado «(igual)», «(cambia)» o «(nuevo)» frente al vigente:
+  - nuevo: quién responde según el lugar, de dónde salen los datos, cómo se protegen y las decisiones automáticas, que pide el art. 14 ter;
+  - cambia: lo que se guarda (el enlace de invitación, los avisos cerrados, el contacto de la institución), quién lo ve (los administradores de la institución y el soporte de D-404) y cuánto dura (los doce meses de bloqueo y los treinta días de D-403).
+- **El contrato** cubre lo que pide el 15 bis: objeto, duración, finalidad, tipo de datos, categorías de titulares, y derechos y obligaciones. Además:
+  - lo que la institución autoriza expresamente: la entrada del soporte, los comentarios que van a TraumaHub, las novedades y las cifras agregadas;
+  - los subencargados: Contabo, Cloudflare y el correo;
+  - la transferencia a Estados Unidos (art. 27, letra b), las vulneraciones (art. 14 sexies) y el final de los datos (D-403).
+- **Los términos**: la cuenta es personal, el contenido es docente y no consejo médico, no se suben datos de pacientes, y cada contenido tiene su dueño.
+- **La fecha.** La ley rige el 1 de diciembre de 2026. El Senado aprobó el 28-10-2026 postergarla al 15-10-2027, y el proyecto está en la Cámara.
+- **Lo pendiente**, en el documento: doce preguntas para el abogado y nueve decisiones del dueño, entre ellas el RUT, el representante y el domicilio de Chesscore SpA, el correo de privacidad, de quién es el contenido y los plazos del contrato.
+
+*Lo que salió al contrastarlos con el código.*
+- **Las lecturas de los avisos no están en el aviso vigente.** Desde E6 (D-406) la plataforma guarda quién cierra cada aviso de la plataforma. Hoy no hay avisos ni instituciones en producción, así que no se ha guardado nada. Hasta publicar el aviso nuevo: no publicar avisos dentro de la plataforma ni crear la primera institución.
+- **Los respaldos viejos sin cifrar.** El aviso vigente dice que las copias van cifradas, y lo van desde el 2026-11-15. En Contabo quedan 30 anteriores sin cifrar, del 28-10 al 15-11, y también en la copia que ved trae cada día. Vencen solas hacia el 15-12. Decide el dueño: esperar a esa fecha o borrarlas antes.
+- **La descarga de «todos tus datos» desde una institución.** El contrato dice que la institución responde las solicitudes de acceso con ese archivo (D-293), y solo de sus cuentas. Lo aseguran dos cosas: la guardia da el Payload recortado al lugar (D-401), y la cuenta lleva marca. Ninguna prueba lo fijaba para la descarga, que lee con `overrideAccess` y con el identificador que llega en la ruta. Ahora `panelDelLugar.test.ts` la pide:
+  - como administrador de una institución, con una cuenta de otra y con una de TraumaHub: 404;
+  - con una suya: 200;
+  - como la central, con una de la institución: 404. Para eso entra como soporte (D-404).
+
+  Con la guardia sin recortar, la prueba falla: el administrador de A recibía la cuenta de B.
+- **Los comentarios sí llegan a la institución, en ese archivo.** El primer borrador decía que la institución no los veía. En su panel no los ve, pero van en la descarga de cada cuenta suya. El texto lo dice ahora, y queda en la pregunta al abogado sobre los comentarios.
+- **Las pruebas no corren solas al desplegar.** `actualizar.sh` no las corre: las corre quien sube, como dice «Antes de subir». El contrato dice «se corren antes de subir cada cambio», y no «antes de cada despliegue».
+- **El soporte anota su entrada y su cierre de sesión** (`entrada-como-soporte`, `sesion-cerrada` con `soporteEn`). Si la sesión vence sola, no queda una «salida». El contrato dice «cada entrada, cada cierre de sesión y cada acción».
+
+*Comprobado.*
+- `panelDelLugar.test.ts`, «ni descarga sus datos…», pasa. Con la guardia sin recortar falla, probado quitando el recorte un momento.
+- `npm run test:integration`, la obligatoria: 406 de 406.
+- La suite entera (`npm run test:coverage`): 7248 pasan, 1 omitida y 14 fallan.
+  - Doce son las que ya fallaban en este Windows (D-406).
+  - Las otras dos vencieron sus 5 s bajo la carga de la cobertura: `privacidad`, «rechazar una solicitud no deja rastro…», y `roles`, «ni el administrador lista…». Las dos pasan en `test:integration`.
+  - Con pruebas en rojo, vitest no mira el umbral.
+- `typecheck`, `lint` (sin errores) y `build`, bien.
+- Los borradores, contra el código. Además de lo de arriba:
+  - los respaldos: cifrados, 30 días y la copia en ved;
+  - el bloqueo: los 12 meses, los 30 días y el ZIP del contenido;
+  - a quién va el correo antes del borrado: los administradores de la institución, su contacto y los de TraumaHub;
+  - que el historial de difusiones cuenta las lecturas y no dice de quién son.
+
+*Consecuencias.*
+- (+) Al abogado le llegan textos que ya dicen lo que la plataforma hace, con lo que falta entre corchetes.
+- (+) La descarga de datos desde una institución tiene su prueba.
+- (−) Hasta publicar el aviso nuevo quedan en espera dos cosas: los avisos dentro de la plataforma y la primera institución.
+- (−) Publicar el aviso nuevo obliga a todas las cuentas a aceptarlo otra vez. Conviene hacerlo una sola vez, ya revisado.
+- (−) Ninguna pantalla pide hoy aceptar los términos; cómo se aceptan está por decidir.
+- (−) Una institución recibe los datos de sus cuentas de a uno. Un archivo por institución es trabajo nuevo, si lo pide.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -18333,7 +18384,7 @@ Queda sin arreglar lo de O-098 (el bisturí hondo atraviesa el hueso) y lo que a
 
 Subida con P-014 en `5d512fb` y desplegada en ved el mismo día: «En ved», en E9 de P-014.
 
-### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6 y E9 hechas y desplegadas; faltan E7, E8 y repetir la carga de E4
+### P-016 · 2026-11-15 · en curso: E1, E2, E3, E5, E6 y E9 hechas y desplegadas; E8 en borrador, con el abogado; faltan E7 y repetir la carga de E4
 **TraumaHub para varias instituciones: los datos sin prefijo, ved copiado a Contabo en `traumahub.cl` detrás de Cloudflare, lo que ya existe protegido, y cada institución en su subdominio.**
 
 #### De dónde sale
@@ -18558,7 +18609,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - el enlace del botón, al lugar de cada cuenta;
   - las lecturas, con su barrera, en la descarga de datos y fuera del ensayo;
 - [ ] **E7 · El monitoreo (D-377).**
-- [ ] **E8 · Lo legal, antes del primer piloto.** Todo con el abogado:
+- [ ] **E8 · Lo legal, antes del primer piloto.** Todo con el abogado. *Los tres borradores, hechos el 2026-11-16 (D-407); faltan la revisión del abogado, las decisiones del dueño y publicarlos:*
   - un aviso nuevo, que diga:
     - que Cloudflare es encargado;
     - que cada sesión guarda IP, país y equipo;

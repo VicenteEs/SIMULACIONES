@@ -180,6 +180,32 @@ describe.skipIf(payload === null)('el panel de cada lugar (D-401)', () => {
     expect(await releer('lectorA')).toMatchObject({ activo: true })
   })
 
+  it('ni descarga sus datos: la cuenta de otro lugar es un 404, y la de su institución sí sale', async () => {
+    // El archivo de «todos tus datos» (D-293) lee con `overrideAccess` y con
+    // el identificador que llega en la ruta. Lo único que impide al
+    // administrador de una institución bajarse la actividad entera de una
+    // cuenta ajena es que la guardia le da el Payload recortado y la cuenta
+    // lleva marca: si una de las dos cosas cambia, esto falla. El contrato con
+    // cada institución (P-016 E8) dice que ella responde las solicitudes de
+    // acceso de sus usuarios con este archivo, y de nadie más.
+    const { GET } = await import('@/app/(frontend)/api/cuentas/[id]/datos/route')
+    const pedir = (id: number | string) =>
+      GET(new Request(`http://localhost/api/cuentas/${id}/datos`), { params: Promise.resolve({ id: String(id) }) })
+
+    como('adminA')
+    for (const ajena of ['lectorB', 'adminCentral'] as const) {
+      expect((await pedir(cuentas[ajena].id)).status, ajena).toBe(404)
+    }
+    const propia = await pedir(cuentas.lectorA.id)
+    expect(propia.status).toBe(200)
+    expect(((await propia.json()) as { cuenta: unknown }).cuenta).toMatchObject({ id: cuentas.lectorA.id })
+
+    // Y al revés: la central tampoco la baja desde «Usuarios». Para hacerlo
+    // tiene que entrar a la institución como soporte (D-404).
+    como('adminCentral')
+    expect((await pedir(cuentas.lectorA.id)).status).toBe(404)
+  })
+
   it('una cuenta nueva creada por el administrador de una institución es de su institución', async () => {
     como('adminB')
     const r = await admin.crearUsuario(`nueva-${marca}@prueba.invalid`, `Nueva ${marca}`, randomBytes(18).toString('base64url'), 'lector')
