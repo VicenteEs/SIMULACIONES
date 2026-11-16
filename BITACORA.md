@@ -11224,6 +11224,8 @@ El trazo hondo se apoya en lo que el ratón encuentra —un músculo, un vaso, e
 - (+) Se optimiza lo que de verdad pesa.
 - (−) La prueba de carga tiene que correr antes del primer piloto, contra producción todavía cerrada o contra una copia.
 
+*Medido el 2026-11-16 en D-392:* el techo es la CPU de un solo proceso y no la base. Los varios procesos pasan a ir primero y las conexiones a la base, al final y solo si hacen falta. El orden vigente es el de D-392.
+
 ### D-377 · 2026-11-15 · vigente · P-016
 **Una pestaña de monitoreo en el panel del administrador de TraumaHub, solo para la producción en Contabo: el estado del servidor, las visitas por página, y el tráfico y los ataques que ve Cloudflare.**
 
@@ -11694,6 +11696,57 @@ Comprobado después:
 - a 1280 y a 375 px de ancho, cada logo mide lo mismo que la imagen sin envolver (120 × 72 en el pie, 100 × 60 en la barra, 73 × 44 en la portada y en la tarjeta) y ninguna caja se desborda. Para eso hizo falta el `flex-shrink: 0`: el primer vistazo dio 95 × 57 en la barra.
 
 *Desplegado en ved el 2026-11-16 (`a14b99d`).* `actualizar.sh` pasó ved de `6ea9dc6` a `a14b99d`, y el ensayo abrió los 2 casos publicados con 0 errores y los 2 avisos de siempre. Después: las 5 cuentas siguen ahí (D-384), la página de créditos trae las dos versiones del logo enlazadas con su texto alternativo, la salud por fuera da 200, y `salud.sh` solo marca los respaldos sin cifrar (D-295).
+
+### D-392 · 2026-11-16 · vigente · P-016 E4 · mide lo que pedía D-376
+**La prueba de carga en Contabo: con 300 personas a la vez el servidor no se cae ni da errores, pero se satura a unas 29 peticiones por segundo, porque un solo proceso de Node usa poco más de uno de sus seis núcleos. La medición pide varios procesos, que pasan a ir primero; más conexiones a la base no cambiarían nada.**
+
+La pidió D-376 antes del primer piloto. El dueño eligió hacerla en el momento, mirándola, y creó él mismo una cuenta lector de prueba con el aviso ya aceptado.
+
+- **Cómo:**
+  - 50, luego 150 y luego 300 personas simuladas, durante 2, 2 y 3 minutos. Las que llegan se quedan hasta el final. Cada una pide una página, la lee entera y piensa entre 1 y 4 s antes de la siguiente;
+  - 7 de cada 10 entran con la cuenta de prueba (inicio, biblioteca, simulador, casos, modelos, imágenes, técnica AO). Las otras 3 llegan sin cuenta (portada, planes, entrar, créditos). Todas piden además archivos estáticos;
+  - el generador corre dentro de Contabo, con la red del contenedor de la aplicación, y le pide directo a Next en el 3000. Por Cloudflare, 300 conexiones desde una sola IP parecerían un ataque, y lo que se quería medir era el servidor. Tiene un núcleo y 1 GB para él, para no quitarle a la aplicación;
+  - la sesión se abrió con la API local de Payload, en un contenedor de la imagen de guiones, porque la API por HTTP contesta 403 a todo `POST`, entrar incluido. Todas las personas comparten esa sesión: con una sesión por cuenta (D-388), entrar 300 veces se habría echado a sí misma. La cuenta y la sesión se borraron con `shred` al terminar;
+  - se cortaba sola si la salud fallaba tres veces seguidas o si más de un cuarto de las peticiones de 20 s fallaban. No hizo falta.
+- **Lo medido**, del 15 al 16 de noviembre, de 23:59 a 00:06 en Chile:
+
+  | Personas | Peticiones por segundo | Mediana | p95 | Errores |
+  |---|---|---|---|---|
+  | 50 | 16,7 | 0,25 s | 1,7 s | 0 de 2001 |
+  | 150 | 27,1 | 2,4 s | 8,5 s | 0 de 3253 |
+  | 300 | 29,4 | 5,7 s | 27,6 s | 56 de 5495 |
+
+- **Lo que dice:**
+  - **El techo está en la CPU de un solo proceso.** La aplicación se quedó entre 125 y 150 % de CPU, poco más de un núcleo, desde la segunda etapa hasta el final. Next pinta cada página en un solo hilo. Mientras tanto la carga del servidor no pasó de 3,7 sobre 6. De 150 a 300 personas casi no subieron las peticiones atendidas: subió la espera;
+  - **la base no es el cuello.** Estuvo entre 20 y 29 % de CPU, con las mismas 11 conexiones todo el rato: las 10 del pool y la de la medición. Por eso más conexiones, el paso 2 de D-376, no ayudaría con este techo;
+  - **los 56 errores son esperas, no fallos.** Son todos del caso del simulador con 300 personas: la petición pasó de los 30 s y la cortó el generador. La aplicación no contestó ni un 500;
+  - **el servidor no se colgó.** La salud contestó las 86 veces que se le preguntó, y la más lenta tardó 2,8 s;
+  - **no hay fuga de memoria.** La aplicación subió de 200 a 950 MB durante la prueba y volvió sola a 158 MB al terminar;
+  - **lo que cuesta cada página, en reposo** (la pasada corta de 5 personas): el caso del simulador, 240 ms; el inicio con sesión, 130 ms; la portada, 95 ms; un archivo estático, 12 ms. Con 300 personas los estáticos seguían en 0,3 s de mediana.
+- **Qué significa en personas de verdad.** Una persona simulada pide una página cada 2,5 s. Quien estudia pide una cada medio minuto o más: lee la ficha, o trabaja el caso en su navegador, que mientras opera no le pide nada al servidor. Además, su navegador guarda los estáticos. Con una página cada 30 s, la primera etapa (12,5 páginas por segundo, con respuesta buena) equivale a unas 375 personas estudiando a la vez, y el techo (22 páginas por segundo) a unas 650. Es una cuenta gruesa: los `<Link>` de Next precargan páginas y suman peticiones que la prueba no imita.
+- **Lo que sí se notaría hoy es una clase entera abriendo el mismo caso a la vez.** Cada caso ocupa un cuarto de segundo de ese único hilo, así que, de 50 que lo abren juntos, los últimos esperan del orden de 10 s.
+- **Lo que no midió:**
+  - las fichas, las imágenes y la técnica AO. En producción están todas en borrador (1773, 42 y 711), y un lector no ve ninguna. La biblioteca que pidió la prueba salió vacía, más liviana que la de verdad, y las fichas no se pidieron. Tampoco el PDF, que solo sale de una ficha publicada. La prueba se repite cuando haya contenido publicado;
+  - de casos publicados solo hay 2, el 10 y el 11;
+  - Cloudflare, porque la prueba fue directa al servidor.
+- **Lo que sigue, en este orden.** Cambia el de D-376, que dejaba los varios procesos para cuando la medición los pidiera, y la medición los pide:
+  1. **varios procesos de la aplicación**, para usar los cinco núcleos que hoy no hacen nada. Antes, como decía D-376, hay que llevar a la base lo que hoy vive en la memoria de un solo proceso: el freno de intentos (`ritmo.ts`), la presencia, la cuenta de publicaciones, la cola de difusión y la conservación programada;
+  2. **la caché del contenido publicado**, el paso 3 de D-376, que baja lo que cuesta cada página;
+  3. **ETag y Cloudflare para lo estático**, los pasos 4 y 5. Los estáticos ya salen baratos, así que van al final;
+  4. **más conexiones a la base, solo si hace falta.** Hay que hacerlo si, con varios procesos, la base pasa a ser el cuello. Cada proceso trae su propio pool de 10, y PostgreSQL acepta 100 por omisión;
+  5. **repetir la prueba**, con fichas publicadas y con el PDF.
+- **Los guiones** quedan en Contabo, en `~/carga`, junto al informe (`informe.json`, `salida.txt`) y a las muestras de CPU y memoria cada 5 s (`muestras.txt`):
+  - `carga.mjs`, el generador;
+  - `abrir-sesion.ts` y `abrir-sesion.sh`, que abren la sesión. La dirección de la base se arma como en `ensayar-casos.sh`, porque la del `.env` no sirve fuera del compose;
+  - `muestras.sh`, que toma las muestras.
+
+  Pasan al repositorio con la primera pieza de código de lo que sigue, para repetir la prueba igual.
+
+*Consecuencias.*
+- (+) Ya se sabe qué pesa: un solo hilo de CPU. La base, la memoria y los estáticos tienen margen.
+- (+) Producción aguanta hoy las primeras clases sin caerse: lo que se degrada es la espera, no la respuesta.
+- (−) Varios procesos es el paso más caro de D-376. Lleva cinco piezas a la base antes de poder arrancar un segundo proceso, y hay que hacerlo sin que ninguna se rompa a medio camino.
+- (−) La biblioteca, que será lo más visitado, no se pudo medir.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
@@ -17827,6 +17880,8 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
       - las entradas de una cuenta en «Usuarios y permisos», con sus alertas (D-390);
       - *pendiente:* la revisión del aviso con el abogado en E8;
 - [ ] **E4 · El rendimiento (D-376).** La prueba de carga en Contabo, y lo que ella señale.
+  - *la prueba de carga, hecha el 2026-11-16 (D-392):* con 300 personas el servidor no se cae ni da errores, pero se satura a unas 29 peticiones por segundo, porque un solo proceso usa poco más de uno de los seis núcleos;
+  - *pendiente, en el orden de D-392:* varios procesos, con lo que hoy vive en la memoria de uno pasado antes a la base; la caché del contenido publicado; ETag y Cloudflare para lo estático; y repetir la prueba con fichas publicadas y con el PDF.
 - [ ] **E5 · Las instituciones (D-371).**
   - la colección, el filtro con su seguridad por filas, y la matriz de roles ampliada;
   - el subdominio, con el comodín `*.traumahub.cl` en Cloudflare y en el túnel, que pasó aquí desde E2 (D-381);
@@ -17849,7 +17904,7 @@ Pidió que primero se le explicaran las opciones con lo que ya existe y se le pr
   - la comprobación con el teclado, sobre fondo claro y oscuro;
   - además, `flex-shrink: 0` en el enlace, que el logo de la barra del panel encogía al envolverlo.
 
-*Desplegado en Contabo el 2026-11-16 a las 23:34 de Chile (`5bb5ee6`), con el OK del dueño en cada paso:* lo de E3 (D-373, D-385 a D-388 y D-390), E9 (D-391) y el arreglo de `es_archivo_age` de E2.
+*Desplegado en Contabo la noche del 2026-11-15 al 16, a las 23:34 en Chile (`5bb5ee6`), con el OK del dueño en cada paso:* lo de E3 (D-373, D-385 a D-388 y D-390), E9 (D-391) y el arreglo de `es_archivo_age` de E2.
 - antes, un respaldo cifrado y verificado (`base-` y `medios-20261115-232018`). La plantilla nueva del override, con `SERVIDOR_DE_PRUEBAS` vacía, se copió desde el repositorio del propio servidor; la de antes está en `~/antes-d391/`;
 - `actualizar.sh` pasó de `4111080` a `5bb5ee6`. El ensayo, el primero en Contabo, abrió los 2 casos publicados con 0 errores y 2 avisos: todavía no tienen su resolución de referencia;
 - las 4 migraciones están en la base (lote 25) y no hay lote `-1`. Siguen las 5 cuentas, la salud por fuera da 200, `salud.sh` dice «Todo en orden», y traumahub.cl trae el logo enlazado;
