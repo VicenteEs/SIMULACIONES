@@ -12612,6 +12612,10 @@ Antes de subir D-410 a D-412 juntos:
 - la suite entera con cobertura, contra una base desechable: 7402 pasan y 3 fallan, las del entorno de siempre (`directorioDeRespaldos` ×2 y `tableroDeRevision`, que pasa con `TZ=America/Santiago`);
 - la integración obligatoria, 406 de 406.
 
+Desplegado el 2026-11-17 en `7bde23d`, a pedido del dueño («súbelo al git y despliégalo en Contabo y ved»):
+- ved a las 00:53 (Chile). Salud 200 por fuera; los fragmentos servidos traen el aviso del repaso y el adelanto de la fascia.
+- Contabo a la 01:00, con respaldo verificado `base-`/`medios-20261117-005015` y el override igual a la plantilla. Ensayo de los casos: 2 casos, 0 errores. 4 procesos y salud 200 en `https://traumahub.cl`, con el mismo código nuevo servido.
+
 *Consecuencias.*
 - (+) Repasar no rompe la piel, y el residente sabe por qué el segundo pase no hizo nada.
 - (+) El caso del alargue que volvía sobre sí mismo no puede repetirse: lo que sale por una punta se une sin el tramo repasado.
