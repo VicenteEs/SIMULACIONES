@@ -963,7 +963,12 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   incisión —volver a pasar el bisturí por encima de ella, aunque se empiece en una punta o el trazo
   caiga en el fondo de la herida abierta— no corta nada nuevo: la consola avisa que esa capa ya está
   cortada ahí, y para ir más hondo está el bisturí profundo. Lo que el repaso se pasa de una punta
-  la alarga, y lo que se sale por un lado, a media incisión, es otra que nace en ella (D-410). Con más de una,
+  la alarga, y lo que se sale por un lado, a media incisión, es otra que nace en ella (D-410). **Cruzar**
+  una incisión tampoco corta encima de la herida: lo que el trazo deja a cada lado nace del borde de la que
+  cruzó, como una T. Si el cruce cae a menos de 2 cm de una punta, la incisión se acorta hasta el
+  cruce —el pedacito de punta del otro lado se cierra, y el panel da su largo nuevo— y el trazo nuevo
+  pasa entero por esa punta: quedan unidas en T. Si cae en medio, cada lado es su propia incisión, y la
+  lista las muestra por separado (D-415). Un corte que no toca otra queda independiente. Con más de una,
   el recuadro «Herida» las lista —«Incisión 2 · músculo · 30 mm»— con una **×** que cierra solo esa;
   «Cerrar todas las heridas» las cierra todas. Cada separador y cada pinza abre la incisión en que
   se puso; un separador apoyado en un plano profundo abre además la incisión de la piel o de la

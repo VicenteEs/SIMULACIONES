@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   alargarIncision,
+  APARTE_DE_LA_LINEA_MM,
   corredorDelRepasoMm,
   decidirElTrazo,
   incisionQueAlarga,
@@ -214,10 +215,8 @@ describe('repasar una incisión no la parte otra vez (D-410)', () => {
     expect(d.tipo === 'alarga' && d.unida.puntos[d.unida.puntos.length - 1]).toEqual([130, 0, 0])
   })
 
-  it('un trazo que la cruza en ángulo es otra incisión, entero', () => {
-    const cruce = por([45, -30, 0], [45, 30, 0])
-    const d = decidir(cruce)
-    expect(d).toEqual({ tipo: 'nueva', trazo: cruce })
+  it('un trazo que la cruza en ángulo no la repasa: es otra, que nace en ella (D-415)', () => {
+    expect(decidir(por([45, -30, 0], [45, 30, 0])).tipo).toBe('nueva')
     // Y en sesgo, a 50°, también.
     const sesgo = por([20, -25, 0], [40, 25 * Math.tan((50 * Math.PI) / 180) - 25, 0])
     expect(decidir(sesgo).tipo).toBe('nueva')
@@ -235,6 +234,25 @@ describe('repasar una incisión no la parte otra vez (D-410)', () => {
     expect(Math.abs(d.trazo.puntos[0][0] - 50)).toBeLessThanOrEqual(1.5)
     expect(d.trazo.puntos[0][1]).toBeLessThan(10)
     expect(d.trazo.puntos[d.trazo.puntos.length - 1]).toEqual([50, 40, 0])
+    // Y empieza junto a la línea de la incisión, a 1 mm (D-415): sin un puente de piel entre las dos, y sin tocar el labio
+    // de enfrente.
+    expect(d.trazo.puntos[0][1]).toBeCloseTo(APARTE_DE_LA_LINEA_MM, 6)
+    expect(d.ramas).toBeUndefined()
+  })
+
+  it('si al repasar se sale por los dos lados, lo que sale por el otro es una rama, y no se pierde (D-415)', () => {
+    // Un cruce en sesgo, a 25°: dentro del corredor va a lo largo, y es repaso; lo de fuera, a cada lado, nace en la línea.
+    const tan = Math.tan((25 * Math.PI) / 180)
+    const d = decidir(por([45 - 15 / tan, -15, 0], [45 + 15 / tan, 15, 0]))
+    expect(d.tipo).toBe('nueva')
+    if (d.tipo !== 'nueva') return
+    expect(d.ramas).toHaveLength(1)
+    const extremos = [d.trazo, d.ramas![0]].flatMap((t) => [t.puntos[0], t.puntos[t.puntos.length - 1]])
+    // Cada pedazo nace junto a la línea, y donde la dejó cada uno: a 11,8 mm del cruce, antes y después.
+    const enLaLinea = extremos.filter((p) => Math.abs(p[1]) <= APARTE_DE_LA_LINEA_MM + 1e-6).map((p) => p[0]).sort((a, b) => a - b)
+    expect(enLaLinea).toHaveLength(2)
+    expect(enLaLinea[0]).toBeCloseTo(45 - 5.5 / tan, 0)
+    expect(enLaLinea[1]).toBeCloseTo(45 + 5.5 / tan, 0)
   })
 
   it('mira la incisión de su capa que más pisa, y ninguna de otra capa', () => {
@@ -258,6 +276,146 @@ describe('repasar una incisión no la parte otra vez (D-410)', () => {
     expect(corredorDelRepasoMm(7)).toBeCloseTo(5.5, 6)
     expect(corredorDelRepasoMm(35)).toBeCloseTo(19.5, 6)
     expect(corredorDelRepasoMm(-3)).toBe(UMBRAL_PARA_ALARGAR_MM)
+  })
+})
+
+describe('dos cortes que se cruzan quedan unidos, y lejos, independientes (D-415)', () => {
+  // La misma incisión de 90 mm sobre X, recién hecha (corredor de 5,5 mm a cada lado).
+  const incision = { id: 1, capa: 'piel', ...recta(0, 90) }
+  const opciones: Parameters<typeof decidirElTrazo>[3] = { umbral: UMBRAL_PARA_ALARGAR_MM, mm: 1, corredor: () => corredorDelRepasoMm(7) }
+  const decidir = (nuevo: TrazoDeIncision, existentes = [incision], o = opciones) => decidirElTrazo(existentes, 'piel', nuevo, o)
+  const primero = (t: TrazoDeIncision) => t.puntos[0]
+  const ultimo = (t: TrazoDeIncision) => t.puntos[t.puntos.length - 1]
+
+  it('un cruce en medio: no corta encima de la herida, y lo que sale a cada lado nace en su línea', () => {
+    const d = decidir(por([45, -20, 0], [45, 30, 0]))
+    expect(d.tipo).toBe('nueva')
+    if (d.tipo !== 'nueva') return
+    // La incisión es el pedazo más largo, de la línea hacia arriba; el de abajo es una rama que llega a la línea. Cada una
+    // a 1 mm de ella, de su lado: tocándola, partía también el labio de enfrente.
+    expect(primero(d.trazo)).toEqual([45, 1, 0])
+    expect(ultimo(d.trazo)).toEqual([45, 30, 0])
+    expect(d.ramas).toHaveLength(1)
+    const rama = d.ramas![0]
+    expect(primero(rama)).toEqual([45, -20, 0])
+    expect(ultimo(rama)).toEqual([45, -1, 0])
+    // Entre la línea y el borde del corredor no hay trazo: eso ya está cortado.
+    for (const t of [d.trazo, rama]) for (const p of t.puntos) expect(Math.abs(p[1]) === 1 || Math.abs(p[1]) > 5.5).toBe(true)
+    expect(d.trazo.normales).toHaveLength(d.trazo.puntos.length)
+    expect(rama.normales).toHaveLength(rama.puntos.length)
+  })
+
+  it('cerca de una punta la incisión se acorta hasta el cruce y el trazo nuevo pasa entero: una T (la foto del dueño)', () => {
+    const d = decidir(por([8, -25, 0], [8, 30, 0]))
+    expect(d).toMatchObject({ tipo: 'alarga', id: 1, enElCruce: true, repasado: 0 })
+    if (d.tipo !== 'alarga') return
+    // La incisión, del cruce a su otra punta y en el sentido en que se hizo: los 8 mm del otro lado se cierran.
+    expect(primero(d.unida)).toEqual([8, 0, 0])
+    expect(ultimo(d.unida)).toEqual([90, 0, 0])
+    expect(d.unida.puntos.every((p) => p[1] === 0 && p[0] >= 8)).toBe(true)
+    expect(d.unida.normales).toHaveLength(d.unida.puntos.length)
+    expect(d.tramo![0]).toBeCloseTo(8 / 90, 9)
+    expect(d.tramo![1]).toBe(1)
+    // El trazo nuevo, de punta a punta, recto por la nueva punta de la incisión y sin lo que cayó sobre la herida.
+    expect(d.ramas).toHaveLength(1)
+    const barra = d.ramas![0]
+    expect(primero(barra)).toEqual([8, -25, 0])
+    expect(ultimo(barra)).toEqual([8, 30, 0])
+    expect(barra.puntos).toContainEqual([8, 0, 0])
+    expect(barra.puntos.every((p) => p[0] === 8 && (p[1] === 0 || Math.abs(p[1]) > 5.5))).toBe(true)
+    expect(barra.normales).toHaveLength(barra.puntos.length)
+  })
+
+  it('y por la punta del final igual, sin dar vuelta la incisión', () => {
+    const d = decidir(por([84, -12, 0], [84, 30, 0]))
+    expect(d).toMatchObject({ tipo: 'alarga', id: 1, enElCruce: true })
+    if (d.tipo !== 'alarga') return
+    expect(primero(d.unida)).toEqual([0, 0, 0])
+    expect(ultimo(d.unida)).toEqual([84, 0, 0])
+    expect(d.tramo![0]).toBe(0)
+    expect(d.tramo![1]).toBeCloseTo(84 / 90, 9)
+    expect(primero(d.ramas![0])).toEqual([84, -12, 0])
+    expect(ultimo(d.ramas![0])).toEqual([84, 30, 0])
+  })
+
+  it('un trazo que llega a la punta por un solo lado no la acorta: es una T que nace en ella', () => {
+    const d = decidir(por([8, 3, 0], [8, 30, 0]))
+    expect(d.tipo).toBe('nueva')
+    if (d.tipo !== 'nueva') return
+    expect(primero(d.trazo)).toEqual([8, 1, 0])
+    expect(d.ramas).toBeUndefined()
+  })
+
+  it('cerca de la punta es a menos de 2 cm, y nunca más de un tercio de la incisión', () => {
+    expect(decidir(por([19, -25, 0], [19, 30, 0])).tipo).toBe('alarga')
+    expect(decidir(por([22, -25, 0], [22, 30, 0])).tipo).toBe('nueva')
+    // En una de 45 mm, a 18 de la punta ya es el medio (un tercio son 15).
+    const corta = { id: 2, capa: 'piel', ...recta(0, 45) }
+    expect(decidir(por([18, -25, 0], [18, 30, 0]), [corta]).tipo).toBe('nueva')
+    expect(decidir(por([12, -25, 0], [12, 30, 0]), [corta]).tipo).toBe('alarga')
+  })
+
+  it('con la herida abierta, lo que cae sobre el labio, la pared o el fondo no se corta, y el cruce va en la línea', () => {
+    // Abierta 35 mm (los Farabeuf): el corredor llega a 19,5. El trazo baja al fondo, 6 mm bajo la piel, y sube.
+    const abierta = { ...opciones, corredor: () => corredorDelRepasoMm(35) }
+    const d = decidir(por([45, -40, 0], [45, -17, 0], [45, -15, -6], [45, 15, -6], [45, 17, 0], [45, 40, 0]), [incision], abierta)
+    expect(d.tipo).toBe('nueva')
+    if (d.tipo !== 'nueva') return
+    expect(d.ramas).toHaveLength(1)
+    for (const t of [d.trazo, d.ramas![0]]) {
+      const enElCruce = t.puntos.findIndex((p) => Math.abs(p[1]) <= 1)
+      // Junto a la línea y a la altura de la piel —no en el fondo—, con la normal de la piel ahí.
+      expect(t.puntos[enElCruce][0]).toBe(45)
+      expect(Math.abs(t.puntos[enElCruce][1])).toBe(1)
+      expect(t.puntos[enElCruce][2]).toBe(0)
+      expect(t.normales[enElCruce]).toEqual([0, 0, 1])
+      for (const p of t.puntos.filter((q) => Math.abs(q[1]) > 1)) {
+        expect(Math.abs(p[1])).toBeGreaterThan(19.5)
+        expect(p[2]).toBe(0)
+      }
+    }
+  })
+
+  it('el corredor es lo que la herida está abierta en cada sitio: junto a la punta, poco, aunque en medio esté abierta', () => {
+    // Los Farabeuf la abren 35 mm en medio (19,5 de corredor), y a 10 mm de la punta solo 4.
+    const porSitio = { ...opciones, corredor: (_: number, s?: number) => corredorDelRepasoMm(s === undefined ? 35 : s < 15 ? 4 : 35) }
+    const d = decidir(por([8, -14, 0], [8, 14, 0]), [incision], porSitio)
+    // Cruzó de lado a lado junto a la punta: la incisión se acorta y el trazo pasa entero.
+    expect(d).toMatchObject({ tipo: 'alarga', enElCruce: true })
+    expect(d.tipo === 'alarga' && d.ramas![0].puntos[0]).toEqual([8, -14, 0])
+    // Con el corredor del medio en todas partes, los 14 mm a cada lado caían dentro: era «ya cortado» y no se cortaba nada.
+    const comoAntes = { ...opciones, corredor: () => corredorDelRepasoMm(35) }
+    expect(decidir(por([8, -14, 0], [8, 14, 0]), [incision], comoAntes).tipo).toBe('repaso')
+  })
+
+  it('una T que nace dentro del corredor empieza en la línea, sin ramas', () => {
+    const d = decidir(por([45, 2, 0], [45, 40, 0]))
+    expect(d.tipo).toBe('nueva')
+    if (d.tipo !== 'nueva') return
+    expect(primero(d.trazo)).toEqual([45, 1, 0])
+    expect(ultimo(d.trazo)).toEqual([45, 40, 0])
+    expect(d.ramas).toBeUndefined()
+  })
+
+  it('un trazo corto de labio a labio no corta nada: la herida ya está abierta ahí', () => {
+    expect(decidir(por([45, -4, 0], [45, 4, 0]))).toMatchObject({ tipo: 'repaso', id: 1 })
+  })
+
+  it('un corte que no toca la incisión queda independiente, entero', () => {
+    for (const lejos of [por([45, 10, 0], [45, 40, 0]), recta(0, 90, 8), por([100, -20, 0], [100, 20, 0])]) {
+      expect(decidir(lejos)).toEqual({ tipo: 'nueva', trazo: lejos })
+    }
+  })
+
+  it('un trazo que cruza dos incisiones nace en una y muere en la otra', () => {
+    const otra = { id: 2, capa: 'piel', ...recta(0, 90, 30) }
+    const d = decidir(por([45, -20, 0], [45, 50, 0]), [incision, otra])
+    expect(d.tipo).toBe('nueva')
+    if (d.tipo !== 'nueva') return
+    // El puente entre las dos es lo más largo, de línea a línea; lo de fuera de cada una, ramas.
+    expect(primero(d.trazo)).toEqual([45, 1, 0])
+    expect(ultimo(d.trazo)).toEqual([45, 29, 0])
+    expect(d.ramas).toHaveLength(2)
   })
 })
 

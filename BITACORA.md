@@ -12590,7 +12590,7 @@ Decisiones del dueño, el 2026-11-16:
 - Se mira el tramo entero y no cada punto. Una recta tendida sobre una herida abierta baja al fondo y trepa por la pared donde la pantalla la lleva, y punto a punto esas subidas parecían otro trazo: un repaso dejó así una incisión nueva de 22 mm.
 - Con menos de 5 mm encima, es lo de siempre: otra incisión, o alargar si nace junto a una punta. Lo que sobra delante o detrás de lo repasado cuenta si mide 4 mm o más; menos es el pulso. Si sale por una punta la alarga, sin volver sobre sí misma. Si sale por un lado, a media incisión, es otra incisión que nace en ella, solo con ese pedazo.
 - El repaso no corta: la guía vuelve a ser la incisión repasada, que es lo que mide el paso, y la consola dice por qué no pasó nada (`AVISO_DEL_REPASO`, uno por plano).
-- El cruce sigue siendo otra incisión. Uno en sesgo de 35° sobre un tramo corto, que no se aparta más de 5 mm de la línea, cuenta como repaso: es un repaso torcido.
+- El cruce sigue siendo otra incisión. Uno en sesgo de 35° sobre un tramo corto, que no se aparta más de 5 mm de la línea, cuenta como repaso: es un repaso torcido. *(Desde D-415 el cruce ya no corta encima de la herida: cada lado nace en su borde, y junto a una punta quedan unidas en T.)*
 
 *Qué se probó.* `incisiones.test.ts`, 15 casos nuevos:
 - el repaso por el medio, desde una punta en los dos sentidos y desde la otra;
@@ -12748,6 +12748,61 @@ Desplegado el 2026-11-17 en `c77bb1c`, con D-413, a pedido del dueño («súbelo
 *Consecuencias.*
 - (+) El paso juzga la incisión que pide, aunque se profundice antes de aplicarlo.
 - (−) Con el bisturí profundo en la mano en el paso de la piel, la línea de guía de la piel se borra al marcar el inicio de una recta y el panel sigue diciendo 92,6. La herida sigue ahí, pero su raya no.
+
+### D-415 · 2026-11-17 · vigente · pedido del dueño · amplía D-410
+**Dos incisiones de la misma capa que se cruzan quedan unidas: el trazo nuevo no corta encima de la herida, y lo que deja a cada lado nace en su borde. Junto a una punta, la primera se acorta hasta el cruce y quedan en T. Antes eran dos incisiones superpuestas, y con los Farabeuf la piel del cruce quedaba arrugada en jirones.**
+
+*Qué pasó.* «Quiero asegurarme que si hago dos cortes estos se puedan unificar si se cruzan sin que quede la cagada, quiero que si no están cerca sean independientes, quiero asegurarme que la piel no se achurrasque como en la foto.» La foto muestra una incisión cruzada cerca de su punta izquierda, con los Farabeuf puestos: esa punta, un amasijo de piel doblada. Lo reproduje en el caso 3 (`cruces.cjs`: incisión de 92 mm, un segundo corte de cada forma y dos Farabeuf a 14 mm):
+- D-410 dejaba el cruce como otra incisión entera. Las dos se abrían cada una por su cuenta (`componerCortes`), y en el cruce la piel quedaba partida dos veces.
+- Cruzada a 7 mm de la punta, el pedacito de punta del otro lado quedaba suelto entre las dos grietas. Con los Farabeuf, 28 triángulos de piel doblados y 18 de fascia, todos junto al cruce. Es la foto.
+
+*Lo que cambia* (`decidirElTrazo` y `cruzarLasIncisiones`, en `incisiones.ts`, puras):
+- **Las huellas del trazo se guardan por incisión.** Cuando no hay repaso (menos de 5 mm a lo largo), el trazo se parte en tramos: los que caen sobre alguna incisión —dentro de su corredor de lado y de hondo, como en D-410— y los de fuera. Lo de fuera que mide 4 mm o más es un brazo; menos, el pulso.
+- **Sobre la herida no se corta nada.** Cada brazo nace en la línea de la incisión que dejó o a la que llega (`sobreLaIncision`), en el punto del cruce: la muestra más cercana a la línea, llevada a ella y con la normal de la piel ahí, no la del fondo. El brazo más largo es la incisión; los demás, ramas.
+- **Cerca de una punta, una T** (`PUNTA_DEL_CRUCE_MM`, 20 mm, y nunca más de un tercio de la incisión). Si el trazo cruza de lado a lado a menos de eso de una punta, la incisión se acorta hasta el cruce (`alarga` con `enElCruce` y `tramo`), y el pedacito de punta del otro lado se cierra. El trazo nuevo pasa entero y recto por la punta nueva. Se probó antes unir las dos en una incisión que doblara en el cruce, una L: con los Farabeuf daba 168 triángulos doblados, contra 28 sin tocar nada. La L dobla la grieta 90° en un punto, y los dos labios de dentro del codo se montan.
+- **El corredor es el de cada sitio** (`corredor(id, s)`). El lienzo mide el hueco entre los labios a esa altura de la incisión (`labioEnLaPosicion`), y no el máximo de toda la herida. Con los Farabeuf a 14 mm el corredor del medio es de 19,5 mm, pero junto a la punta la herida apenas se abre. Con el del medio en todas partes, un cruce a 8 mm de la punta caía entero «sobre la incisión» y no cortaba nada.
+- **Las ramas nacen a 1 mm de la línea, de su lado** (`APARTE_DE_LA_LINEA_MM`). Sobre la línea, la malla tiene los vértices de los dos labios repetidos en el mismo sitio, y la rama que empezaba ahí partía también el borde del labio de enfrente. Con la herida abierta a 35 mm, era una franja de piel tendida de lado a lado sobre el cruce. La barra de la T sí pasa por la punta nueva: la cruza.
+- **El repaso de D-410 no pierde nada.** Lo que sale por un lado nace también en la línea, a 1 mm. Si sale por los dos lados, el más largo es la incisión y el otro una rama; antes ese segundo pedazo se tiraba.
+
+*En el lienzo* (`aplicarElCorte`):
+- Las ramas se cortan una tras otra, cada una como incisión, con `esRama`: sin volver a decidir, sin el aviso de «demasiado corta» ni el de «no atraviesa», y sin que el bisturí profundo acompañe.
+- El gesto cuenta una sola incisión (`alIncidir`), y la guía vuelve a ser el trazo principal, que es lo que mide el paso.
+- Al acortar en el cruce, los separadores y las pinzas de esa incisión se reubican en el tramo que queda (`tramoQueQueda`). Así siguen en el mismo sitio de la piel.
+- La consola dice lo que pasó: «el pedacito de punta del otro lado se cerró, y las dos quedan unidas en T. La incisión mide ahora 85 mm», o que encima de la herida no se cortó nada.
+- Las puntas amarillas de las incisiones van con la piel (`puntasAlDia`): se corren lo que se ha corrido el extremo de su herida. La de una rama se trazó en la línea de la otra incisión, y abierta esa, se quedaba flotando en medio de la herida.
+
+*Qué se probó.* `incisiones.test.ts`, catorce casos nuevos o cambiados:
+- el cruce en medio, con el corte que llega a la línea y nada entre la línea y el corredor;
+- la T junto a cada punta, con el tramo que queda y la barra recta por la punta nueva;
+- el brazo de un solo lado junto a la punta, que no la acorta;
+- los umbrales de 2 cm y de un tercio, en una de 90 y en una de 45 mm;
+- el corredor de cada sitio contra el del medio;
+- la herida abierta con el trazo por el fondo, el cruce de sesgo a 25°, la T desde dentro del corredor, el trazo corto de labio a labio y el que cruza dos incisiones;
+- los cortes lejanos, independientes y enteros.
+
+`alargarIncision.test.ts` comprueba en el lienzo que las ramas se cortan sin decidir otra vez, que el gesto cuenta una y que la reubicación va después de cerrar la incisión.
+
+En el navegador, en el caso 3 con la base desechable (triángulos doblados de piel/fascia):
+
+| Cruce | Farabeuf puestos después | Farabeuf puestos antes |
+| --- | --- | --- |
+| cerca de la punta | 3/4 (antes de D-415, 28/18) | 28/24 |
+| en medio | 23/23, todos a 26–36 mm del labio (antes, 26/32) | 24/22 |
+| T en medio | 8/10 (antes, 5/8) | — |
+| sin segundo corte | — | 12/19 |
+
+- La franja sobre el cruce del medio desapareció con el milímetro de aparte, en los dos órdenes.
+- Los repasos de D-410, por el medio y desde la punta, siguen siendo repaso y no tocan la malla.
+
+*Consecuencias.*
+- (+) Cruzar junto a una punta, lo de la foto, deja una T limpia.
+- (+) Cruzar en medio no corta encima de la herida, y lo que sale a cada lado se abre por su cuenta, unido al borde.
+- (+) Un corte que no toca otra incisión es independiente, como antes.
+- (−) Acortar en el cruce cambia la medida del paso: la incisión de 92 mm pasa a 85. Si estaba justa en el mínimo, puede quedar corta. La consola lo dice.
+- (−) Entre la rama y el borde queda un milímetro de piel sin cortar. En pabellón la esquina de la T se abre; aquí, no.
+- (−) Con los Farabeuf ya abiertos, el trazo se corta donde estaba la piel en reposo, no donde se ve. `cortarCapa` toma el trazo como geometría en reposo. En la T junto a la punta, la mitad de abajo de la barra se tuerce: 28/24 contra 12/19 sin segundo corte. Poniendo los Farabeuf después queda limpia. Lo correcto es llevar el trazo a la piel en reposo antes de cortar, y queda pendiente.
+- (−) El cruce en medio deja dos o tres incisiones en la lista del recuadro «Herida», no una.
+- (−) Los 2 cm y el tercio son reglas medidas en un caso, la pierna del 3.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
