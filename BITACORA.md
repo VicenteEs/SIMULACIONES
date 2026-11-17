@@ -12575,6 +12575,117 @@ Decisiones del dueño, el 2026-11-16:
 - (−) Ninguna prueba contra el Umami de verdad comprueba que acepte el `id` al crear el sitio. Se ve al desplegar: si no lo acepta, el registro lo dice. *Lo acepta: el sitio de Contabo tiene el `id` de `UMAMI_SITIO`.*
 - (+) Del Umami de Contabo salió también el formato real de la serie. Trae la hora de Chile con una «Z» que no le corresponde, y la lectura ya la ignoraba. Queda en `monitoreo.test.ts`, en lugar del formato que se suponía.
 
+### D-410 · 2026-11-17 · vigente · pedido del dueño · amplía P-003 E4
+**Un trazo que va por encima de una incisión de su capa la repasa: no corta nada nuevo. Antes era otra incisión tendida sobre la primera, o una que iba y volvía sobre sí misma, y con los Farabeuf la piel quedaba en jirones.**
+
+*Qué pasó.* El dueño mandó una foto de la pierna del caso 4 con un extremo de la herida hecho pedazos y el otro limpio, y dudaba si «el tajo se lo tiro con mucha fuerza». Reproducido en el navegador, la causa era repasar el corte, que es lo que hace quien siente que quedó corto de hondo:
+- Si el trazo nuevo no tocaba ninguna punta, era **otra incisión** sobre la misma franja. Las dos se abrían por su cuenta (`componerCortes`), y con dos Farabeuf a 14 mm la piel quedaba con 373 triángulos doblados.
+- Si empezaba junto a una punta y volvía por encima, `incisionQueAlarga` lo tomaba por un alargue. `alargarIncision` unía las dos en una línea que iba y volvía: la incisión de 90 mm pasaba a «medir 138», la malla se partía dos veces en ese tramo y solo ese extremo salía destrozado (134 triángulos doblados). Es la foto del dueño.
+
+*Lo que cambia* (`decidirElTrazo`, en `incisiones.ts`, pura):
+- El trazo nuevo se mira cada 0,5 mm contra cada incisión de su capa. Una muestra va **sobre** ella si cae a la altura de su tramo y no pasada una punta, cerca de lado y no demasiado honda. Un tramo seguido de muestras sobre ella va **a lo largo** si avanza sobre la incisión al menos el coseno de 40° de lo que mide sobre la piel.
+- **De lado** (`corredorDelRepasoMm`): media abertura de la herida más 2 mm, y nunca menos que los 5 mm de alargar. Recién hecha, de 7 mm de hueco, da 5,5; con los Farabeuf a 14 mm, 19,5. Se pincha donde se ve, y dentro de una herida abierta eso es el fondo, a un lado de la línea.
+- **De hondo**, aparte y por la normal de la piel en ese punto de la línea: hasta `HONDURA_DEL_REPASO_MM` (25) por debajo y `ALTURA_DEL_REPASO_MM` (3) por encima. La primera versión lo medía todo junto, con el grosor de la piel como hondura, y en el navegador el repaso cayó en el fondo, de 8 a 12 mm bajo la línea: volvía a ser otra incisión.
+- **Lo que el trazo baja o sube no cuenta como recorrido.** Quien vuelve desde una punta cae enseguida al fondo de la herida abierta. En el caso 4 eran 10 mm de trazo en el mismo milímetro de incisión, y con ellos un repaso de 47 mm no «avanzaba» lo bastante y se alargaba a 138.
+- Se mira el tramo entero y no cada punto. Una recta tendida sobre una herida abierta baja al fondo y trepa por la pared donde la pantalla la lleva, y punto a punto esas subidas parecían otro trazo: un repaso dejó así una incisión nueva de 22 mm.
+- Con menos de 5 mm encima, es lo de siempre: otra incisión, o alargar si nace junto a una punta. Lo que sobra delante o detrás de lo repasado cuenta si mide 4 mm o más; menos es el pulso. Si sale por una punta la alarga, sin volver sobre sí misma. Si sale por un lado, a media incisión, es otra incisión que nace en ella, solo con ese pedazo.
+- El repaso no corta: la guía vuelve a ser la incisión repasada, que es lo que mide el paso, y la consola dice por qué no pasó nada (`AVISO_DEL_REPASO`, uno por plano).
+- El cruce sigue siendo otra incisión. Uno en sesgo de 35° sobre un tramo corto, que no se aparta más de 5 mm de la línea, cuenta como repaso: es un repaso torcido.
+
+*Qué se probó.* `incisiones.test.ts`, 15 casos nuevos:
+- el repaso por el medio, desde una punta en los dos sentidos y desde la otra;
+- el fondo de una herida abierta (de lado), el fondo profundizado a 12 y a 22 mm (de hondo), a 40 mm ya no, ni por encima de la piel;
+- la hondura por la normal y no por un eje fijo;
+- la caída al fondo desde la punta, tal como la midió el navegador;
+- la línea que baja y trepa por la pared;
+- pasarse 3 mm sin querer, alargar por una punta y por las dos sin volver atrás, el alargue clásico;
+- el cruce y el sesgo a 50°, la paralela lejana, el pedazo que sale por un lado;
+- la incisión de su capa que más pisa, y el corredor.
+
+En el navegador, en el caso 4 con la base desechable:
+- el repaso por el medio, el que vuelve desde la punta (el de la foto) y uno en sesgo de 35° dan el aviso, y la piel sigue con una sola incisión de 89,5 mm;
+- cruces a 70° y 90° abren la incisión 2, como antes;
+- con la secuencia del dueño (repasar desde la punta, dos trazos hondos y dos Farabeuf a 14 mm), el borde queda entero: 10 triángulos doblados lejos del labio, contra 134.
+
+Antes de subir D-410 a D-412 juntos:
+- `typecheck`, `lint` y `build` (con `/traumahub`) pasan;
+- la suite entera con cobertura, contra una base desechable: 7402 pasan y 3 fallan, las del entorno de siempre (`directorioDeRespaldos` ×2 y `tableroDeRevision`, que pasa con `TZ=America/Santiago`);
+- la integración obligatoria, 406 de 406.
+
+*Consecuencias.*
+- (+) Repasar no rompe la piel, y el residente sabe por qué el segundo pase no hizo nada.
+- (+) El caso del alargue que volvía sobre sí mismo no puede repetirse: lo que sale por una punta se une sin el tramo repasado.
+- (−) Un trazo casi paralelo, a pocos milímetros, que de verdad se quería como otra incisión se toma por repaso. Para eso hay que apartarse más que media abertura.
+- (−) Las distancias son reglas medidas en un caso, la pierna del 4: 25 mm de hondura, 40° y 4 mm de sobra. En una zona con más grasa puede hacer falta más hondura.
+
+### D-411 · 2026-11-17 · vigente · pedido del dueño · amplía P-015
+**En la fascia y el músculo el borde rojo de la incisión solo marca el sitio mientras la herida se abre, y después se va. Antes quedaba para siempre.**
+
+*Qué pasó.* «No quiero que queden las cosas rojas residuales», con una foto del fondo de la herida cruzado por líneas rojas finas. Son los `bordes` y la `cinta` de las heridas de fascia y músculo, del color de un corte recién hecho (`COLOR_DEL_BORDE_RECIEN_HECHO`).
+- En la piel se van cuando la herida se abre más de `APERTURA_QUE_APARTA_LA_CINTA_MM` (5 mm) o cuando algo la aparta (P-015).
+- La fascia se abre sola 4 mm y el músculo 2,4, menos de esos 5. Lo profundo además casi nunca se separa, y nada lo profundiza después. Así que sus líneas no se iban nunca.
+
+*Lo que cambia* (`actualizarCinta`, en `heridas.ts`). Las heridas de fascia y de músculo llevan `hondo` (`parametrosDe`, en el lienzo). Para ellas, el borde y la cinta se ven solo mientras la herida se está abriendo (`asentada < 1`, con algo de reposo y sin apartar): es la señal de dónde cayó el corte. Asentada, la herida se ve por su hueco y por la cara de corte, y la línea sobra. La piel sigue como estaba.
+
+*Qué se probó.* `heridaQueSeAbreSola.test.ts`, cinco casos:
+- un músculo con la retracción de verdad no deja ni borde ni cinta;
+- los dos se ven mientras se abre y se van al asentarse;
+- sin reposo no hay borde;
+- la sutura no los devuelve;
+- la piel conserva el suyo.
+
+En el navegador, con los dos trazos hondos, `dibujoDeLasHeridas` da cinta y borde apagados en las ocho heridas, y no queda ninguna línea en las fotos.
+
+*Consecuencias.*
+- (+) El fondo de la herida queda limpio.
+- (−) Pasado el segundo y medio de la apertura, una incisión de músculo cerrada casi del todo se distingue solo por su grieta. Si hiciera falta encontrarla, está la lista de incisiones del recuadro «Herida».
+
+### D-412 · 2026-11-17 · vigente · pedido del dueño · amplía D-364 y P-015
+**La fascia profunda se ve como fascia: una lámina blanca nacarada en hilos, con el rojo del músculo transparentándose donde de verdad hay músculo debajo, y medio milímetro por delante del músculo que la roza.**
+
+*Qué pasó.* «Veo eso que parece ser músculo, pero no parece ser fascia. Me da la impresión de que veo el hueso pelao.» Mirado con la sonda en el caso 4:
+- Desde P-015 la fascia profunda va maciza, con el color del atlas (#f5dad6, un rosado pálido) y el estriado del músculo a 0,45. En el fondo de la herida era una tela lisa del color del marfil.
+- La incisión del dueño corre sobre la cara interna de la tibia. Ahí bajo la fascia está directamente el hueso, a 1 o 2 mm, y el tibial anterior solo asoma hacia el borde lateral. Lo gris punteado que se ve por la ranura del corte hondo es la tibia. La anatomía está bien; lo que no se leía era la fascia.
+- Encima de la fascia había manchas rojas sueltas. Es el tibial anterior del atlas, que toca la fascia o la atraviesa hasta 0,3 mm.
+
+*Lo que cambia* (`aspectoDelPaciente.ts`):
+- **Un sombreador propio, `FASCIA`**, en lugar del de lo fibroso:
+  - hilos finos y largos a lo largo de la pieza, agrupados en haces;
+  - el color, a medias con un blanco frío;
+  - entre haz y haz, el rojo de lo de debajo;
+  - algo menos de rugosidad, para el brillo de lo mojado;
+  - la cara de dentro, la del corte, más oscura y roja, como en el músculo.
+
+  Los parámetros del material no cambian (P-015 sigue: sin barniz de cristal), y la fascia sigue maciza.
+- **El rojo va solo donde hay músculo debajo** (`ATRIBUTO_DEL_MUSCULO`, `musculoDebajo`). Al vestir el modelo, cada vértice de cada fascia profunda mide a qué distancia tiene el músculo y el hueso más cercanos.
+  - Vale 1 con músculo a menos de 2 mm y más cerca que el hueso, y 0 sin músculo a menos de 6 mm o con el hueso delante.
+  - El atributo viaja con los cortes (`llevarAtributo`) y queda en la geometría de antes, la que vuelve al cerrar.
+  - Se mide a la superficie, triángulo por triángulo en una rejilla de 6 mm. La primera versión medía al vértice más cercano, y como los músculos del atlas tienen triángulos de un centímetro, el tibial anterior a 0,6 mm bajo la fascia salía «lejos».
+  - En el caso 4 son unos 170 ms al cargar, una vez.
+- **La fascia superficial no cambia.** Es la que va con la piel y tiene rol «piel»: `uProfunda` en 0.
+- **Medio milímetro por delante** (`ADELANTO_DE_LA_FASCIA_MM`). En el sombreador de vértices, la fascia profunda se acerca a la cámara por el mismo rayo de vista: en la pantalla no se mueve, solo gana en la profundidad, y tapa los roces del músculo. La piel, la grasa y las valvas están a milímetros y no se tapan.
+- La sonda dice en `queSeVeEn` cuánto músculo tiene debajo cada punto de la fascia (`musculo`).
+
+*Qué se probó.* `aspectoDelPaciente.test.ts`, seis casos nuevos:
+- un músculo de triángulos grandes a 1 mm cuenta entero;
+- con el hueso delante, o sin músculo cerca, no hay rojo;
+- el valor se apaga con la distancia;
+- el sombreador de la fascia lee el atributo y se adelanta después de proyectar, y los demás no;
+- la profunda lleva `uProfunda` en 1 y la superficial en 0, y las dos leen 0 sin el atributo;
+- al vestir un modelo de juguete, la fascia profunda sabe dónde tiene la caja de músculo y la superficial no lleva nada.
+
+En el navegador, en el caso 4:
+- de un lado al otro de la incisión, el valor es 0,96 sobre el tibial anterior y 0 sobre la tibia;
+- una incisión 22 px más afuera, sobre el tibial anterior, muestra la lámina rosada en hilos, sin manchas rojas, y al cortarla el músculo;
+- sobre la tibia queda blanca.
+
+*Consecuencias.*
+- (+) La fascia se distingue del hueso a simple vista: blanca brillante y en hilos, y no marfil mate y poroso.
+- (+) Lo que se ve bajo la fascia es lo que hay: músculo donde hay músculo, hueso donde no.
+- (−) Sobre la cara interna de la tibia la fascia es blanca, y al cortarla aparece el hueso, como en un paciente. Quien espere músculo ahí va a seguir viendo «hueso pelao»: es la anatomía.
+- (−) El adelanto de medio milímetro taparía algo que de verdad estuviera tan pegado por delante de la fascia. Hoy no hay nada así, pero una valva apoyada en la fascia podría hundirse medio milímetro en la imagen.
+- (−) El tinte sigue la resolución de la fascia del atlas: 1613 vértices en la crural, un centímetro entre ellos. El paso del rojo al blanco es gradual y no sigue el borde del músculo al milímetro.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

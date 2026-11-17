@@ -276,6 +276,45 @@ describe('la cinta roja deja de tapar la herida en cuanto se ve sola', () => {
   })
 })
 
+describe('en la fascia y el músculo no queda ninguna línea roja (D-411)', () => {
+  // Pedido del dueño del 2026-11-17: «queda la marca en tejidos profundos; no quiero que queden las cosas rojas residuales».
+  it('el músculo se abre 2,4 mm solo: su borde se va con la cinta, y no espera a los 5 mm', () => {
+    const h = cortar(piel(), { retraccion: 1.2, hondo: true })
+    expect(aberturaDe(h)).toBeLessThan(5)
+    expect(h.cinta.visible).toBe(false)
+    expect(h.bordes.visible).toBe(false)
+  })
+
+  it('mientras se abre, el borde y la cinta marcan dónde se cortó; en cuanto se ve el hueco, se van', () => {
+    const h = cortar(piel(), { retraccion: 1.2, hondo: true })
+    asentarHeridas([h], 0)
+    expect(h.bordes.visible).toBe(true)
+    expect(h.cinta.visible).toBe(true)
+    asentarHeridas([h], 1)
+    expect(h.bordes.visible).toBe(false)
+  })
+
+  it('una grieta que no se abre sola no deja borde', () => {
+    const h = cortar(piel(), { hondo: true })
+    expect(h.reposo).toBe(0)
+    expect(h.bordes.visible).toBe(false)
+  })
+
+  it('cerrarla con la sutura no lo hace volver: lo cosido no es una incisión recién hecha', () => {
+    const h = cortar(piel(), { retraccion: 1.2, hondo: true })
+    abrirCapa(h, 0, 0, undefined, 0)
+    expect(aberturaDe(h)).toBe(0)
+    expect(h.bordes.visible).toBe(false)
+    expect(h.cinta.visible).toBe(false)
+  })
+
+  it('la piel conserva su filo hasta abrirse de verdad, como antes', () => {
+    const h = cortar(piel(), { retraccion: 1.2 })
+    expect(h.cinta.visible).toBe(false)
+    expect(h.bordes.visible).toBe(true)
+  })
+})
+
 describe('la sutura cierra también lo que el tejido se había apartado solo', () => {
   it('con media tensión el hueco es la mitad; sin tensión, los labios vuelven a tocarse', () => {
     const h = cortar(piel(), { retraccion: 2.1 })

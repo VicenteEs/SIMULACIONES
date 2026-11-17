@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import {
+  ADELANTO_DE_LA_FASCIA_MM,
+  ATRIBUTO_DEL_MUSCULO,
   CORTICAL_DE_LA_METAFISIS_MM,
   CORTICAL_DEL_ANILLO_MM,
   LINEA_DE_LO_DIFUSO,
@@ -10,6 +12,7 @@ import {
   grosorDeLaTapa,
   crearAspectoDelModelo,
   materialConAspecto,
+  musculoDebajo,
   soltarElAspecto,
   velloAlDia,
   vestirElModelo,
@@ -204,6 +207,92 @@ describe('el material con aspecto', () => {
     const m = materialConAspecto(new THREE.MeshStandardMaterial(), 'hueso', { mmPorUnidad: 1, unidadesPorMm: 1, tapas })
     m.dispose()
     expect(soltada).toHaveBeenCalledOnce()
+  })
+})
+
+describe('lo que la fascia profunda tiene debajo (D-412)', () => {
+  /** Un cuadrado de `lado` mm en el plano z = `z`, en dos triángulos, nueve números por triángulo. */
+  const plano = (z: number, lado = 200) => {
+    const m = lado / 2
+    return Float32Array.from([-m, -m, z, m, -m, z, m, m, z, -m, -m, z, m, m, z, -m, m, z])
+  }
+  const punto = Float32Array.from([0, 0, 0, 30, 20, 0])
+
+  it('mide a la superficie: un músculo de triángulos grandes a 1 mm cuenta entero', () => {
+    // Medido a sus vértices, que están a 140 mm, el tibial anterior del caso 4 quedaba «lejos» aunque rozara la fascia.
+    expect([...musculoDebajo(punto, plano(-1), new Float32Array())]).toEqual([1, 1])
+  })
+
+  it('con el hueso delante, o sin músculo cerca, no hay rojo que se transparente', () => {
+    expect([...musculoDebajo(punto, plano(-5), plano(-1))]).toEqual([0, 0])
+    expect([...musculoDebajo(punto, new Float32Array(), plano(-1))]).toEqual([0, 0])
+    expect([...musculoDebajo(punto, plano(-9), new Float32Array())]).toEqual([0, 0])
+  })
+
+  it('se apaga con la distancia', () => {
+    const [a] = musculoDebajo(punto, plano(-4), new Float32Array())
+    expect(a).toBeGreaterThan(0)
+    expect(a).toBeLessThan(1)
+  })
+
+  it('el sombreador de la fascia lee el atributo y se adelanta hacia la cámara; los demás, no', () => {
+    const conAspecto = (aspecto: Aspecto) => {
+      const s = { vertexShader: THREE.ShaderLib.physical.vertexShader, fragmentShader: THREE.ShaderLib.physical.fragmentShader, uniforms: {} }
+      aplicarAlSombreador(s, aspecto, {})
+      return s
+    }
+    const fascia = conAspecto('fascia')
+    expect(fascia.vertexShader).toContain(`vMusculo = ${ATRIBUTO_DEL_MUSCULO};`)
+    expect(fascia.vertexShader).toContain(`uProfunda * ${ADELANTO_DE_LA_FASCIA_MM.toFixed(2)} * uUnidadesPorMm`)
+    // El adelanto va después de proyectar: si three cambia el trozo, esto lo dice.
+    expect(fascia.vertexShader.indexOf('normalize( - mvPosition.xyz )')).toBeGreaterThan(fascia.vertexShader.indexOf('mvPosition = modelViewMatrix'))
+    expect(fascia.fragmentShader).toContain('varying float vMusculo;')
+    expect(fascia.fragmentShader).toContain('clamp( vMusculo, 0.0, 1.0 )')
+    for (const otro of ['piel', 'musculo', 'humedo', 'hueso', 'ojo'] as const) {
+      expect(conAspecto(otro).vertexShader).not.toContain(ATRIBUTO_DEL_MUSCULO)
+      expect(conAspecto(otro).vertexShader).not.toContain('normalize( - mvPosition.xyz )')
+    }
+  })
+
+  it('la profunda lleva `uProfunda` en 1 y la superficial en 0, y las dos leen 0 sin el atributo', () => {
+    const medidas = { mmPorUnidad: 1, unidadesPorMm: 1 }
+    const uniformes = (m: THREE.MeshPhysicalMaterial) => {
+      const s = { vertexShader: THREE.ShaderLib.physical.vertexShader, fragmentShader: THREE.ShaderLib.physical.fragmentShader, uniforms: {} as Record<string, THREE.IUniform> }
+      m.onBeforeCompile(s as unknown as THREE.WebGLProgramParametersWithUniforms, undefined as unknown as THREE.WebGLRenderer)
+      return s.uniforms
+    }
+    const profunda = materialConAspecto(new THREE.MeshStandardMaterial(), 'fascia', { ...medidas, profunda: true })
+    const superficial = materialConAspecto(new THREE.MeshStandardMaterial(), 'fascia', medidas)
+    expect(uniformes(profunda).uProfunda.value).toBe(1)
+    expect(uniformes(superficial).uProfunda.value).toBe(0)
+    for (const m of [profunda, superficial]) {
+      expect((m as unknown as { defaultAttributeValues: Record<string, number[]> }).defaultAttributeValues[ATRIBUTO_DEL_MUSCULO]).toEqual([0])
+    }
+    // El programa es el mismo: solo cambia el valor.
+    expect(profunda.customProgramCacheKey()).toBe(superficial.customProgramCacheKey())
+  })
+
+  it('al vestir el modelo, la fascia profunda sabe dónde tiene el músculo debajo, y la superficial no lleva nada', () => {
+    const { raiz, roles, rolDe } = paciente()
+    // Una lámina a 1 mm de la cara +X del músculo de juguete (una caja de 10 × 10 × 80 mm en el origen).
+    const lamina = new THREE.PlaneGeometry(60, 30, 12, 6).rotateY(Math.PI / 2).translate(6, 0, 0)
+    const profunda = new THREE.Mesh(lamina, new THREE.MeshStandardMaterial())
+    profunda.name = 'Crural fascia'
+    const superficial = new THREE.Mesh(lamina.clone().translate(30, 0, 0), new THREE.MeshStandardMaterial())
+    superficial.name = 'Superficial fascia'
+    raiz.add(profunda, superficial)
+    roles['Crural fascia'] = 'fascia'
+    roles['Superficial fascia'] = 'piel'
+    vestirElModelo(crearAspectoDelModelo(), raiz, rolDe, 1)
+    const valor = profunda.geometry.getAttribute(ATRIBUTO_DEL_MUSCULO) as THREE.BufferAttribute
+    expect(valor.count).toBe(lamina.getAttribute('position').count)
+    // Sobre la caja, entero; pasado su borde (|y| > 5 mm, a más de 6 de la cara), nada.
+    const posicion = lamina.getAttribute('position')
+    for (let i = 0; i < valor.count; i++) {
+      if (Math.abs(posicion.getY(i)) <= 4) expect(valor.getX(i)).toBe(1)
+      if (Math.abs(posicion.getY(i)) >= 12) expect(valor.getX(i)).toBe(0)
+    }
+    expect(superficial.geometry.getAttribute(ATRIBUTO_DEL_MUSCULO)).toBeUndefined()
   })
 })
 

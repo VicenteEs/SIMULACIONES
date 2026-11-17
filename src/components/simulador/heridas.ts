@@ -96,6 +96,8 @@ export interface HeridaEnCapa {
    * línea roja flotando sobre una herida que ya se profundizó es lo que Cristóbal pidió que desapareciera.
    */
   profundizada?: boolean
+  /** Es de la fascia o del músculo (`ParametrosDeCorte.hondo`): no deja ninguna línea roja una vez se ve (D-411). */
+  hondo?: boolean
 }
 
 /**
@@ -138,6 +140,11 @@ export interface ParametrosDeCorte {
    * hay piel cortada encima; sin la lista, cada malla se aparta por la suya, como la piel.
    */
   normalesDeEncima?: (THREE.Vector3 | null)[]
+  /**
+   * Es un plano de debajo de la piel: la fascia o el músculo (D-411). Su borde no se queda rojo: se va con la cinta en
+   * cuanto el hueco se ve solo. Sin él, la herida es de piel, y su borde dura hasta que se abre de verdad.
+   */
+  hondo?: boolean
 }
 
 /**
@@ -417,6 +424,7 @@ export function cortarCapa(
     incision: parametros.incision ?? 0,
     trazo: { puntos: puntos.map((p) => p.clone()), normales: normales.map((n) => n.clone()), parametros },
     tardoMs: 0,
+    hondo: parametros.hondo === true,
   }
   herida.tardoMs = performance.now() - alEmpezar
   CADENAS.set(malla, [...previas, herida])
@@ -564,8 +572,15 @@ function actualizarCinta(h: HeridaEnCapa) {
   // Una herida que se retrae se ve sola en cuanto el hueco se distingue: la cinta, que es plana y más ancha que él, lo
   // taparía (P-015). El borde se queda hasta que la herida se abre de verdad: es el filo que sangra.
   const seVeSola = h.reposo > 0 && aberturaMm >= ABERTURA_QUE_YA_SE_VE_MM
-  h.cinta.visible = !apartada && !seVeSola
-  h.bordes.visible = !apartada
+  // En la fascia y el músculo, la cinta y el borde solo marcan el sitio mientras la herida recién hecha se abre, hasta
+  // que el hueco se ve (D-411). El borde quedaba rojo, de «recién hecha», mientras la herida no pasara de 5 mm: el
+  // músculo se retrae menos que eso y nada más hondo lo profundiza, así que sus líneas rojas se quedaban para siempre en
+  // el fondo de la herida. Es la marca que el dueño veía en los tejidos profundos. Tampoco vuelven al coserla: cerrada,
+  // la herida de la piel vuelve a marcarse, pero una línea roja bajo la piel cosida no es nada que haya que ver. Y una
+  // grieta que no se abre sola (`reposo` 0, un vaso cruzado de través) no tiene hueco que marcar.
+  const marcaElSitio = !apartada && h.reposo > 0 && h.asentada < 1 && !seVeSola
+  h.cinta.visible = h.hondo ? marcaElSitio : !apartada && !seVeSola
+  h.bordes.visible = h.hondo ? marcaElSitio : !apartada
   // El borde rojo es la incisión recién hecha: al abrirla o profundizarla se vuelve del tono de la piel (P-003 E4).
   ;(h.bordes.material as THREE.LineBasicMaterial).color.set(
     h.quemado ? COLOR_DEL_BORDE_QUEMADO : abierta || h.profundizada ? COLOR_DEL_BORDE_ABIERTO : COLOR_DEL_BORDE_RECIEN_HECHO,

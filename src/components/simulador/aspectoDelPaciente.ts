@@ -239,6 +239,38 @@ float rugosidadDelAspecto = 0.06 * haz;
 `
 
 /**
+ * La fascia (D-412): una lámina de colágeno, en hilos finos y largos agrupados en haces, nacarada, y tan delgada que
+ * entre haz y haz se transparenta el rojo del músculo de debajo.
+ *
+ * Con el estriado del músculo y el color del atlas (#f5dad6, un rosado pálido), maciza desde P-015, el fondo de la
+ * herida era una tela lisa del color del marfil: el dueño veía «el hueso pelao». Lo que distingue la fascia del hueso en
+ * un campo quirúrgico es justamente esto: el blanco frío y brillante, los hilos que se ven a simple vista y el músculo
+ * que asoma por debajo. El hueso es marfil, mate y poroso.
+ *
+ * Lo de debajo no se dibuja: la fascia sigue maciza, y el rojo es un tinte que sigue a los haces, donde de verdad hay
+ * músculo debajo (`vMusculo`, ver `ATRIBUTO_DEL_MUSCULO`). Sobre el hueso queda blanca. Una fascia translúcida de
+ * verdad volvería al «cristal» de P-015 y a ordenar transparencias en cada dibujo. `uProfunda` es 1 en la fascia
+ * profunda, la que cubre al músculo, y 0 en la superficial, que va con la piel y es la grasa: esa queda como estaba.
+ */
+const FASCIA = /* glsl */ `
+vec3 pMm = vPosObjeto * uMmPorUnidad;
+float huella = max( length( fwidth( pMm ) ), 1e-4 );
+float a = dot( pMm, uEjeFibra );
+vec3 q = pMm - a * uEjeFibra;
+float hilo = ( ruido3( q * 2.6 + uEjeFibra * a * 0.035 ) - 0.5 ) * desvanecer( 0.4, huella );
+float haz = capas3( q * 0.45 + uEjeFibra * a * 0.02 );
+float claro = smoothstep( 0.32, 0.68, haz );
+float fuerza = uFibra * ( 1.0 + uProfunda );
+vec3 lamina = mix( diffuseColor.rgb, vec3( 0.9, 0.9, 0.92 ), 0.5 * uProfunda );
+lamina = mix( lamina, vec3( 0.55, 0.16, 0.14 ), uProfunda * clamp( vMusculo, 0.0, 1.0 ) * 0.42 * ( 1.0 - 0.7 * claro ) );
+lamina *= 1.0 + fuerza * ( 0.3 * hilo + 0.1 * ( haz - 0.5 ) );
+// La cara de dentro, la del corte, como en lo fibroso: más oscura y más roja.
+diffuseColor.rgb = mix( lamina, lamina * vec3( 0.6, 0.34, 0.32 ), gl_FrontFacing ? 0.0 : 1.0 );
+float alturaDelAspecto = fuerza * ( 0.05 * hilo + 0.05 * ( haz - 0.5 ) ) * uUnidadesPorMm;
+float rugosidadDelAspecto = - 0.08 * uProfunda + 0.05 * ( 1.0 - claro );
+`
+
+/**
  * La dispersión bajo la piel, aproximada: la luz que da en la piel no se queda en la superficie, entra, se tiñe de
  * la sangre y sale un poco más allá. Lo que se ve es que la sombra no corta en seco: el borde se aclara en rojo.
  * Se suma a lo difuso la luz que llegaría con una «envoltura» (el producto de la normal y la luz desplazado hacia
@@ -275,19 +307,33 @@ export function aplicarAlSombreador(
   Object.assign(sombreador.uniforms, uniformes)
   const conTapas = aspecto === 'hueso'
   const conPared = aspecto === 'piel'
+  const conMusculo = aspecto === 'fascia'
   sombreador.vertexShader = sombreador.vertexShader
     .replace(
       '#include <common>',
       VERTICE +
         (conTapas ? `attribute float aTapa;\nvarying float vTapa;\nattribute float ${ATRIBUTO_DEL_CANAL};\nvarying float vCanal;\n` : '') +
-        (conPared ? `attribute float ${ATRIBUTO_DE_LA_PARED};\nvarying float vPared;\n` : ''),
+        (conPared ? `attribute float ${ATRIBUTO_DE_LA_PARED};\nvarying float vPared;\n` : '') +
+        (conMusculo ? `attribute float ${ATRIBUTO_DEL_MUSCULO};\nvarying float vMusculo;\nuniform float uProfunda;\nuniform float uUnidadesPorMm;\n` : ''),
     )
     .replace(
       '#include <begin_vertex>',
       '#include <begin_vertex>\nvPosObjeto = transformed;\n' +
         (conTapas ? `vTapa = aTapa;\nvCanal = ${ATRIBUTO_DEL_CANAL};\n` : '') +
-        (conPared ? `vPared = ${ATRIBUTO_DE_LA_PARED};\n` : ''),
+        (conPared ? `vPared = ${ATRIBUTO_DE_LA_PARED};\n` : '') +
+        (conMusculo ? `vMusculo = ${ATRIBUTO_DEL_MUSCULO};\n` : ''),
     )
+  if (conMusculo) {
+    // La fascia profunda, medio milímetro más cerca de la cámara por el mismo rayo de vista: en la pantalla no se mueve,
+    // solo gana en la profundidad (D-412). En el atlas el músculo toca la fascia o la atraviesa por décimas de
+    // milímetro —el tibial anterior del caso 4, hasta 0,3 mm por fuera—, y con la fascia maciza esos roces eran manchas
+    // rojas sueltas en el fondo de la herida. Lo de verdad delante de la fascia (la piel, la grasa, una valva) está a
+    // milímetros y no se tapa.
+    sombreador.vertexShader = sombreador.vertexShader.replace(
+      '#include <project_vertex>',
+      `#include <project_vertex>\nmvPosition.xyz += normalize( - mvPosition.xyz ) * uProfunda * ${ADELANTO_DE_LA_FASCIA_MM.toFixed(2)} * uUnidadesPorMm;\ngl_Position = projectionMatrix * mvPosition;\n`,
+    )
+  }
   const propio =
     aspecto === 'piel'
       ? PIEL
@@ -295,14 +341,17 @@ export function aplicarAlSombreador(
         ? HUESO
         : aspecto === 'ojo'
           ? OJO
-          : FIBROSO
+          : aspecto === 'fascia'
+            ? FASCIA
+            : FIBROSO
   const declaraciones =
     RUIDO +
     (conTapas
       ? 'varying float vTapa;\nvarying float vCanal;\nuniform vec3 uTapaOrigen[ 4 ];\nuniform vec3 uTapaU[ 4 ];\nuniform vec3 uTapaV[ 4 ];\nuniform float uTapaRadio[ 4 ];\nuniform float uTapaGrosor[ 4 ];\nuniform sampler2D uCampoDeLasTapas;\n'
       : '') +
     (conPared ? 'varying float vPared;\n' : '') +
-    (aspecto === 'piel' || aspecto === 'hueso' || aspecto === 'ojo' ? '' : 'uniform vec3 uEjeFibra;\nuniform float uFibra;\n')
+    (aspecto === 'piel' || aspecto === 'hueso' || aspecto === 'ojo' ? '' : 'uniform vec3 uEjeFibra;\nuniform float uFibra;\n') +
+    (conMusculo ? 'uniform float uProfunda;\nvarying float vMusculo;\n' : '')
   let fragmento = sombreador.fragmentShader
     .replace('#include <clipping_planes_pars_fragment>', '#include <clipping_planes_pars_fragment>\n' + declaraciones)
     .replace('#include <color_fragment>', '#include <color_fragment>\n' + propio)
@@ -349,7 +398,20 @@ const INTENSIDAD_DE_LA_FIBRA: Record<Aspecto, number> = { piel: 0, hueso: 0, mus
 export function materialConAspecto(
   original: THREE.Material,
   aspecto: Aspecto,
-  { mmPorUnidad, unidadesPorMm, ejeFibra = [0, 1, 0], tapas }: { mmPorUnidad: number; unidadesPorMm: number; ejeFibra?: Vec3; tapas?: CampoDeLasTapas },
+  {
+    mmPorUnidad,
+    unidadesPorMm,
+    ejeFibra = [0, 1, 0],
+    tapas,
+    profunda = false,
+  }: {
+    mmPorUnidad: number
+    unidadesPorMm: number
+    ejeFibra?: Vec3
+    tapas?: CampoDeLasTapas
+    /** Una fascia profunda, la que cubre al músculo (rol «fascia»), y no la superficial que va con la piel (D-412). */
+    profunda?: boolean
+  },
 ): THREE.MeshPhysicalMaterial {
   const base = original as THREE.MeshStandardMaterial
   // La fascia va maciza (P-015). El archivo la trae al 45 o al 60 % (`opacidadDelModelo`, P-006), que en el taller
@@ -393,6 +455,14 @@ export function materialConAspecto(
   } else if (aspecto !== 'piel' && aspecto !== 'ojo') {
     uniformes.uEjeFibra = { value: new THREE.Vector3(...ejeFibra) }
     uniformes.uFibra = { value: INTENSIDAD_DE_LA_FIBRA[aspecto] }
+    if (aspecto === 'fascia') {
+      uniformes.uProfunda = { value: profunda ? 1 : 0 }
+      // La superficial no lleva lo de debajo, y una profunda vestida sin él (o una geometría que lo perdió) lee 0: sin
+      // esto leería lo que dejó otro programa en esa ranura, como las tapas del hueso.
+      ;(material as THREE.Material & { defaultAttributeValues?: Record<string, number[]> }).defaultAttributeValues = {
+        [ATRIBUTO_DEL_MUSCULO]: [0],
+      }
+    }
   }
   material.onBeforeCompile = (sombreador) => aplicarAlSombreador(sombreador, aspecto, uniformes)
   // Todos los de un mismo aspecto comparten programa: solo cambian los valores de los uniformes.
@@ -611,6 +681,163 @@ function marcarLaPared(malla: THREE.Mesh) {
 }
 
 /**
+ * Cuánto músculo tiene debajo cada vértice de la fascia profunda, de 0 a 1 (D-412): lo que lee el sombreador para
+ * teñirla del rojo que se transparenta. El de la pierna no es parejo: sobre el tibial anterior la fascia lo tapa a un
+ * par de milímetros, y sobre la cara interna de la tibia lo que hay debajo es el hueso, sin músculo. Teñida pareja, el
+ * corte hondo mostraba hueso bajo una lámina roja, que es lo que no puede ser.
+ */
+export const ATRIBUTO_DEL_MUSCULO = 'aMusculo'
+
+/** Lo que la fascia profunda se adelanta hacia la cámara para ganarle al músculo que la roza, en milímetros (D-412). */
+export const ADELANTO_DE_LA_FASCIA_MM = 0.5
+
+/**
+ * Hasta dónde bajo la fascia se busca el músculo, en milímetros: es también el lado de las celdas de la rejilla. Sobre
+ * un músculo la fascia queda a uno o dos milímetros; más lejos que esto, lo de debajo ya no se transparenta.
+ */
+export const ALCANCE_DE_LO_DE_DEBAJO_MM = 6
+
+/** El cuadrado de la distancia de `p` al triángulo `k` de `t` (nueve números por triángulo): el punto más cercano de Ericson. */
+function distancia2AlTriangulo(t: Float32Array, k: number, px: number, py: number, pz: number): number {
+  const ax = t[k], ay = t[k + 1], az = t[k + 2]
+  const abx = t[k + 3] - ax, aby = t[k + 4] - ay, abz = t[k + 5] - az
+  const acx = t[k + 6] - ax, acy = t[k + 7] - ay, acz = t[k + 8] - az
+  const apx = px - ax, apy = py - ay, apz = pz - az
+  const d1 = abx * apx + aby * apy + abz * apz
+  const d2 = acx * apx + acy * apy + acz * apz
+  let qx: number, qy: number, qz: number
+  if (d1 <= 0 && d2 <= 0) {
+    qx = ax; qy = ay; qz = az
+  } else {
+    const bpx = px - t[k + 3], bpy = py - t[k + 4], bpz = pz - t[k + 5]
+    const d3 = abx * bpx + aby * bpy + abz * bpz
+    const d4 = acx * bpx + acy * bpy + acz * bpz
+    const cpx = px - t[k + 6], cpy = py - t[k + 7], cpz = pz - t[k + 8]
+    const d5 = abx * cpx + aby * cpy + abz * cpz
+    const d6 = acx * cpx + acy * cpy + acz * cpz
+    const vc = d1 * d4 - d3 * d2
+    const vb = d5 * d2 - d1 * d6
+    const va = d3 * d6 - d5 * d4
+    if (d3 >= 0 && d4 <= d3) {
+      qx = t[k + 3]; qy = t[k + 4]; qz = t[k + 5]
+    } else if (d6 >= 0 && d5 <= d6) {
+      qx = t[k + 6]; qy = t[k + 7]; qz = t[k + 8]
+    } else if (vc <= 0 && d1 >= 0 && d3 <= 0) {
+      const v = d1 / (d1 - d3)
+      qx = ax + abx * v; qy = ay + aby * v; qz = az + abz * v
+    } else if (vb <= 0 && d2 >= 0 && d6 <= 0) {
+      const w = d2 / (d2 - d6)
+      qx = ax + acx * w; qy = ay + acy * w; qz = az + acz * w
+    } else if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0) {
+      const w = (d4 - d3) / (d4 - d3 + (d5 - d6))
+      qx = t[k + 3] + (t[k + 6] - t[k + 3]) * w; qy = t[k + 4] + (t[k + 7] - t[k + 4]) * w; qz = t[k + 5] + (t[k + 8] - t[k + 5]) * w
+    } else {
+      const s = 1 / (va + vb + vc)
+      const v = vb * s
+      const w = vc * s
+      qx = ax + abx * v + acx * w; qy = ay + aby * v + acy * w; qz = az + abz * v + acz * w
+    }
+  }
+  return (px - qx) ** 2 + (py - qy) ** 2 + (pz - qz) ** 2
+}
+
+/**
+ * El valor de `ATRIBUTO_DEL_MUSCULO` para cada punto de `fascia` (tres números por punto), con los triángulos del
+ * músculo y del hueso (nueve por triángulo), todo en milímetros y en el mismo espacio, el del mundo: 1 con un músculo a
+ * menos de 2 mm y más cerca que el hueso, 0 sin músculo a menos de 6 mm o con el hueso delante.
+ *
+ * Se mide a la superficie y no al vértice más cercano: los músculos del atlas tienen triángulos de un centímetro, y
+ * medido a sus vértices, el tibial anterior a 0,6 mm bajo la fascia del caso 4 quedaba «lejos». Cada triángulo va a
+ * las celdas que toca su caja, y cada punto mira la suya y las vecinas.
+ */
+export function musculoDebajo(fascia: Float32Array, musculo: Float32Array, hueso: Float32Array): Float32Array {
+  const celda = ALCANCE_DE_LO_DE_DEBAJO_MM
+  const clave = (i: number, j: number, k: number) => i * 73856093 + j * 19349663 + k * 83492791
+  const rejilla = (t: Float32Array) => {
+    const r = new Map<number, number[]>()
+    for (let k = 0; k < t.length; k += 9) {
+      const desde = [0, 1, 2].map((e) => Math.floor(Math.min(t[k + e], t[k + 3 + e], t[k + 6 + e]) / celda))
+      const hasta = [0, 1, 2].map((e) => Math.floor(Math.max(t[k + e], t[k + 3 + e], t[k + 6 + e]) / celda))
+      for (let i = desde[0]; i <= hasta[0]; i++)
+        for (let j = desde[1]; j <= hasta[1]; j++)
+          for (let l = desde[2]; l <= hasta[2]; l++) {
+            const c = clave(i, j, l)
+            const lista = r.get(c)
+            if (lista) lista.push(k)
+            else r.set(c, [k])
+          }
+    }
+    return r
+  }
+  // Dos celdas distintas pueden dar la misma clave, y un triángulo grande está en varias: sobran candidatos, pero la
+  // distancia es la de verdad.
+  const masCerca = (r: Map<number, number[]>, t: Float32Array, x: number, y: number, z: number) => {
+    const ci = Math.floor(x / celda), cj = Math.floor(y / celda), ck = Math.floor(z / celda)
+    let mejor = celda * celda
+    for (let di = -1; di <= 1; di++)
+      for (let dj = -1; dj <= 1; dj++)
+        for (let dk = -1; dk <= 1; dk++) {
+          const lista = r.get(clave(ci + di, cj + dj, ck + dk))
+          if (!lista) continue
+          for (const k of lista) mejor = Math.min(mejor, distancia2AlTriangulo(t, k, x, y, z))
+        }
+    return mejor < celda * celda ? Math.sqrt(mejor) : Infinity
+  }
+  const deMusculo = rejilla(musculo)
+  const deHueso = rejilla(hueso)
+  const suave = (a: number, b: number, x: number) => {
+    const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
+    return t * t * (3 - 2 * t)
+  }
+  const valor = new Float32Array(fascia.length / 3)
+  for (let v = 0; v < valor.length; v++) {
+    const x = fascia[3 * v], y = fascia[3 * v + 1], z = fascia[3 * v + 2]
+    const alMusculo = masCerca(deMusculo, musculo, x, y, z)
+    if (!Number.isFinite(alMusculo)) continue
+    const alHueso = masCerca(deHueso, hueso, x, y, z)
+    const delante = Number.isFinite(alHueso) ? suave(-2, 2, alHueso - alMusculo) : 1
+    valor[v] = (1 - suave(2, celda, alMusculo)) * delante
+  }
+  return valor
+}
+
+/** Los vértices de esas mallas en el mundo, en milímetros, tres números por vértice. */
+function verticesEnElMundoMm(malla: THREE.Mesh, mmPorUnidad: number): Float32Array {
+  const posicion = malla.geometry.getAttribute('position')
+  const salida = new Float32Array((posicion?.count ?? 0) * 3)
+  const p = new THREE.Vector3()
+  for (let i = 0; i < (posicion?.count ?? 0); i++) {
+    p.fromBufferAttribute(posicion, i).applyMatrix4(malla.matrixWorld).multiplyScalar(mmPorUnidad)
+    salida.set([p.x, p.y, p.z], 3 * i)
+  }
+  return salida
+}
+
+/** Los triángulos de esas mallas en el mundo, en milímetros, nueve números por triángulo, unos tras otros. */
+function triangulosEnElMundoMm(mallas: readonly THREE.Mesh[], mmPorUnidad: number): Float32Array {
+  const partes = mallas.map((m) => {
+    const vertices = verticesEnElMundoMm(m, mmPorUnidad)
+    const indice = m.geometry.getIndex()
+    const cuantos = indice ? indice.count : vertices.length / 3
+    const salida = new Float32Array(cuantos * 3)
+    for (let i = 0; i < cuantos; i++) {
+      const v = indice ? indice.getX(i) : i
+      salida[3 * i] = vertices[3 * v]
+      salida[3 * i + 1] = vertices[3 * v + 1]
+      salida[3 * i + 2] = vertices[3 * v + 2]
+    }
+    return salida
+  })
+  const todo = new Float32Array(partes.reduce((s, p) => s + p.length, 0))
+  let k = 0
+  for (const p of partes) {
+    todo.set(p, k)
+    k += p.length
+  }
+  return todo
+}
+
+/**
  * Las tapas de una malla de hueso, en el atributo `aTapa` que lee el sombreador (0 fuera, 1 a 4 la tapa), y su canal
  * medular, en `aCanal` (`marcarElCanal`). El hueso tiene canal si lo trae la malla o si lo dice el archivo
  * (`canalMedular`, de los `extras`): un trozo de meseta tibial no trae canal, y su tapa es de un hueso que sí lo tiene.
@@ -663,7 +890,8 @@ export function vestirElModelo(
     malla.castShadow = true
     malla.receiveShadow = true
     const anterior = a.vestidos.get(malla)
-    const aspecto = Array.isArray(malla.material) ? null : aspectoDe(malla, rolDe(malla.name))
+    const rol = rolDe(malla.name)
+    const aspecto = Array.isArray(malla.material) ? null : aspectoDe(malla, rol)
     if (anterior?.aspecto === aspecto) continue
     if (anterior) {
       desvestir(malla, anterior)
@@ -678,6 +906,7 @@ export function vestirElModelo(
       unidadesPorMm: 1 / mmPorUnidad,
       ejeFibra: posicion && aspecto !== 'hueso' && aspecto !== 'piel' && aspecto !== 'ojo' ? ejePrincipal(flotantesDe(posicion)) : undefined,
       tapas: aspecto === 'hueso' ? marcarLasTapas(malla) : undefined,
+      profunda: rol === 'fascia',
     })
     malla.material = propio
     const vestido: Vestido = { aspecto, original, propio }
@@ -692,6 +921,19 @@ export function vestirElModelo(
       }
     }
     a.vestidos.set(malla, vestido)
+  }
+  // Lo que cada fascia profunda tiene debajo, una vez y antes de que la sesión devuelva sus heridas: el atributo viaja
+  // con los cortes (`llevarAtributo`) y queda en la geometría de antes, la que vuelve al cerrar. En el caso 4 (8600
+  // triángulos de músculo, 52 000 de hueso, once fascias) son unos 170 ms al cargarlo, una sola vez.
+  const fascias = mallas.filter((m) => a.vestidos.get(m)?.aspecto === 'fascia' && rolDe(m.name) === 'fascia' && !m.geometry.getAttribute(ATRIBUTO_DEL_MUSCULO))
+  if (fascias.length > 0) {
+    const delAspecto = (cual: Aspecto) => mallas.filter((m) => a.vestidos.get(m)?.aspecto === cual)
+    const musculo = triangulosEnElMundoMm(delAspecto('musculo'), mmPorUnidad)
+    const hueso = triangulosEnElMundoMm(delAspecto('hueso'), mmPorUnidad)
+    for (const f of fascias) {
+      const valor = musculoDebajo(verticesEnElMundoMm(f, mmPorUnidad), musculo, hueso)
+      f.geometry.setAttribute(ATRIBUTO_DEL_MUSCULO, new THREE.BufferAttribute(valor, 1))
+    }
   }
 }
 

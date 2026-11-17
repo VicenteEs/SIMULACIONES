@@ -59,6 +59,17 @@ export function planoQueCorta(pedido: PlanoBlando, fascia: EstadoDeLaFascia): { 
   return { plano: pedido, redirigido: false }
 }
 
+/**
+ * Qué se le dice a quien pasó el bisturí por encima de una incisión que ya estaba hecha en ese plano (D-410). No se
+ * corta nada: el plano ya está partido ahí, y cortarlo otra vez lo dejaba en pedazos. Se dice por qué no pasó nada, y
+ * qué hacer si lo que quería era llegar más hondo.
+ */
+export const AVISO_DEL_REPASO: Readonly<Record<PlanoBlando, string>> = {
+  piel: 'Ese trazo va por encima de la incisión que ya está hecha: la piel ya está cortada ahí y no se vuelve a cortar. Para llegar más hondo, el bisturí profundo.',
+  fascia: 'La fascia ya está abierta a lo largo de ese trazo: repasarla no corta nada nuevo.',
+  musculo: 'El plano muscular ya está cortado a lo largo de ese trazo: repasarlo no corta nada nuevo. Para ver lo de debajo, se apartan los bordes con los separadores.',
+}
+
 /** Qué se le dice a quien trazó para llegar al músculo y abrió la fascia. */
 export const AVISO_DE_LA_FASCIA =
   'Se cortó la fascia, que cubre al músculo: sin abrirla no se llega a él. Vuelva a trazar para entrar en el plano muscular.'

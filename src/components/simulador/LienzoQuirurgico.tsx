@@ -81,7 +81,7 @@ import { ATRIBUTO_DE_LA_CARA_DE_DENTRO, crearAbultamientoDeLaPiel, quitarElAbult
 import { ejePrincipal } from '@/lib/aspectoAnatomico'
 import { flotantesDe } from '@/atlas/canalDeLaGeometria'
 import { EL_PLANO, planDelCierre, textoDelCierre, type PlanoQueSeCierra } from '@/lib/cierreDeUnClic'
-import { incisionQueAlarga, UMBRAL_PARA_ALARGAR_MM, type Punto, type ResumenDeIncision } from '@/lib/incisiones'
+import { corredorDelRepasoMm, decidirElTrazo, UMBRAL_PARA_ALARGAR_MM, type Punto, type ResumenDeIncision } from '@/lib/incisiones'
 import { juicioDeLaPotencia, type ModoDelElectrobisturi } from '@/lib/electrobisturi'
 import {
   adviertePorLaTension,
@@ -361,6 +361,7 @@ import {
 import type { ObjetoPuesto } from '@/lib/menuDelObjeto'
 import {
   AVISO_DE_LA_FASCIA,
+  AVISO_DEL_REPASO,
   NOMBRE_DEL_PLANO,
   PLANOS_BLANDOS,
   PROFUNDIDAD_DEL_PLANO,
@@ -4249,18 +4250,48 @@ export function LienzoQuirurgico({
       let puntosDelCorte: Punto[] = trazo.map((q) => [q.x, q.y, q.z])
       let normalesDelCorte: Punto[] = t.normalesDelTrazo.map((q) => [q.x, q.y, q.z])
       let alargada = false
+      // Un trazo que va por encima de una incisión de su capa la repasa (D-410): no corta nada nuevo donde va encima,
+      // lo que sale por una punta la alarga y lo que sale por un lado es otra. Antes era otra incisión tendida sobre la
+      // primera, o una que iba y volvía sobre sí misma, y con los separadores la piel quedaba en pedazos.
+      let recortado = false
       if (id === undefined && !desdeLaSesion && !esRehacer && !deDiseccion) {
-        const alarga = incisionQueAlarga(
+        const abiertaMm = (incision: number) =>
+          Math.max(0, ...(t.heridas.get(plano) ?? []).filter((h) => h.incision === incision).map(aberturaDe)) / unidadesPorMm
+        const decision = decidirElTrazo(
           (t.cortes ?? []).map((c) => ({ id: c.id ?? -1, capa: c.plano, puntos: c.puntos, normales: c.normales })),
           plano,
           { puntos: puntosDelCorte, normales: normalesDelCorte },
-          UMBRAL_PARA_ALARGAR_MM * unidadesPorMm,
+          {
+            umbral: UMBRAL_PARA_ALARGAR_MM * unidadesPorMm,
+            mm: unidadesPorMm,
+            corredor: (incision) => corredorDelRepasoMm(abiertaMm(incision)) * unidadesPorMm,
+          },
         )
-        if (alarga) {
-          id = alarga.id
-          puntosDelCorte = [...alarga.unida.puntos]
-          normalesDelCorte = [...alarga.unida.normales]
+        if (decision.tipo === 'repaso') {
+          // Nada que cortar: la guía vuelve a ser la incisión que se repasó, que es lo que mide el paso, y se dice por qué
+          // no pasó nada. Un trazo de más no es una incisión de más.
+          const repasada = (t.cortes ?? []).find((c) => c.id === decision.id)
+          if (repasada) {
+            t.puntosDelTrazo = repasada.puntos.map(([x, y, z]) => ({ x, y, z }))
+            t.normalesDelTrazo = repasada.normales.map(([x, y, z]) => ({ x, y, z }))
+            dibujarTrazo(t)
+            ultimas.current.alTrazar?.([...t.puntosDelTrazo])
+          }
+          if (t.trazo) t.trazo.visible = false
+          ultimas.current.alGesto?.(AVISO_DEL_REPASO[plano], 'atencion')
+          pedirDibujo()
+          return undefined
+        }
+        if (decision.tipo === 'alarga') {
+          id = decision.id
+          puntosDelCorte = [...decision.unida.puntos]
+          normalesDelCorte = [...decision.unida.normales]
           alargada = true
+        } else if (decision.trazo.puntos !== puntosDelCorte) {
+          // Lo que se salió por un lado de una incisión repasada: solo eso es la incisión nueva.
+          puntosDelCorte = [...decision.trazo.puntos]
+          normalesDelCorte = [...decision.trazo.normales]
+          recortado = true
         }
       }
       const previo = id !== undefined ? (t.cortes ?? []).find((c) => c.id === id) : undefined
@@ -4300,6 +4331,8 @@ export function LienzoQuirurgico({
         // Y la malla se afina alrededor del corte, para que lo que se aparta se doble en curva y no en facetas.
         afinar: ARISTA_JUNTO_AL_CORTE_MM * unidadesPorMm,
         normalesDeEncima,
+        // Lo de debajo de la piel no deja líneas rojas en el fondo de la herida (D-411).
+        hondo: plano !== 'piel',
       })
       const hechas: HeridaEnCapa[] = []
       for (const malla of mallas) {
@@ -4345,11 +4378,14 @@ export function LienzoQuirurgico({
         // Alargar una incisión (P-013, pedido 15: «necesito poder extender incisiones que me hayan quedado cortas»): lo
         // que mide el paso es la incisión entera, y no el pedazo que se acaba de añadir. Antes el trazo nuevo, solo, salía
         // «corta» y se castigaba justo lo que había que hacer. La consola recibe la unida como si fuera el trazo.
-        if (alargada) {
+        // Lo mismo con lo que queda de un trazo que repasó una incisión y se salió por un lado (D-410): mide lo que se cortó.
+        if (alargada || recortado) {
           t.puntosDelTrazo = puntosDelCorte.map(([x, y, z]) => ({ x, y, z }))
           t.normalesDelTrazo = normalesDelCorte.map(([x, y, z]) => ({ x, y, z }))
           dibujarTrazo(t)
           ultimas.current.alTrazar?.([...t.puntosDelTrazo])
+        }
+        if (alargada) {
           ultimas.current.alGesto?.(
             `Incisión alargada: ahora mide ${Math.round(largoDelTrazo(t.puntosDelTrazo, ultimas.current.milimetrosPorUnidad || 1000))} mm de punta a punta.`,
             'bien',

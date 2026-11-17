@@ -959,14 +959,20 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
     cosido (cada uno vuelve con su modelo y en su sitio).
 - **Varios abordajes en la misma cirugía.** Un trazo nuevo **ya no borra** la incisión anterior de
   su capa: las incisiones se suman. Si el trazo **empieza (o termina) a menos de 5 mm del extremo
-  de una**, la **alarga** (así se abre en dos tiempos); si no, es otra incisión. Con más de una,
+  de una**, la **alarga** (así se abre en dos tiempos); si no, es otra incisión. **Repasar** una
+  incisión —volver a pasar el bisturí por encima de ella, aunque se empiece en una punta o el trazo
+  caiga en el fondo de la herida abierta— no corta nada nuevo: la consola avisa que esa capa ya está
+  cortada ahí, y para ir más hondo está el bisturí profundo. Lo que el repaso se pasa de una punta
+  la alarga, y lo que se sale por un lado, a media incisión, es otra que nace en ella (D-410). Con más de una,
   el recuadro «Herida» las lista —«Incisión 2 · músculo · 30 mm»— con una **×** que cierra solo esa;
   «Cerrar todas las heridas» las cierra todas. Cada separador y cada pinza abre la incisión en que
   se puso; un separador apoyado en un plano profundo abre además la incisión de la piel o de la
   fascia que tiene justo encima, si cae debajo de ella: a 30 mm o menos de su línea, a lo ancho o pasado el extremo,
   sin contar lo hondo que esté (D-367). Bajado con «A la fascia» o «Al músculo», pasa a abrir la incisión de ese plano que tiene debajo. Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
   que deshace la última) y trace otra. El **borde rojo** de una incisión recién hecha desaparece en
-  cuanto la herida se abre lo bastante para que se vea el hueco, o cuando algo la aparta (P-015).
+  cuanto la herida se abre lo bastante para que se vea el hueco, o cuando algo la aparta (P-015). En
+  la fascia y el músculo solo marca el sitio mientras la herida se abre, y después se va: lo hondo no
+  queda con líneas rojas (D-411).
 - **Perforar (brocas de 1,5 a 4,5 mm, avellanador, machuelo, fresa).** El modo pasa a
   **Perforar**. Apunte al hueso y **mantenga pulsado**: la broca gira y avanza. Antes de
   empezar, dos deslizadores eligen la **inclinación** (a lo largo del hueso y a lo ancho, de
@@ -995,7 +1001,8 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   «Cortar el hilo» (la próxima puntada empieza otra línea) y «Quitar la sutura», que devuelve
   la herida a como estaba.
   **Cerrar por planos (casos con fascia).** El cierre va **de lo profundo a lo superficial**: primero
-  la **fascia, con Vicryl** (se ve rosada al abrir la piel: se pica donde se ve), y después la
+  la **fascia, con Vicryl** (se ve al abrir la piel, blanca nacarada y fibrosa, rosada donde tiene
+  músculo debajo: se pica donde se ve), y después la
   **piel, con nailon o Monocryl**. Cada puntada agarra **el plano de la pieza que se toca**, y cada
   hilo va a su plano: el Vicryl 2-0, a la fascia; el 3-0, a la fascia o a la piel abierta (el
   subcutáneo); el nailon y el Monocryl, a la piel. Una puntada en el plano que no es el de su

@@ -453,6 +453,8 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
       color: string | null
       /** En la piel, lo que el punto queda bajo la superficie si es de la pared de una herida, en mm; `null` si no lo es. */
       paredMm: number | null
+      /** En la fascia profunda, cuánto músculo tiene debajo, de 0 a 1 (D-412); `null` en lo demás. */
+      musculo: number | null
     }[] {
       const v = leer()
       if (!v.render || !v.camara || !v.raiz) return []
@@ -475,6 +477,8 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
           const pared = malla.geometry.getAttribute('aPared') as THREE.BufferAttribute | undefined
           // La marca de la pared va por vértice: la del triángulo es la mayor de las tres, que es la que pinta el sombreador.
           const marca = pared && g.face ? Math.max(pared.getX(g.face.a), pared.getX(g.face.b), pared.getX(g.face.c)) : 0
+          const debajo = malla.geometry.getAttribute('aMusculo') as THREE.BufferAttribute | undefined
+          const musculo = debajo && g.face ? (debajo.getX(g.face.a) + debajo.getX(g.face.b) + debajo.getX(g.face.c)) / 3 : null
           return {
             nodo: malla.name || malla.parent?.name || '(sin nombre)',
             distanciaMm: Math.round(g.distance * mm * 10) / 10,
@@ -487,6 +491,7 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
             barniz: typeof material.clearcoat === 'number' ? Math.round(material.clearcoat * 100) / 100 : null,
             color: material.color ? `#${material.color.getHexString()}` : null,
             paredMm: marca > 0.5 ? Math.round((marca - 1) * 10) / 10 : null,
+            musculo: musculo === null ? null : Math.round(musculo * 100) / 100,
           }
         })
     },
