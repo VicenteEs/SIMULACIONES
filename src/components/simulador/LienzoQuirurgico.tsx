@@ -1364,8 +1364,12 @@ export function LienzoQuirurgico({
   marcandoLaTrayectoria?: boolean
   /** La trayectoria de dos clics cambió: esperando la salida, lista, o borrada (`null`). */
   alCambiarLaTrayectoria?: (estado: EstadoDeLaTrayectoria | null) => void
-  /** Se llama con el trazo completo cada vez que cambia. */
-  alTrazar?: (puntos: Punto3[]) => void
+  /**
+   * Se llama con el trazo completo cada vez que cambia, y con el plano que corta el instrumento que lo hizo (`null` si no
+   * corta). Sin plano cuando el trazo se borra sin trazar otro —al pasar de paso, al reiniciar, con «Borrar trazo»—: la
+   * consola lo distingue para que un trazo hondo no cambie lo que mide el paso de la incisión de piel (D-414).
+   */
+  alTrazar?: (puntos: Punto3[], plano?: PlanoDeCorte | null) => void
   /**
    * Se llama al soltar el fragmento, con su desplazamiento **respecto del
    * reposo**, en unidades del archivo y en grados.
@@ -1611,8 +1615,12 @@ export function LienzoQuirurgico({
     marcarElPuntoDeBrocado?: (indice: number | null) => void
     /** Se soltó una pinza de reducción: en «Reducir», el trozo que ya no sostiene ninguna deja de estar elegido (pedido 15). */
     alSoltarLasPinzas?: () => void
-    /** Se borró la recta provisional de una línea que no se terminó: la consola deja de contar su largo (P-008 E1). */
-    alBorrarElTrazo?: () => void
+    /**
+     * Se borró la recta provisional de una línea que no se terminó: la consola deja de contar su largo (P-008 E1). Con
+     * el plano del instrumento que la trazaba (D-414): la de un bisturí profundo nunca contó en el paso de la piel, y
+     * borrarla no le quita al paso la medida de la incisión.
+     */
+    alBorrarElTrazo?: (plano: PlanoDeCorte | null) => void
     /** La vuelve a mirar tras perforar o quitar la placa: se va si su orificio ya no está por brocar. */
     repasarLaMarcaDeBrocado?: () => void
     /** Hacia qué sentido del eje de la placa está la fractura respecto de cada orificio; vacío si no se sabe dónde está (P-004 E10). */
@@ -1649,8 +1657,8 @@ export function LienzoQuirurgico({
     cuadro?: number
     /** Cuántas veces se ha disparado la fluoroscopia: da a cada toma su propio grano de ruido. */
     disparos?: number
-    /** El primer clic de una línea recta, a la espera del segundo. */
-    inicioDeLaRecta?: { x: number; y: number; punto: Punto3; normal: Punto3 }
+    /** El primer clic de una línea recta, a la espera del segundo, y el plano que corta el instrumento que lo hizo. */
+    inicioDeLaRecta?: { x: number; y: number; punto: Punto3; normal: Punto3; plano: PlanoDeCorte | null }
     /** El clic que marca dónde empieza la incisión recta, para dibujar su marca. */
     marcaDeInicio?: THREE.Mesh
   }>({
@@ -3684,7 +3692,7 @@ export function LienzoQuirurgico({
       gizmoAlDia()
       pedirDibujo()
     }
-    taller.current.alBorrarElTrazo = () => ultimas.current.alTrazar?.([])
+    taller.current.alBorrarElTrazo = (plano) => ultimas.current.alTrazar?.([], plano)
     /**
      * La línea del eje elegido en el menú de movimiento (P-004 E7): una sola, en vez de las siete asas. Es interfaz, como
      * ellas: no se pincha ni la ve la fluoroscopia.
@@ -4116,7 +4124,7 @@ export function LienzoQuirurgico({
           t.puntosDelTrazo = []
           t.normalesDelTrazo = []
           dibujarTrazo(t)
-          u.alTrazar?.([])
+          u.alTrazar?.([], plano)
           pedirDibujo()
           return
         }
@@ -4275,7 +4283,7 @@ export function LienzoQuirurgico({
             t.puntosDelTrazo = repasada.puntos.map(([x, y, z]) => ({ x, y, z }))
             t.normalesDelTrazo = repasada.normales.map(([x, y, z]) => ({ x, y, z }))
             dibujarTrazo(t)
-            ultimas.current.alTrazar?.([...t.puntosDelTrazo])
+            ultimas.current.alTrazar?.([...t.puntosDelTrazo], plano)
           }
           if (t.trazo) t.trazo.visible = false
           ultimas.current.alGesto?.(AVISO_DEL_REPASO[plano], 'atencion')
@@ -4383,7 +4391,7 @@ export function LienzoQuirurgico({
           t.puntosDelTrazo = puntosDelCorte.map(([x, y, z]) => ({ x, y, z }))
           t.normalesDelTrazo = normalesDelCorte.map(([x, y, z]) => ({ x, y, z }))
           dibujarTrazo(t)
-          ultimas.current.alTrazar?.([...t.puntosDelTrazo])
+          ultimas.current.alTrazar?.([...t.puntosDelTrazo], plano)
         }
         if (alargada) {
           ultimas.current.alGesto?.(
@@ -5055,7 +5063,7 @@ export function LienzoQuirurgico({
       t.puntosDelTrazo = puntos
       t.normalesDelTrazo = normales
       dibujarTrazo(t)
-      ultimas.current.alTrazar?.([...puntos])
+      ultimas.current.alTrazar?.([...puntos], ultimas.current.instrumento?.planoDeCorte ?? null)
       pedirDibujo()
       if (cortar) {
         // Lo que quedara escrito del gesto anterior («Inicio marcado…») ya no vale: la recta está hecha.
@@ -5113,12 +5121,12 @@ export function LienzoQuirurgico({
         return
       }
       if (!t.inicioDeLaRecta) {
-        t.inicioDeLaRecta = { x: clic.x, y: clic.y, punto: clic.punto, normal: clic.normal }
+        t.inicioDeLaRecta = { x: clic.x, y: clic.y, punto: clic.punto, normal: clic.normal, plano: ultimas.current.instrumento?.planoDeCorte ?? null }
         // Un trazo anterior ya no vale: este es otro.
         t.puntosDelTrazo = []
         t.normalesDelTrazo = []
         dibujarTrazo(t)
-        ultimas.current.alTrazar?.([])
+        ultimas.current.alTrazar?.([], ultimas.current.instrumento?.planoDeCorte ?? null)
         marcarElInicio(clic.punto)
         t.decir?.('Inicio marcado. Haga clic donde termina la incisión (Esc cancela).')
         return
@@ -6343,7 +6351,7 @@ export function LienzoQuirurgico({
         // suelto en modo Trazar quita la línea roja y deja al panel midiendo
         // una incisión que ya no está dibujada: «Aplicar paso» la juzga y el
         // residente no tiene manera de ver contra qué.
-        ultimas.current.alTrazar?.([])
+        ultimas.current.alTrazar?.([], ultimas.current.instrumento?.planoDeCorte ?? null)
         pedirDibujo()
         return
       }
@@ -7852,7 +7860,7 @@ export function LienzoQuirurgico({
         const n = normalDelGolpe(golpe)
         taller.current.normalesDelTrazo.push({ x: n.x, y: n.y, z: n.z })
         dibujarTrazo(taller.current)
-        ultimas.current.alTrazar?.([...puntos])
+        ultimas.current.alTrazar?.([...puntos], ultimas.current.instrumento?.planoDeCorte ?? null)
         // La punta del instrumento va dibujando la incisión.
         posarHerramienta(golpe, ultimo ? new THREE.Vector3(golpe.point.x - ultimo.x, golpe.point.y - ultimo.y, golpe.point.z - ultimo.z) : undefined)
         pedirDibujo()
@@ -9015,7 +9023,7 @@ export type Taller = {
   fluoroscopia?: TallerDeFluoroscopia
   cuadro?: number
   disparos?: number
-  inicioDeLaRecta?: { x: number; y: number; punto: Punto3; normal: Punto3 }
+  inicioDeLaRecta?: { x: number; y: number; punto: Punto3; normal: Punto3; plano: PlanoDeCorte | null }
   marcaDeInicio?: THREE.Mesh
   escena?: THREE.Scene
   camara?: THREE.PerspectiveCamera
@@ -9067,8 +9075,8 @@ export type Taller = {
   decir?: (texto: string) => void
   /** Deja sin elegir el trozo que ya no sostiene ninguna pinza (pedido 15); lo asigna el montaje. */
   alSoltarLasPinzas?: () => void
-  /** Avisa a la consola de que la recta provisional se borró (P-008 E1); lo asigna el montaje. */
-  alBorrarElTrazo?: () => void
+  /** Avisa a la consola de que la recta provisional se borró (P-008 E1), con su plano (D-414); lo asigna el montaje. */
+  alBorrarElTrazo?: (plano: PlanoDeCorte | null) => void
 }
 
 /**
@@ -10002,7 +10010,7 @@ type LoUltimo = {
   alPellizcar?: (estado: EstadoDeLosPellizcos) => void
   alHerir?: (estado: EstadoDeLasHeridas | null) => void
   alCoser?: (estado: EstadoDeLaSutura | null) => void
-  alTrazar?: (puntos: Punto3[]) => void
+  alTrazar?: (puntos: Punto3[], plano?: PlanoDeCorte | null) => void
   alGesto?: (texto: string, tono: 'bien' | 'atencion' | 'grave') => void
   alDisecar?: (estado: EstadoDeLaDiseccion | null) => void
   alReducir?: (estado: EstadoDeLaReduccion) => void
@@ -10354,11 +10362,12 @@ function reconstruirLaDiseccion(t: Taller, u: LoUltimo, d: DiseccionActiva) {
   // La herida de la disección es una incisión propia que se rehace con cada punto nuevo: reemplaza a la suya, no se
   // suma a las demás (P-003 E4).
   d.incision = t.aplicarElCorte?.(d.capa, { deDiseccion: true, reemplaza: d.incision })
-  // La disección no deja trazo de guía: la herida es lo que se ve.
+  // La disección no deja trazo de guía: la herida es lo que se ve. Y dice su plano: disecar el músculo en el paso de la
+  // incisión no le quita al paso la medida de la piel (D-414).
   t.puntosDelTrazo = []
   t.normalesDelTrazo = []
   dibujarTrazo(t)
-  u.alTrazar?.([])
+  u.alTrazar?.([], d.capa)
 }
 
 /**
@@ -10684,16 +10693,19 @@ function cancelarLaRecta(t: Taller) {
     t.marcaDeInicio = undefined
   }
   if (t.inicioDeLaRecta) {
+    const { plano } = t.inicioDeLaRecta
     t.inicioDeLaRecta = undefined
     t.decir?.('')
     // La recta provisional que seguía al cursor se va con la marca (P-008 E1). Quedaba dibujada por encima de todo
     // —el trazo de guía no mira la profundidad— con Esc, al cambiar de modo o de instrumento: una línea sin incisión
     // debajo, y la consola contando su largo. Con el inicio marcado no hay otro trazo que perder: marcarlo lo vació.
+    // Se dice de qué plano era (D-414): al terminar cada recta pasa por aquí, y sin plano la del bisturí profundo dejaba
+    // en cero la medida de la incisión de piel, en el mismo paso que se quería que no la tocara.
     if (t.puntosDelTrazo.length > 0) {
       t.puntosDelTrazo = []
       t.normalesDelTrazo = []
       dibujarTrazo(t)
-      t.alBorrarElTrazo?.()
+      t.alBorrarElTrazo?.(plano)
     }
   }
 }

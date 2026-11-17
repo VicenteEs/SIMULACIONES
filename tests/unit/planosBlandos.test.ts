@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cuentaParaElPaso,
   NOMBRE_DEL_PLANO,
   PLANOS_BLANDOS,
   PROFUNDIDAD_DEL_PLANO,
@@ -45,5 +46,32 @@ describe('qué plano corta un trazo profundo', () => {
 
   it('un trazo que ya pide la fascia la corta, y no se redirige', () => {
     expect(planoQueCorta('fascia', { hayFascia: true, fasciaAbierta: false })).toEqual({ plano: 'fascia', redirigido: false })
+  })
+})
+
+describe('qué trazos cambian lo que mide un paso de trazo (D-414)', () => {
+  // Cristóbal, 2026-11-17: en el paso de la incisión, la de piel medía 92 mm y un trazo hondo de 31 la dejó «dentro» de
+  // los 25–80 mm. La medida era siempre la del último trazo, de cualquier bisturí.
+  it('en el paso de la incisión de piel, un trazo del bisturí profundo —en la fascia o en el músculo— no cuenta', () => {
+    expect(cuentaParaElPaso('musculo', 'piel')).toBe(false)
+    expect(cuentaParaElPaso('fascia', 'piel')).toBe(false)
+    expect(cuentaParaElPaso('piel', 'piel')).toBe(true)
+  })
+
+  it('en un paso del bisturí profundo cuenta lo hondo, abra la fascia o el músculo, y no la piel', () => {
+    expect(cuentaParaElPaso('fascia', 'musculo')).toBe(true)
+    expect(cuentaParaElPaso('musculo', 'musculo')).toBe(true)
+    expect(cuentaParaElPaso('piel', 'musculo')).toBe(false)
+  })
+
+  it('borrar el trazo —sin plano— cuenta siempre: pasar de paso o reiniciar pone la medida a cero', () => {
+    expect(cuentaParaElPaso(undefined, 'piel')).toBe(true)
+    expect(cuentaParaElPaso(undefined, 'musculo')).toBe(true)
+  })
+
+  it('en un paso que no mide un trazo, o con un instrumento que no corta, todo cuenta, como antes', () => {
+    expect(cuentaParaElPaso('musculo', null)).toBe(true)
+    expect(cuentaParaElPaso('piel', null)).toBe(true)
+    expect(cuentaParaElPaso(null, 'piel')).toBe(true)
   })
 })

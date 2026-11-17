@@ -298,7 +298,7 @@ import {
   planoSiguiente,
   type CapaDeLaHerida,
 } from '@/lib/exposicion'
-import { NOMBRE_DEL_PLANO } from '@/lib/planosBlandos'
+import { cuentaParaElPaso, NOMBRE_DEL_PLANO } from '@/lib/planosBlandos'
 import { rotuloDeLaIncision } from '@/lib/incisiones'
 import type {
   AyudasDeEscopia,
@@ -3226,6 +3226,22 @@ export function ConsolaQuirurgica({
     () =>
       comportamientoDelInstrumento({ slug: slugDelElegido, nombre: nombreDelElegido, icono: iconoDelElegido }),
     [slugDelElegido, nombreDelElegido, iconoDelElegido],
+  )
+  /**
+   * El plano que corta el instrumento que pide un paso de trazo (D-414): solo los trazos de ese plano cambian lo que mide
+   * el paso, y uno del bisturí profundo no reemplaza la incisión de la piel. `null` en un paso que no mide un trazo o
+   * cuyo instrumento no corta. Con sus tres datos sueltos, por lo mismo que `queHace`.
+   */
+  const delPasoDeTrazo = paso && objetivoDelPaso(paso) === 'trazo' ? instrumentoPorId(caso.instrumental, paso.instrumento ?? null) : null
+  const slugDelPasoDeTrazo = delPasoDeTrazo?.slug ?? null
+  const nombreDelPasoDeTrazo = delPasoDeTrazo?.nombre ?? null
+  const iconoDelPasoDeTrazo = delPasoDeTrazo?.icono ?? null
+  const planoQueMideElPaso = useMemo(
+    () =>
+      nombreDelPasoDeTrazo === null
+        ? null
+        : comportamientoDelInstrumento({ slug: slugDelPasoDeTrazo, nombre: nombreDelPasoDeTrazo, icono: iconoDelPasoDeTrazo }).corta,
+    [slugDelPasoDeTrazo, nombreDelPasoDeTrazo, iconoDelPasoDeTrazo],
   )
   /** De qué tipo es el tornillo en la mano: el que escribió el editor o el que se deduce del nombre (P-004 E9). */
   const tipoDeTornilloEscrito = instrumentoElegido?.tipoDeTornillo ?? null
@@ -7004,11 +7020,12 @@ instrumentoElegido ? (
             // el lienzo, que ya es su dueño; subirlos a React repintaba la
             // consola entera —los dos campos ricos del pie incluidos— unas
             // treinta veces por incisión, compitiendo con el bucle de dibujo.
-            alTrazar={(puntos) => {
+            alTrazar={(puntos, plano) => {
               const largo = largoDelTrazo(puntos, escalaMm)
-              setLargoDelTrazoMm(largo)
               // La raya del bisturí es la incisión: con ella empieza el reloj del procedimiento (P-012 E5).
               if (largo > 0 && queHace.corta) arrancarElProcedimiento()
+              // Un trazo hondo en el paso de la incisión de piel no cambia lo que el paso mide (D-414).
+              if (cuentaParaElPaso(plano, planoQueMideElPaso)) setLargoDelTrazoMm(largo)
             }}
             movimientoPorEje={menuDelTrozo ? movimientoPorEje : null}
             asasLibres={asasLibres}

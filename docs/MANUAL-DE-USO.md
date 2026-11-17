@@ -968,7 +968,10 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   «Cerrar todas las heridas» las cierra todas. Cada separador y cada pinza abre la incisión en que
   se puso; un separador apoyado en un plano profundo abre además la incisión de la piel o de la
   fascia que tiene justo encima, si cae debajo de ella: a 30 mm o menos de su línea, a lo ancho o pasado el extremo,
-  sin contar lo hondo que esté (D-367). Bajado con «A la fascia» o «Al músculo», pasa a abrir la incisión de ese plano que tiene debajo. Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
+  sin contar lo hondo que esté (D-367). Bajado con «A la fascia» o «Al músculo», pasa a abrir la incisión de ese plano que tiene debajo,
+  y se sigue viendo: cuelga del borde de la piel de encima, como uno de la piel, con la pala bajando por la herida
+  (D-413). En el paso de la incisión de piel, la medida del panel es la de la piel: los trazos del bisturí profundo
+  hechos en ese mismo paso no la cambian (D-414). Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
   que deshace la última) y trace otra. El **borde rojo** de una incisión recién hecha desaparece en
   cuanto la herida se abre lo bastante para que se vea el hueco, o cuando algo la aparta (P-015). En
   la fascia y el músculo solo marca el sitio mientras la herida se abre, y después se va: lo hondo no

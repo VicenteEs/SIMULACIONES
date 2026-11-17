@@ -12690,6 +12690,61 @@ En el navegador, en el caso 4:
 - (−) El adelanto de medio milímetro taparía algo que de verdad estuviera tan pegado por delante de la fascia. Hoy no hay nada así, pero una valva apoyada en la fascia podría hundirse medio milímetro en la imagen.
 - (−) El tinte sigue la resolución de la fascia del atlas: 1613 vértices en la crural, un centímetro entre ellos. El paso del rojo al blanco es gradual y no sigue el borde del músculo al milímetro.
 
+### D-413 · 2026-11-17 · vigente · pedido de Cristóbal · amplía P-008 E2 y P-009
+**Un Farabeuf bajado a la fascia o al músculo cuelga del borde de la piel de encima, a la vista, como uno de la piel. Antes quedaba debajo de la piel y desaparecía.**
+
+*Qué pasó.* Cristóbal, por WhatsApp: «intento separar estructuras pero desaparecen los farabeuf. De hecho fui sacándolos uno por uno del campo y la herida seguía abierta». Lo reproduje en el caso 3: incisión, dos pares de Farabeuf a 14 mm, los dos trazos hondos y cada Farabeuf bajado «A la fascia» y «Al músculo».
+- `posarSeparador` ponía el codo de la hoja un milímetro sobre **su** labio, el de la fascia o el del músculo, y el mango tendido a 15° de ese plano.
+- El labio de la fascia queda a unos 5 mm bajo la piel y el del músculo, a 38. El mango quedaba debajo de la piel, y la hoja entera, dentro del tejido.
+- La herida seguía abierta porque el separador hondo abre también la piel de encima (P-015). Se veía la piel apartada sin nada que la sostuviera.
+
+*Lo que cambia* (`exposicionEnLaEscena.ts`). Un separador de mano de la fascia o del músculo con piel cortada encima (`bordeDeLaPielEncima`) se posa desde el borde de esa piel:
+- El borde es el de la piel del lado hacia el que se aparta su labio, buscado con el labio en reposo (`bajoLaHerida`). Cada plano se corta con su trazo y los «más» y «menos» de la piel pueden no coincidir con los del plano hondo.
+- El mango y la pala son los de la hoja de la piel: el mango a 15° de la piel, hacia fuera, y la pala a 15° de la vertical. Medidos con la normal de la piel, no con la del plano hondo.
+- El codo va un milímetro sobre el borde, sobre la recta de la pala que pasa por el labio hondo. En la fascia la pala lo engancha.
+- Pero el codo no sale del tramo junto al borde: entre un milímetro y lo que entra el de una hoja de la piel (4 mm, o el 40 % de lo que hay hasta el labio de enfrente). Sin ese tope, con el músculo a 38 mm, la recta de la pala ponía el codo en medio de la herida, flotando. Y con la piel sin abrir, encima de la piel sana. Una hoja de 25 mm no llega a 38: se ve corta, colgada del borde y con la pala por la pared.
+- Sin piel cortada encima, como antes.
+
+*Qué se probó.* `separadorEnElLabio.test.ts`, cinco casos:
+- en la fascia el codo queda un milímetro sobre el borde de la piel y la recta de la pala pasa por el labio de la fascia;
+- el mango y la pala tienen los ángulos de la hoja de la piel;
+- con la piel sin abrir, el codo no sale de la herida;
+- con el músculo a 38 mm, el codo se queda a 4 mm del borde;
+- sin piel encima, la pose de antes.
+
+En el navegador, con lo que hizo Cristóbal, los cuatro Farabeuf se ven en todos los pasos y cuelgan del borde de la piel. Los del músculo, a 37 mm de su labio, igual que los de la piel.
+
+*Consecuencias.*
+- (+) Lo que sostiene la herida está a la vista, en el plano que sea.
+- (+) La fascia se engancha con la punta de la hoja, como en pabellón.
+- (−) Bajado al músculo, el Farabeuf se ve igual que en la piel: la diferencia está en qué se abre y en el panel. A 38 mm de hondo, en pabellón se usaría un separador más largo, que el simulador no tiene.
+
+### D-414 · 2026-11-17 · vigente · pedido de Cristóbal · amplía P-013 (pedido 15)
+**En el paso de la incisión de piel, la medida del paso es la de la incisión de piel: los trazos del bisturí profundo hechos en ese paso no la reemplazan.**
+
+*Qué pasó.* Con lo que hizo Cristóbal, la incisión de piel medía 92,6 mm («larga», 25–80 mm). Un trazo hondo de 31 mm en el mismo paso la reemplazaba en el panel, y el paso quedaba «dentro». La consola tomaba siempre el largo del último trazo, de cualquier instrumento.
+
+*Lo que cambia.*
+- **El lienzo dice el plano de cada trazo** (`alTrazar(puntos, plano)`): el del instrumento con que se trazó, o el del corte ya decidido en el repaso, el alargue y la disección roma.
+- **La consola decide si cuenta** (`cuentaParaElPaso`, en `planosBlandos.ts`), según el plano que corta el instrumento que pide el paso (`planoQueMideElPaso`):
+  - la piel cuenta en un paso de piel;
+  - la fascia y el músculo cuentan en un paso del bisturí profundo, como uno solo, porque ese bisturí abre primero la fascia (`planoQueCorta`);
+  - lo que no dice plano, como borrar el trazo al cambiar de paso o al reiniciar, pone la medida a cero, como siempre.
+- **La recta provisional que sigue al cursor recuerda su plano** (`inicioDeLaRecta.plano`). Al terminar cada recta se borra (`cancelarLaRecta`), y ese borrado avisaba sin plano. Con el bisturí profundo, la medida de la piel quedaba en cero justo al terminar el trazo que no debía tocarla. Lo encontró la prueba en el navegador; las unitarias no lo veían.
+
+*Qué se probó.*
+- `planosBlandos.test.ts`, cuatro casos de `cuentaParaElPaso`.
+- En el navegador, en el caso 3:
+  - incisión de 92,6 mm;
+  - dos rectas hondas a lo largo de ella, con la recta provisional siguiendo al cursor;
+  - un inicio marcado con el profundo y el instrumento cambiado al Farabeuf.
+
+  En todo eso la medida sigue en 92,6. Alargar la piel la lleva a 121,4, la incisión entera.
+
+*Consecuencias.*
+- (+) El paso juzga la incisión que pide, aunque se profundice antes de aplicarlo.
+- (−) Con el bisturí profundo en la mano en el paso de la piel, la línea de guía de la piel se borra al marcar el inicio de una recta y el panel sigue diciendo 92,6. La herida sigue ahí, pero su raya no.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

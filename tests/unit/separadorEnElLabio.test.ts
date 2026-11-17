@@ -302,6 +302,100 @@ describe('la hoja aparta el borde al milímetro, en su sitio (P-008 E2)', () => 
   })
 })
 
+describe('un Farabeuf de la fascia o del músculo cuelga del borde de la piel, a la vista (D-413)', () => {
+  // Cristóbal, 2026-11-17: «desaparecen los farabeuf». El codo iba al labio hondo, un milímetro sobre la fascia, y el
+  // mango tendido quedaba bajo la piel de encima: la herida seguía abierta y no se veía qué la sostenía.
+  const grados = (a: THREE.Vector3, b: THREE.Vector3) => (a.angleTo(b) * 180) / Math.PI
+  const ejes = (s: SeparadorEnEscena) => ({
+    pala: new THREE.Vector3(0, 0, -1).applyQuaternion(s.instrumento.grupo.quaternion),
+    mango: new THREE.Vector3(0, 1, 0).applyQuaternion(s.instrumento.grupo.quaternion),
+  })
+  /** El borde de la piel del lado hacia el que se aparta el labio del separador. */
+  const bordeDeLaPiel = (piel: HeridaEnCapa, s: SeparadorEnEscena, t: number) => {
+    const mas = labioEnLaPosicion(piel, 1, t)!.ahora
+    const menos = labioEnLaPosicion(piel, -1, t)!.ahora
+    return mas.clone().sub(menos).dot(s.direccion) >= 0 ? mas : menos
+  }
+
+  it('el codo queda un milímetro sobre el borde de la piel y la pala baja por la herida hasta el labio de la fascia', () => {
+    const { piel, fascia, heridas } = pielYFascia()
+    const s = enLaEscena(farabeuf(), fascia)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1, posicionEn(s.punto))
+    posarSeparador(s, 1, heridas)
+    const codo = s.instrumento.grupo.position
+    const borde = bordeDeLaPiel(piel, s, posicionBajoLaHerida(piel, s.punto, 1)!)
+    expect(codo.z).toBeCloseTo(borde.z + 1, 6)
+    // Dentro de la herida de la piel, no sobre la piel sana.
+    expect(codo.clone().sub(borde).dot(s.direccion)).toBeLessThan(0)
+    // La recta de la pala pasa por el labio que sostiene: la hoja lo engancha, cinco milímetros más abajo.
+    const { pala } = ejes(s)
+    const labio = labioDelSeparador(s, heridas)!.ahora
+    const enLaRecta = new THREE.Line3(codo.clone(), codo.clone().add(pala)).closestPointToPoint(labio, false, new THREE.Vector3())
+    expect(enLaRecta.distanceTo(labio)).toBeLessThan(1e-6)
+  })
+
+  it('con el mango a 15° de la piel, hacia fuera, y la pala a 15° de la vertical, como la hoja de la piel', () => {
+    const { fascia, heridas } = pielYFascia()
+    const s = enLaEscena(farabeuf(), fascia)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1, posicionEn(s.punto))
+    posarSeparador(s, 1, heridas)
+    const { pala, mango } = ejes(s)
+    const arriba = new THREE.Vector3(0, 0, 1)
+    expect(90 - grados(mango, arriba)).toBeCloseTo(15, 3)
+    expect(grados(pala, arriba.clone().negate())).toBeCloseTo(15, 3)
+    expect(mango.dot(s.direccion)).toBeGreaterThan(0.9)
+  })
+
+  it('con la piel sin abrir, el codo no sale de su herida: no cae sobre la piel sana', () => {
+    // Sin `posicionEn` la piel no se entera del separador y sigue cerrada; el labio de la fascia, abierto 12 mm, queda
+    // bajo la piel sana, y el codo puesto sobre la recta de la pala caería 10 mm fuera, encima de ella.
+    const { piel, fascia, heridas } = pielYFascia()
+    const s = enLaEscena(farabeuf(), fascia)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    expect(piel.mas).toBe(0)
+    posarSeparador(s, 1, heridas)
+    const codo = s.instrumento.grupo.position
+    const borde = bordeDeLaPiel(piel, s, posicionBajoLaHerida(piel, s.punto, 1)!)
+    expect(codo.clone().sub(borde).dot(s.direccion)).toBeLessThanOrEqual(1e-6)
+    expect(codo.z).toBeCloseTo(borde.z + 1, 6)
+  })
+
+  it('con el labio hondo de verdad, el codo no se va al medio de la herida: se queda junto al borde de la piel', () => {
+    // El músculo del caso 3 abría a unos 38 mm bajo la piel. La recta de la pala a 15° que pasa por su labio ponía el
+    // codo diez milímetros hacia el centro, flotando en medio de la herida, y la hoja de 25 mm no llegaba a nada.
+    const escena = new THREE.Scene()
+    const piel = capaCortada('Piel', 0, 20, 1, escena)
+    const musculo = capaCortada('Musculo', -38, 15, 3, escena)
+    const heridas = new Map<CapaDeLaHerida, HeridaEnCapa[]>([
+      ['piel', [piel]],
+      ['musculo', [musculo]],
+    ])
+    const s = enLaEscena(farabeuf({ plano: 'musculo', incision: 3 }), musculo)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1, posicionEn(s.punto))
+    expect(piel.mas).toBeGreaterThan(5)
+    posarSeparador(s, 1, heridas)
+    const codo = s.instrumento.grupo.position
+    const borde = bordeDeLaPiel(piel, s, posicionBajoLaHerida(piel, s.punto, 1)!)
+    // Cuatro milímetros dentro, como la hoja de la piel, y uno por encima del borde.
+    expect(borde.clone().sub(codo).dot(s.direccion)).toBeCloseTo(4, 6)
+    expect(codo.z).toBeCloseTo(borde.z + 1, 6)
+    const { pala, mango } = ejes(s)
+    expect(90 - grados(mango, new THREE.Vector3(0, 0, 1))).toBeCloseTo(15, 3)
+    expect(grados(pala, new THREE.Vector3(0, 0, -1))).toBeCloseTo(15, 3)
+  })
+
+  it('sin piel cortada encima —un caso sin piel, o fuera de su herida—, como antes: el codo sobre el labio hondo', () => {
+    const { fascia } = pielYFascia()
+    const heridas = new Map<CapaDeLaHerida, HeridaEnCapa[]>([['fascia', [fascia]]])
+    const s = enLaEscena(farabeuf(), fascia)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    posarSeparador(s, 1, heridas)
+    const borde = labioDelSeparador(s, heridas)!
+    const esperado = borde.ahora.clone().addScaledVector(s.normal, 1).addScaledVector(s.direccion, -4)
+    expect(s.instrumento.grupo.position.distanceTo(esperado)).toBeLessThan(1e-6)
+  })
+})
+
 describe('con un separador dentro, la incisión deja de marcarse (P-008 E1)', () => {
   it('recién puesto, sin abrir todavía, la herida queda sostenida y su cinta se aparta', () => {
     const { piel, heridas } = pielYFascia()

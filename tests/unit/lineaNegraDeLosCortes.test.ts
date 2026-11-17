@@ -28,12 +28,14 @@ describe('cancelar una recta borra también la línea provisional', () => {
   it('vacía el trazo, lo vuelve a dibujar (sin puntos lo quita) y avisa a la consola', () => {
     expect(cancelar).toContain('t.puntosDelTrazo = []')
     expect(cancelar).toContain('dibujarTrazo(t)')
-    expect(cancelar).toContain('t.alBorrarElTrazo?.()')
+    // Con el plano de la recta (D-414): sin él, la del bisturí profundo dejaba en cero la medida de la piel.
+    expect(cancelar).toContain('const { plano } = t.inicioDeLaRecta')
+    expect(cancelar).toContain('t.alBorrarElTrazo?.(plano)')
     // Solo con una recta empezada: el trazo de una incisión ya hecha no se toca.
     expect(cancelar.indexOf('if (t.inicioDeLaRecta) {')).toBeLessThan(cancelar.indexOf('t.puntosDelTrazo = []'))
   })
 
-  it('la consola deja de contar el largo de lo que se borró', () => {
-    expect(LIENZO).toContain('taller.current.alBorrarElTrazo = () => ultimas.current.alTrazar?.([])')
+  it('la consola deja de contar el largo de lo que se borró, si era del plano que mide el paso (D-414)', () => {
+    expect(LIENZO).toContain('taller.current.alBorrarElTrazo = (plano) => ultimas.current.alTrazar?.([], plano)')
   })
 })

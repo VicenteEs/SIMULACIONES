@@ -247,6 +247,40 @@ export function normalDeLaPielEncima(pieles: readonly HeridaEnCapa[], punto: THR
 }
 
 /**
+ * El borde de la piel cortada que queda encima de un labio hondo, del lado hacia el que ese labio se aparta (`hacia`), y
+ * la normal de la piel ahí; `null` si no hay piel cortada encima (D-413). Es de donde cuelga la hoja de un separador de
+ * la fascia o del músculo.
+ *
+ * Encima es lo de `posicionBajoLaHerida`, medido con el labio en reposo: el de ahora puede haberse apartado más que el
+ * límite de colocar. De dos incisiones de la piel vale la que queda menos de lado y, de la piel y la fascia superficial
+ * —que se cortan juntas con el mismo trazo—, la de fuera: es la que se ve, y en la que se apoya el mango.
+ */
+function bordeDeLaPielEncima(
+  reposo: THREE.Vector3,
+  hacia: THREE.Vector3,
+  heridasPorCapa: ReadonlyMap<CapaDeLaHerida, HeridaEnCapa[]> | undefined,
+  unidadesPorMm: number,
+): { borde: THREE.Vector3; enfrente: THREE.Vector3; normal: THREE.Vector3 } | null {
+  let mejor: { borde: THREE.Vector3; enfrente: THREE.Vector3; normal: THREE.Vector3; deLadoMm: number; altura: number } | null = null
+  for (const h of heridasPorCapa?.get('piel') ?? []) {
+    const bajo = bajoLaHerida(h, reposo, unidadesPorMm)
+    if (!bajo) continue
+    const mas = labioEnLaPosicion(h, 1, bajo.t)
+    const menos = labioEnLaPosicion(h, -1, bajo.t)
+    if (!mas || !menos) continue
+    // Los labios «más» y «menos» de la piel no tienen por qué ser los del plano hondo: cada plano se cortó con su trazo,
+    // y pudo trazarse en el otro sentido. El suyo es el que queda hacia donde se aparta el labio hondo.
+    const delLado = mas.ahora.clone().sub(menos.ahora).dot(hacia) >= 0
+    const borde = delLado ? mas.ahora : menos.ahora
+    const enfrente = delLado ? menos.ahora : mas.ahora
+    const altura = borde.dot(bajo.normal)
+    const mejora = !mejor || bajo.deLadoMm < mejor.deLadoMm - 1 || (Math.abs(bajo.deLadoMm - mejor.deLadoMm) <= 1 && altura > mejor.altura)
+    if (mejora) mejor = { borde, enfrente, normal: bajo.normal, deLadoMm: bajo.deLadoMm, altura }
+  }
+  return mejor && { borde: mejor.borde, enfrente: mejor.enfrente, normal: mejor.normal }
+}
+
+/**
  * El borde que sostiene un separador, en su sitio de la herida de su plano: el de su labio o, en un autoestático, el
  * medio de los dos. `null` sin herida debajo (lo puesto antes de cortar) y para el Hohmann en el hueso.
  *
@@ -371,6 +405,9 @@ const BASCULA_DE_LA_PALANCA_GRADOS = 35
  *   herida, enganchando el borde. Es el dibujo del dueño sobre una captura (P-008): «con la paleta hacia abajo y
  *   metida en el músculo, como si lo estuviera corriendo, siempre despejando el campo visual y traccionando desde el
  *   centro hacia afuera». Antes la pala quedaba acostada a lo largo de la herida y el mango, casi de pie.
+ * - **Esa misma hoja en la fascia o en el músculo** (D-413) cuelga del borde de la piel de encima: el codo sobre él y
+ *   la pala bajando por la herida hacia el labio hondo, hasta donde llega. Con el codo en el labio hondo, el mango
+ *   quedaba bajo la piel.
  * - **Un autoestático** va en el centro, un poco hundido, con los rastrillos hacia los dos bordes y las argollas
  *   acostadas hacia la punta más cercana de la herida, fuera del campo. Sus ramas se abren lo justo para que cada
  *   rastrillo esté donde está su borde (`articulacionesParaLaApertura` con `brazoMm`).
@@ -431,6 +468,39 @@ export function posarSeparador(
     const z = new THREE.Vector3().crossVectors(d, mango).normalize()
     const punto = labio.ahora.clone().addScaledVector(n, -AUTOESTATICO_BAJO_LOS_BORDES_MM * unidadesPorMm)
     posarConLosDosEjes(s.instrumento.grupo, punto, mango, z.negate())
+    return
+  }
+
+  // En la fascia o en el músculo la hoja se sostiene desde la piel (D-413): el codo sobre el borde de la piel de encima
+  // y la pala bajando por la herida hasta el labio hondo. Antes el codo iba al labio hondo y el mango, tendido sobre la
+  // fascia o el músculo, quedaba debajo de la piel: el Farabeuf bajado «Al músculo» desaparecía y la herida seguía
+  // abierta sin nada a la vista que la sostuviera (Cristóbal, 2026-11-17: «desaparecen los farabeuf»).
+  const piel = s.datos.plano === 'piel' ? null : bordeDeLaPielEncima(labio.reposo, d, heridasPorCapa, unidadesPorMm)
+  if (piel) {
+    const nPiel = piel.normal
+    const dPiel = d.clone().addScaledVector(nPiel, -d.dot(nPiel))
+    if (dPiel.lengthSq() > 1e-12) dPiel.normalize()
+    else dPiel.copy(d)
+    // La misma hoja que en la piel —el mango a 15° de ella, la pala a 15° de la vertical—, medida con la piel de encima.
+    const mango = vector(direccionDelMango([nPiel.x, nPiel.y, nPiel.z], [dPiel.x, dPiel.y, dPiel.z], 1))
+    const pala = nPiel.clone().negate().addScaledVector(mango, nPiel.dot(mango)).normalize()
+    // El codo, a la altura del borde de la piel y con la pala pasando por el labio hondo.
+    const alturaDelCodo = piel.borde.dot(nPiel) + CODO_SOBRE_EL_BORDE_MM * unidadesPorMm
+    const baja = -pala.dot(nPiel)
+    const largo = baja > 1e-6 ? Math.max(0, (alturaDelCodo - labio.ahora.dot(nPiel)) / baja) : 0
+    const codo = labio.ahora.clone().addScaledVector(pala, -largo)
+    // Y siempre junto al borde de la piel, entre un milímetro y lo que entra el de una hoja de la piel. Con el labio
+    // hondo más abierto que el de la piel, el codo caería sobre la piel sana y la pala la atravesaría. Con un labio
+    // hondo de verdad —el músculo del caso 3, a 38 mm bajo la piel—, la recta de la pala a 15° ponía el codo en medio de
+    // la herida, flotando, con la hoja de 25 mm sin llegar a nada: un instrumento corto se ve corto, colgado del borde
+    // como los de la piel y con la pala por la pared de la herida.
+    const enfrente = Math.max(0, piel.enfrente.clone().sub(piel.borde).dot(dPiel.clone().negate()))
+    const maximo = Math.min(CODO_DENTRO_DE_LA_HERIDA_MM * unidadesPorMm, PARTE_DE_LA_HERIDA_PARA_EL_CODO * enfrente)
+    const minimo = Math.min(CODO_SOBRE_EL_BORDE_MM * unidadesPorMm, maximo)
+    const adentro = piel.borde.clone().sub(codo).dot(dPiel)
+    const corrido = Math.min(maximo, Math.max(minimo, adentro))
+    codo.addScaledVector(dPiel, adentro - corrido)
+    posarConLosDosEjes(s.instrumento.grupo, codo, mango, pala)
     return
   }
 

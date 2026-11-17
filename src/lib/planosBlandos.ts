@@ -70,6 +70,21 @@ export const AVISO_DEL_REPASO: Readonly<Record<PlanoBlando, string>> = {
   musculo: 'El plano muscular ya está cortado a lo largo de ese trazo: repasarlo no corta nada nuevo. Para ver lo de debajo, se apartan los bordes con los separadores.',
 }
 
+/**
+ * Si un trazo cambia lo que mide un paso de trazo (D-414). El paso de la incisión mide la incisión de la piel, y un trazo
+ * del bisturí profundo hecho en ese mismo paso no la reemplaza: antes la medida era siempre la del último trazo, y uno
+ * hondo de 31 mm dejaba «dentro» de los 25–80 mm una incisión de piel de 92 (Cristóbal, 2026-11-17).
+ *
+ * `planoDelTrazo` es el que corta el instrumento con que se trazó; `undefined` cuando nadie trazó —se borró el trazo al
+ * pasar de paso, al reiniciar o con «Borrar trazo»—, que pone la medida a cero como siempre, y `null` con un instrumento
+ * que no corta. `planoDelPaso` es el que corta el instrumento que pide el paso, o `null` si el paso no mide un trazo.
+ * La fascia y el músculo cuentan como uno: el mismo bisturí profundo abre primero la fascia (`planoQueCorta`).
+ */
+export function cuentaParaElPaso(planoDelTrazo: PlanoBlando | null | undefined, planoDelPaso: PlanoBlando | null): boolean {
+  if (planoDelTrazo === undefined || planoDelTrazo === null || planoDelPaso === null) return true
+  return (planoDelTrazo === 'piel') === (planoDelPaso === 'piel')
+}
+
 /** Qué se le dice a quien trazó para llegar al músculo y abrió la fascia. */
 export const AVISO_DE_LA_FASCIA =
   'Se cortó la fascia, que cubre al músculo: sin abrirla no se llega a él. Vuelva a trazar para entrar en el plano muscular.'

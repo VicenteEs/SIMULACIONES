@@ -49,7 +49,8 @@ describe('el lienzo pasa la unida y enseña las puntas', () => {
   it('al alargar, la consola recibe la incisión unida como trazo, y se dice cuánto mide', () => {
     const corte = lienzo.slice(lienzo.indexOf('if (!previo) ultimas.current.alIncidir?.({ id, capa: plano })'), lienzo.indexOf('for (const herida of hechas) {\n          if (yaCortadas'))
     expect(corte).toContain('if (alargada) {')
-    expect(corte).toContain('ultimas.current.alTrazar?.([...t.puntosDelTrazo])')
+    // Con el plano del corte (D-414): la consola decide si cuenta para el paso.
+    expect(corte).toContain('ultimas.current.alTrazar?.([...t.puntosDelTrazo], plano)')
     expect(corte).toContain('Incisión alargada: ahora mide')
     expect(lienzo).toContain('alargada = true')
   })
