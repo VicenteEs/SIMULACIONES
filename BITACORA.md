@@ -12794,6 +12794,14 @@ En el navegador, en el caso 3 con la base desechable (triángulos doblados de pi
 - La franja sobre el cruce del medio desapareció con el milímetro de aparte, en los dos órdenes.
 - Los repasos de D-410, por el medio y desde la punta, siguen siendo repaso y no tocan la malla.
 
+Antes de subir:
+- `typecheck`, `lint` y `build` (con `/traumahub`) pasan;
+- la suite entera con cobertura y la integración obligatoria, contra una base desechable: 7424 pasan y 3 fallan, las del entorno de siempre (`directorioDeRespaldos` ×2 y `tableroDeRevision`). La cuarta que falló, `gestoDeMas`, leía la línea del aviso de incisión nueva, que ahora mira también las ramas; se corrigió.
+
+Desplegado el 2026-11-17 en `f0ced5e`, a pedido del dueño («súbelo al git y despliega en ved y contabo»):
+- ved a las 09:41 (Chile). Salud 200 por fuera, 4 procesos, y el fragmento del simulador servido trae «quedan unidas en T».
+- Contabo a las 09:50, con respaldo verificado `base-`/`medios-20261117-093947` y el override igual a la plantilla. El ensayo de los casos abre con el código nuevo y da la misma nota. 4 procesos y salud 200 en `https://traumahub.cl`, con el mismo texto servido.
+
 *Consecuencias.*
 - (+) Cruzar junto a una punta, lo de la foto, deja una T limpia.
 - (+) Cruzar en medio no corta encima de la herida, y lo que sale a cada lado se abre por su cuenta, unido al borde.
