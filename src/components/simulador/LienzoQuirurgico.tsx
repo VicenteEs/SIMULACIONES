@@ -216,6 +216,7 @@ import {
   type SeparadorEnEscena,
   type SitioDeSeparador,
 } from './exposicionEnLaEscena'
+import { conSuReposo, llevarAlReposo, porElTrazo, type MallaConReposo } from './trazoEnReposo'
 import {
   TENSION_DE_CIERRE,
   cierreDeLaHerida,
@@ -4314,6 +4315,18 @@ export function LienzoQuirurgico({
       let ramas: TrazoDeIncision[] = []
       let enElCruce = false
       let tramoQueQueda: readonly [number, number] | undefined
+      // El trazo se pinchó en la malla de ahora, y se corta en la de reposo (D-416): cada punto que cae sobre algo movido
+      // —una herida abierta, lo que apartan los Farabeuf— va al tejido que se tenía debajo. Se decide antes con el trazo
+      // tal como se ve, que es con lo que están medidos el repaso y el cruce, y se lleva después lo que se va a cortar.
+      // Las ramas, también aquí: cuando se corten, la malla ya habrá cambiado con lo principal.
+      let alReposo: ((p: Punto, n: Punto) => { p: Punto; n: Punto }) | null = null
+      if (id === undefined && !desdeLaSesion && !esRehacer && !deDiseccion && !esRama) {
+        const conReposo = mallas.map(conSuReposo).filter((m): m is MallaConReposo => m !== null)
+        if (conReposo.length > 0) {
+          const llevados = llevarAlReposo(puntosDelCorte, normalesDelCorte, conReposo, 0.1 * unidadesPorMm, 0.05 * unidadesPorMm)
+          if (llevados.some((l) => l !== null)) alReposo = porElTrazo(puntosDelCorte, llevados, normalesDelCorte, 1e-3 * unidadesPorMm)
+        }
+      }
       if (id === undefined && !desdeLaSesion && !esRehacer && !deDiseccion && !esRama) {
         // Lo abierta que está una incisión: lo que más se abre, o a `s` de su inicio, de labio a labio tal como están
         // ahora (D-415). Junto a la punta casi no se abre, aunque los Farabeuf del medio la tengan a 35 mm.
@@ -4370,6 +4383,17 @@ export function LienzoQuirurgico({
           normalesDelCorte = [...decision.trazo.normales]
           recortado = true
         }
+      }
+      if (alReposo) {
+        const llevar = alReposo
+        const aReposo = (tr: TrazoDeIncision): TrazoDeIncision => {
+          const llevados = tr.puntos.map((p, i) => llevar(p, tr.normales[i] ?? [0, 0, 1]))
+          return { puntos: llevados.map((l) => l.p), normales: llevados.map((l) => l.n) }
+        }
+        const principal = aReposo({ puntos: puntosDelCorte, normales: normalesDelCorte })
+        puntosDelCorte = [...principal.puntos]
+        normalesDelCorte = [...principal.normales]
+        ramas = ramas.map(aReposo)
       }
       const previo = id !== undefined ? (t.cortes ?? []).find((c) => c.id === id) : undefined
       // Lo que ya estaba cortado antes de este trazo, mirado antes de cerrar la incisión que se alarga: alargarla la

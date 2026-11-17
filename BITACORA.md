@@ -12808,9 +12808,53 @@ Desplegado el 2026-11-17 en `f0ced5e`, a pedido del dueño («súbelo al git y d
 - (+) Un corte que no toca otra incisión es independiente, como antes.
 - (−) Acortar en el cruce cambia la medida del paso: la incisión de 92 mm pasa a 85. Si estaba justa en el mínimo, puede quedar corta. La consola lo dice.
 - (−) Entre la rama y el borde queda un milímetro de piel sin cortar. En pabellón la esquina de la T se abre; aquí, no.
-- (−) Con los Farabeuf ya abiertos, el trazo se corta donde estaba la piel en reposo, no donde se ve. `cortarCapa` toma el trazo como geometría en reposo. En la T junto a la punta, la mitad de abajo de la barra se tuerce: 28/24 contra 12/19 sin segundo corte. Poniendo los Farabeuf después queda limpia. Lo correcto es llevar el trazo a la piel en reposo antes de cortar, y queda pendiente.
+- (−) Con los Farabeuf ya abiertos, el trazo se corta donde estaba la piel en reposo, no donde se ve. `cortarCapa` toma el trazo como geometría en reposo. En la T junto a la punta, la mitad de abajo de la barra se tuerce: 28/24 contra 12/19 sin segundo corte. Poniendo los Farabeuf después queda limpia. Lo correcto es llevar el trazo a la piel en reposo antes de cortar, y queda pendiente. *(Resuelto en D-416.)*
 - (−) El cruce en medio deja dos o tres incisiones en la lista del recuadro «Herida», no una.
 - (−) Los 2 cm y el tercio son reglas medidas en un caso, la pierna del 3.
+
+### D-416 · 2026-11-17 · vigente · pedido del dueño · amplía D-415
+**Un trazo hecho sobre piel que algo movió —una herida abierta, lo que apartan los Farabeuf— corta el tejido que se ve debajo. Antes cortaba el que en reposo tenía esas coordenadas, y el corte salía corrido y torcido.**
+
+*Qué pasó.* D-415 dejó dicho que, con los Farabeuf ya abiertos, la barra de la T junto a la punta se torcía en su mitad de abajo, y el dueño pidió arreglarlo («Sí, arréglalo»). La causa:
+- Cada punto del trazo es un rayo de la cámara contra la malla tal como está ahora: abierta, apartada, estirada o fruncida.
+- `cortarCapa` vuelve la malla a la base de su último corte, cerrada, y tomaba esos puntos como si fueran de ella.
+- Lejos de toda herida da igual. Junto a una abierta a 35 mm, el labio está a 17 mm de la línea y la piel de detrás, corrida. El corte caía en otro tejido, y al volver a abrirse la herida aparecía corrido y torcido.
+
+*Lo que cambia* (`trazoEnReposo.ts`, nuevo, y `aplicarElCorte`):
+- **Cada punto, al tejido que tenía debajo** (`llevarAlReposo`). Si cae sobre un triángulo movido de una malla del plano (a 0,1 mm o menos; movido es más de 0,05 mm), va al mismo sitio de ese triángulo en reposo, con las mismas coordenadas baricéntricas. La normal es la del triángulo en reposo. El reposo es la base del último corte de la malla (`conSuReposo`), la misma que vuelve a poner `cortarCapa`, así que también deshace el abultamiento. Lo que no cae sobre nada movido se queda donde está.
+- **Se decide con el trazo tal como se ve, y se lleva después** (`porElTrazo`). El repaso y el cruce de D-410 y D-415 están medidos con el trazo de la pantalla. Lo que va a cortarse, en cambio, sale de él en pedazos. Cada punto de esos pedazos que cae sobre el trazo pinchado va al mismo sitio entre sus dos muestras en reposo.
+- **Lo que no sale del trazo no se toca.** Ni lo tomado de una incisión de antes, que ya está guardado en reposo, ni el punto donde nace una rama, puesto en la línea de la otra. Buscada en la malla de ahora, una incisión vieja que algo movió caería sobre otro tejido.
+- **Se mide antes de tocar nada.** Las ramas se llevan junto con lo principal, antes de cerrar la incisión que se alarga o se acorta y antes de cortar. Cada una de esas cosas cambia la malla.
+- **Solo con un trazo de verdad.** Lo que rehace la sesión, rehacer una incisión y la disección ya vienen en reposo.
+- **La incisión se guarda en reposo** (`t.cortes`). Al recargar la sesión se corta donde se cortó, aunque la malla esté cerrada.
+
+*Qué se probó.* `trazoEnReposo.test.ts`, once casos:
+- una lámina con media parte corrida: lo pinchado en ella y en la franja estirada va a su sitio, y lo quieto y lo que está en el aire se quedan;
+- la malla escalada y movida como el atlas, la normal hacia el lado que se dio y dos mallas superpuestas;
+- un punto entre dos muestras, uno en una muestra y uno fuera del trazo;
+- en el lienzo, que se mide antes de decidir y se lleva antes de cerrar y de cortar.
+
+En el navegador, en el caso 3 con la base desechable (triángulos doblados de piel/fascia):
+
+| Cruce | Farabeuf puestos antes | Farabeuf puestos después |
+| --- | --- | --- |
+| junto a la punta | 25/21 (D-415: 28/24); la barra, una sola abertura limpia | 3/4, igual |
+| en medio | 25/26 (D-415: 24/22) | 23/23, igual |
+| T en medio | — | 8/10, igual |
+| paralela lejana | — | 0/0, independiente |
+
+- La paralela lejana con los Farabeuf antes no se pudo probar así: el clic de inicio caía sobre el mango de un Farabeuf.
+- Los repasos de D-410 siguen siendo repaso.
+- Medido con la sonda, en el cruce del medio con la herida abierta las puntas del corte caen a 1 mm de los clics.
+
+Antes de subir: `typecheck`, `lint` y `build` (con `/traumahub`) pasan. La suite entera con cobertura y la integración obligatoria, contra una base desechable, da 7436 pasan y 3 fallan, las del entorno de siempre (`directorioDeRespaldos` ×2 y `tableroDeRevision`).
+
+*Consecuencias.*
+- (+) Lo que se corta es lo que se ve bajo el trazo, con la herida abierta o cerrada, y queda guardado así.
+- (+) La T junto a la punta queda limpia en los dos órdenes.
+- (−) En esa T, al cerrarse el pedacito de punta de la primera incisión, la piel que ese pedacito apartaba vuelve a su sitio. Con ella vuelve la barra, que se ve más corta que el trazo del lado que se apartaba: 13 mm arriba y 5 abajo en el caso 3. Es el tejido que se cortó; cortar el que se ve después de cerrar pediría pinchar otra vez.
+- (−) La medida del paso de un trazo nuevo sigue siendo la del trazo como se vio. La lista de incisiones mide la guardada, en reposo: sobre piel apartada pueden diferir unos milímetros.
+- (−) Una incisión guardada en reposo que otra herida aparta queda corrida respecto de su línea. Repasarla o alargarla desde una punta que se movió se mide contra la línea guardada, no contra la que se ve.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**

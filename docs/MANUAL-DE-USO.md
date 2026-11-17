@@ -968,7 +968,9 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   cruzó, como una T. Si el cruce cae a menos de 2 cm de una punta, la incisión se acorta hasta el
   cruce —el pedacito de punta del otro lado se cierra, y el panel da su largo nuevo— y el trazo nuevo
   pasa entero por esa punta: quedan unidas en T. Si cae en medio, cada lado es su propia incisión, y la
-  lista las muestra por separado (D-415). Un corte que no toca otra queda independiente. Con más de una,
+  lista las muestra por separado (D-415). Un corte que no toca otra queda independiente. Un trazo hecho
+  con la herida ya abierta o apartada por los separadores corta el tejido que se ve bajo él, aunque esté
+  corrido de su sitio (D-416). Con más de una,
   el recuadro «Herida» las lista —«Incisión 2 · músculo · 30 mm»— con una **×** que cierra solo esa;
   «Cerrar todas las heridas» las cierra todas. Cada separador y cada pinza abre la incisión en que
   se puso; un separador apoyado en un plano profundo abre además la incisión de la piel o de la
