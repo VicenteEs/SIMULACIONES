@@ -12849,6 +12849,10 @@ En el navegador, en el caso 3 con la base desechable (triángulos doblados de pi
 
 Antes de subir: `typecheck`, `lint` y `build` (con `/traumahub`) pasan. La suite entera con cobertura y la integración obligatoria, contra una base desechable, da 7436 pasan y 3 fallan, las del entorno de siempre (`directorioDeRespaldos` ×2 y `tableroDeRevision`).
 
+Desplegado el 2026-11-17 en `a47509e`, a pedido del dueño («Sí, súbelo y despliega»):
+- ved a las 11:06 (Chile), con respaldo `base-20261117-110446`. El ensayo abre los 2 casos publicados con 0 errores y los 2 avisos de siempre. Salud 200 por fuera, 4 procesos, y el fragmento del simulador servido trae `aMundo`, la malla en reposo de `trazoEnReposo.ts`.
+- Contabo a las 11:16, con respaldo verificado `base-`/`medios-20261117-110452` y el override igual a la plantilla. El mismo ensayo, 4 procesos, salud 200 en `https://traumahub.cl` y el mismo texto servido.
+
 *Consecuencias.*
 - (+) Lo que se corta es lo que se ve bajo el trazo, con la herida abierta o cerrada, y queda guardado así.
 - (+) La T junto a la punta queda limpia en los dos órdenes.
