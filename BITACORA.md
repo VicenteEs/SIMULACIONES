@@ -12741,6 +12741,10 @@ En el navegador, con lo que hizo Cristóbal, los cuatro Farabeuf se ven en todos
 
   En todo eso la medida sigue en 92,6. Alargar la piel la lleva a 121,4, la incisión entera.
 
+Desplegado el 2026-11-17 en `c77bb1c`, con D-413, a pedido del dueño («súbelo al git y despliega en ved y contabo»):
+- ved a las 08:01 (Chile). Salud 200 por fuera, 4 procesos, y el fragmento del simulador servido trae lo nuevo (`enfrente`, que antes no estaba en el código).
+- Contabo a las 08:09, con respaldo verificado `base-`/`medios-20261117-080015` y el override igual a la plantilla. El ensayo de los casos abre con el código nuevo y da la misma nota. 4 procesos y salud 200 en `https://traumahub.cl`, con el mismo código servido.
+
 *Consecuencias.*
 - (+) El paso juzga la incisión que pide, aunque se profundice antes de aplicarlo.
 - (−) Con el bisturí profundo en la mano en el paso de la piel, la línea de guía de la piel se borra al marcar el inicio de una recta y el panel sigue diciendo 92,6. La herida sigue ahí, pero su raya no.
