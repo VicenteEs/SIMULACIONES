@@ -8,7 +8,7 @@ una cuenta y no horneando un material tiene dos ventajas que aquí pesan. Se rep
 construcción —el ruido se filtra en frecuencia, que es periódico de suyo—, y la escala es exacta: el punto del
 no tejido mide 1,6 mm porque así está escrito, no porque un nodo de ruido haya quedado más o menos de ese tamaño.
 
-Lo que sale a `public/pabellon/`:
+Lo que sale a `privado/pabellon/`:
 
     tela-relieve.webp     512², se repite cada 4,8 cm. El gofrado del no tejido: puntos de soldadura al
                           tresbolillo y, entre ellos, la fibra.
@@ -70,8 +70,8 @@ def normales(alto, metros_por_pixel, periodica):
 
 
 def guardar(nombre, pixeles, calidad=93):
-    C.PUBLICO.mkdir(parents=True, exist_ok=True)
-    ruta = C.PUBLICO / nombre
+    C.PABELLON.mkdir(parents=True, exist_ok=True)
+    ruta = C.PABELLON / nombre
     Image.fromarray(pixeles, 'RGB').save(ruta, 'WEBP', quality=calidad, method=6)
     print(f'ESCRITO {nombre}: {pixeles.shape[1]}×{pixeles.shape[0]}, {ruta.stat().st_size / 1024:.0f} KB')
 

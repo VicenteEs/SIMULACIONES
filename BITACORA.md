@@ -13007,6 +13007,56 @@ Desplegado el 2026-11-19 en `2ba4b1a`, junto con D-417, a pedido del dueño («S
 - ved a las 18:59 (Chile), con respaldo `base-20261119-185745`. El ensayo abre los 2 casos publicados con 0 errores y los 2 avisos de siempre. Salud 200 por fuera y 4 procesos. `arsenalera-persona.glb` y `sala.glb` salen con su tamaño exacto (706 772 y 1 406 904 bytes), y el código servido trae «Arsenalera de pie».
 - Contabo a las 19:28, con respaldo verificado `base-`/`medios-20261119-185853` y el override igual a la plantilla. El mismo ensayo, 4 procesos, salud 200 en `https://traumahub.cl`, los dos `.glb` con su tamaño exacto y el mismo texto servido.
 
+### D-419 · 2026-11-19 · vigente · pedido del dueño · amplía D-354, D-389, D-417 y D-418
+**Los modelos del pabellón del simulador se entregan solo a quien tiene sesión. Salieron de `public/pabellon/` a `privado/pabellon/`, y los sirve una ruta que mira la cuenta, en la misma dirección de antes.**
+
+*Qué pasó.* El dueño preguntó si se podían proteger sus modelos 3D para que no se los bajaran. Se probó `https://traumahub.cl` sin iniciar sesión:
+- Los modelos subidos (Modelos 3D: el instrumental y los huesos de cada caso) ya estaban cerrados. Payload los sirve con `lecturaSimple`, y su API respondió 403.
+- Los del pabellón no. Next entrega a cualquiera todo lo de `public/`: `colchon.glb` (219 060 bytes), `mesa-quirurgica.glb` (148 120) y `campo-supino.glb` (3 725 484) respondieron 200 sin cuenta.
+- `sala.glb` y `arsenalera-persona.glb` daban 404 porque D-417 y D-418 no estaban desplegados. Mientras se hacía este cambio, otra sesión los desplegó (nota de arriba), y a las 19:31 (Chile) los dos salían con 200 sin cuenta: la arsenalera que el dueño modela a mano estaba abierta para cualquiera.
+
+*Qué se hizo.*
+- `git mv public/pabellon privado/pabellon`. Next no sirve `privado/`.
+- `src/app/(frontend)/pabellon/[archivo]/route.ts` responde en `/pabellon/<archivo>`, la misma dirección que servía `public/`. El simulador sigue pidiendo `ruta('/pabellon/…')` y no cambió una línea.
+- La ruta pide lo mismo que la página del simulador y que los modelos subidos: una cuenta activa que valga en el lugar de la petición (`obtenerSesion`, con la institución del subdominio de D-396). Mira la sesión antes que el nombre: al revés, un 404 o un 403 según el archivo existiera le diría a quien no tiene cuenta qué hay en la carpeta.
+- Sin sesión responde 403 con `no-store`, para que la negativa no se guarde en ninguna caché.
+- Solo sirve nombres de minúsculas, números y guiones, con extensión `.glb`, `.bin`, `.json` o `.webp`, y comprueba que el camino resuelto quede dentro de la carpeta (`src/lib/archivosDelPabellon.ts`). Un `.blend` dejado ahí por descuido no sale.
+- Cabeceras (`cabecerasDelPabellon`, en `cacheDeArchivos.ts`): `private, no-cache`, `Vary: Cookie`, `nosniff`, la CSP con `sandbox` de los archivos subidos y `Cross-Origin-Resource-Policy: same-origin`.
+  - `private` es lo que importa detrás de Cloudflare. Con `public`, Cloudflare podía guardar el archivo y dárselo a quien no tiene sesión. Con `.bin` y `.webp` lo haría sin que nadie se lo pidiera: están en su lista de extensiones que guarda.
+  - `no-cache` y no la hora de los archivos subidos. Un archivo subido no cambia nunca, pero estos sí: `sala.glb` se llama igual después de rehacerlo. Con una hora, un despliegue dejaba a quien ya había abierto el simulador con la sala nueva y el paño viejo. Con `no-cache` el navegador guarda la copia y pregunta cada vez, y lo que vuelve es un 304 sin cuerpo. Era lo que hacía Next con `public/` (`max-age=0`), y ahora cada pregunta vuelve a pasar por la sesión.
+  - El `ETag` es la huella del contenido (sha256), calculada una vez por proceso. Si fuera por fecha, `git` y `docker build` la cambiarían sin cambiar el archivo, y cada despliegue haría bajar otra vez los 3,7 MB del paño. La comparación acepta la huella débil (`W/"…"`), porque Cloudflare la marca así cuando comprime por el camino.
+- `Dockerfile`: la etapa de ejecución copia `privado/` junto a `public/`.
+- Los guiones de `scripts/pabellon/` escriben por omisión en `privado/pabellon/`. Su constante pasó de `PUBLICO` a `PABELLON`, porque el nombre ya mentía. El `LEEME`, el `README` y los comentarios que nombraban la carpeta, también.
+
+*Qué no protege, dicho tal cual.* Impide que el archivo viaje a quien no tiene cuenta. Quien sí la tiene se lo lleva igual: el navegador recibe el modelo entero para dibujarlo, y se puede guardar desde la pestaña Red o sacar de la tarjeta gráfica. Se habló con el dueño de lo que lo haría más difícil, y no se hizo:
+- cifrar el `.glb` y descifrarlo en memoria;
+- desordenar los vértices y ordenarlos en el sombreador. No sirve para el tejido que se corta, porque la incisión necesita la malla real en el procesador;
+- marcar cada copia por cuenta;
+- dibujar en el servidor y mandar vídeo.
+
+El atlas (`public/atlas/`) sigue abierto, y debe seguir así. Es BodyParts3D con CC BY 4.0, que prohíbe aplicar medidas técnicas que impidan lo que la licencia permite, y cualquiera puede bajar el original de su página.
+
+*Qué se probó.* `archivosDelPabellon.test.ts` (15 casos):
+- sin sesión, 403 y `no-store`, para un archivo que existe y para uno que no;
+- una cuenta desactivada, 403;
+- con sesión, el archivo idéntico al del disco, con su tipo y su largo;
+- las cabeceras de caché;
+- el 304 con la huella buena, también débil o dentro de una lista;
+- sin sesión, 403 aunque traiga la huella buena;
+- los nombres que se salen de la carpeta o del tipo, 404;
+- todo lo de la carpeta se puede servir, y el manifiesto no nombra nada que falte;
+- **no existe `public/pabellon` ni hay un `.glb` en `public/`**. Es la prueba que más importa. Next sirve `public/` antes que las rutas, así que un archivo que vuelva ahí tapa esta ruta sin ningún error y queda abierto otra vez. Puede volver por un guion con el destino viejo, como el `arsenalera_persona.py` sin subir de D-418, o por una copia hecha a mano.
+
+`campoEnLaEscena.test.ts` y `mueblesDelPabellon.test.ts` leen ahora de `privado/pabellon/`.
+
+*Consecuencias.*
+- (+) Nada del pabellón sale sin cuenta.
+- (+) El simulador y su caché funcionan igual que antes.
+- (−) Cada archivo del pabellón pasa por la sesión: una lectura de la cuenta en la base por archivo, unas diez cada vez que se abre el simulador. Si se notara, la huella permite subir la caché a unos minutos.
+- (−) Quien tiene cuenta se los sigue pudiendo llevar. Esto cierra la puerta a los de afuera, no a los de adentro.
+- (−) Si un guion vuelve a escribir en `public/pabellon/`, el archivo queda abierto y nada lo avisa en el navegador. Solo lo detecta la prueba.
+- (−) Los que se bajaron sin cuenta entre el despliegue de D-418 y el de este cambio ya están afuera.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

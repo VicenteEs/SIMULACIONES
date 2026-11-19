@@ -8,7 +8,7 @@ Genera el campo quirúrgico del simulador (P-014, E1): el colchón, la sábana c
     --paso 0.008                                 el tamaño del triángulo del paño, en metros
     --cuadros 150                                cuántos cuadros se deja caer la tela
 
-Lo que sale a `public/pabellon/` es lo que viaja: `colchon.glb`, `campo-supino.glb`, `campo-prono.glb` y
+Lo que sale a `privado/pabellon/` es lo que viaja: `colchon.glb`, `campo-supino.glb`, `campo-prono.glb` y
 `manifiesto.json`. Lo intermedio (la tela ya caída, que es lo caro) queda en `scripts/pabellon/salida/` y no
 viaja: por eso `--etapa campo` rehace los `.glb` en segundos sin volver a simular.
 
@@ -537,7 +537,7 @@ def escribir_el_relieve(decubito, relieve, sufijo=''):
         # Por filas de Y y, dentro de cada una, por X: es como lo recorre quien lo lee.
         return enteros.astype('<i2').T.ravel()
 
-    ruta = C.PUBLICO / f'relieve-{decubito}{sufijo}.bin'
+    ruta = C.PABELLON / f'relieve-{decubito}{sufijo}.bin'
     ruta.write_bytes(np.concatenate([a_enteros(cuerpo), a_enteros(lecho)]).tobytes())
     print(f'ESCRITO {ruta.name}: {ruta.stat().st_size / 1024:.0f} KB; cuerpo en {int(np.isfinite(cuerpo).sum())} celdas, lecho en {int(hay.sum())}; '
           f'{int((lecho > antes + 1e-6).sum())} celdas subidas para cubrir la piel; el lecho queda sobre la piel '
@@ -592,7 +592,7 @@ def principal():
     if args.etapa in ('colchon', 'todo'):
         vaciar()
         piezas, extra = construir_el_colchon()
-        exportar(C.PUBLICO / 'colchon.glb', piezas)
+        exportar(C.PABELLON / 'colchon.glb', piezas)
 
     for decubito in decubitos:
         if args.etapa in ('simular', 'campo', 'todo'):
@@ -603,11 +603,11 @@ def principal():
             vaciar()
             sabana = construir_la_sabana(decubito, relieve)
             pano = construir_el_pano(decubito, args.sufijo)
-            exportar(C.PUBLICO / f'campo-{decubito}{args.sufijo}.glb', [sabana, pano])
+            exportar(C.PABELLON / f'campo-{decubito}{args.sufijo}.glb', [sabana, pano])
             escribir_el_relieve(decubito, relieve, args.sufijo)
 
     if args.etapa in ('colchon', 'todo'):
-        (C.PUBLICO / 'manifiesto.json').write_text(json.dumps(manifiesto(extra), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        (C.PABELLON / 'manifiesto.json').write_text(json.dumps(manifiesto(extra), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
         print('ESCRITO manifiesto.json')
 
 

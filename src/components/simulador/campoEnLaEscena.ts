@@ -42,7 +42,7 @@ import {
  * El campo quirúrgico en la escena (P-014): el colchón, la sábana y el paño con su ventana.
  *
  * Todo cuelga de un grupo que va **en las coordenadas del cuerpo** del atlas, que es como llegan las mallas de
- * `public/pabellon/`. Lo único que se mueve es el grupo: se corre lo mismo que el exportador y el lienzo
+ * `privado/pabellon/`. Lo único que se mueve es el grupo: se corre lo mismo que el exportador y el lienzo
  * corrieron el modelo para centrarlo, y con eso el colchón queda debajo de la rodilla y no debajo del ombligo.
  *
  * El grupo cuelga de la escena y no del modelo, y no es un detalle. De la raíz del modelo cuelga lo que el
@@ -304,7 +304,7 @@ export function crearElCampo(opciones: OpcionesDelCampo): CampoEnLaEscena {
   const texturas: THREE.Texture[] = []
   const cargadorDeTexturas = new THREE.TextureLoader()
   /**
-   * Un mapa de normales de `public/pabellon/`. Van en el convenio de glTF —el verde hacia arriba de la imagen y
+   * Un mapa de normales de `privado/pabellon/`. Van en el convenio de glTF —el verde hacia arriba de la imagen y
    * la imagen sin voltear—, que es el de las UV que traen las mallas: por eso `flipY` apagado aquí y la `y` de
    * `normalScale` negativa en los materiales, las dos cosas que `GLTFLoader` hace con los suyos.
    */

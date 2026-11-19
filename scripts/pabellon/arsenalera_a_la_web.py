@@ -4,7 +4,7 @@ La arsenalera que modeló el dueño, llevada al simulador (D-418): de su `.blend
     blender --background --factory-startup --python scripts/pabellon/arsenalera_a_la_web.py -- [opciones]
 
     --fuente <archivo.blend>  de dónde sale (por omisión, `salida/arsenalera_manual/arsenalera_manual.blend`)
-    --destino <carpeta>       adónde va el `.glb` (por omisión, `public/pabellon/`): otra carpeta para probar sin pisar
+    --destino <carpeta>       adónde va el `.glb` (por omisión, `privado/pabellon/`): otra carpeta para probar sin pisar
                               lo que viaja
     --lado-color 1024         el lado de la textura de color de la figura
     --lado-relieve 1024       el de su mapa de normales; 0 lo deja fuera
@@ -60,7 +60,7 @@ import numpy as np
 AQUI = Path(__file__).resolve().parent
 RAIZ = AQUI.parent.parent
 FUENTE = AQUI / 'salida' / 'arsenalera_manual' / 'arsenalera_manual.blend'
-PUBLICO = RAIZ / 'public' / 'pabellon'
+PABELLON = RAIZ / 'privado' / 'pabellon'
 ARCHIVO = 'arsenalera-persona.glb'
 MEDIDAS = RAIZ / 'src' / 'lib' / 'mesaDeArsenalera.ts'
 MOBILIARIO = AQUI / 'mobiliario.py'
@@ -78,7 +78,7 @@ def opciones():
     argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     p = argparse.ArgumentParser()
     p.add_argument('--fuente', default=str(FUENTE))
-    p.add_argument('--destino', default=str(PUBLICO))
+    p.add_argument('--destino', default=str(PABELLON))
     p.add_argument('--lado-color', type=int, default=1024)
     p.add_argument('--lado-relieve', type=int, default=1024)
     p.add_argument('--calidad', type=int, default=80)

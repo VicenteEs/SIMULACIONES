@@ -1,6 +1,6 @@
 /**
  * El pabellón entero alrededor de la camilla (pedido del dueño): paredes, techo, piso y el equipo de una sala de
- * operaciones, de `public/pabellon/sala.glb` (lo hace `scripts/pabellon/sala.py`).
+ * operaciones, de `privado/pabellon/sala.glb` (lo hace `scripts/pabellon/sala.py`).
  *
  * Aquí está lo que no necesita three ni navegador y por eso se prueba suelto: la tabla de pintura, la cuenta de
  * qué cuelga de qué nombre y la regla que aparta de la vista lo que cuelga del techo cuando se interpone.

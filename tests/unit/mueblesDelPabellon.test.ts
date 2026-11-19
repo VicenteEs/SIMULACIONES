@@ -16,7 +16,7 @@ import { PREFIJO_DE_LO_QUE_CUELGA, recibeSombra } from '@/lib/pabellonCompleto'
  * en claro la jerarquía, los nombres y la caja de cada malla (el `min` y el `max` de sus posiciones, que la norma exige).
  */
 
-const PUBLICO = resolve(process.cwd(), 'public', 'pabellon')
+const PABELLON = resolve(process.cwd(), 'privado', 'pabellon')
 
 interface Nodo {
   name?: string
@@ -39,7 +39,7 @@ interface Documento {
 }
 
 function leer(archivo: string): Documento {
-  const bytes = readFileSync(resolve(PUBLICO, archivo))
+  const bytes = readFileSync(resolve(PABELLON, archivo))
   expect(bytes.toString('ascii', 0, 4)).toBe('glTF')
   const largo = bytes.readUInt32LE(12)
   return JSON.parse(bytes.toString('utf8', 20, 20 + largo)) as Documento
@@ -116,7 +116,7 @@ describe('la mesa de la arsenalera (mesa-arsenalera.glb)', () => {
   })
 
   it('pesa lo que se puede bajar al abrir un caso', () => {
-    expect(statSync(resolve(PUBLICO, 'mesa-arsenalera.glb')).size).toBeLessThan(3 * 1024 * 1024)
+    expect(statSync(resolve(PABELLON, 'mesa-arsenalera.glb')).size).toBeLessThan(3 * 1024 * 1024)
   })
 })
 
@@ -166,7 +166,7 @@ describe('la mesa quirúrgica (mesa-quirurgica.glb)', () => {
   })
 
   it('pesa poco: es un mueble de fondo', () => {
-    expect(statSync(resolve(PUBLICO, 'mesa-quirurgica.glb')).size).toBeLessThan(1.5 * 1024 * 1024)
+    expect(statSync(resolve(PABELLON, 'mesa-quirurgica.glb')).size).toBeLessThan(1.5 * 1024 * 1024)
   })
 })
 
@@ -225,7 +225,7 @@ describe('la arsenalera de pie (arsenalera-persona.glb)', () => {
   })
 
   it('pesa poco para lo que es: la bajan todos los que abren un caso con ella puesta', () => {
-    expect(statSync(resolve(PUBLICO, archivo)).size).toBeLessThan(1.2 * 1024 * 1024)
+    expect(statSync(resolve(PABELLON, archivo)).size).toBeLessThan(1.2 * 1024 * 1024)
   })
 })
 
@@ -299,6 +299,6 @@ describe('el pabellón (sala.glb)', () => {
   })
 
   it('pesa lo que se puede bajar después de los muebles', () => {
-    expect(statSync(resolve(PUBLICO, archivo)).size).toBeLessThan(3.5 * 1024 * 1024)
+    expect(statSync(resolve(PABELLON, archivo)).size).toBeLessThan(3.5 * 1024 * 1024)
   })
 })

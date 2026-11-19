@@ -102,5 +102,5 @@ __pycache__/
 /scripts/atlas/huesos/salida/
 
 # Y para el campo quirúrgico (P-014): la tela ya caída de cada decúbito —que es lo caro, varios minutos de
-# simulación— y las vistas de comprobación de `scripts/pabellon/vistas.py`. Lo que viaja es public/pabellon/.
+# simulación— y las vistas de comprobación de `scripts/pabellon/vistas.py`. Lo que viaja es privado/pabellon/ (D-419).
 /scripts/pabellon/salida/

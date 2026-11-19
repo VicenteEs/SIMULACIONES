@@ -7,7 +7,7 @@ ordenado encima— y la mesa quirúrgica que va debajo del colchón.
     --pieza arsenalera | quirurgica | todo     cuál se fabrica (por omisión, todo)
     --vistas                                   además, las fotos de comprobación, en `salida/vistas/`
     --muestras 128                             las muestras de Cycles de esas fotos
-    --destino <carpeta>                        para probar sin pisar lo que viaja (por omisión, `public/pabellon/`)
+    --destino <carpeta>                        para probar sin pisar lo que viaja (por omisión, `privado/pabellon/`)
 
 Sale `mesa-arsenalera.glb` y `mesa-quirurgica.glb`. Son decorado: el simulador los pone alrededor del campo y solo
 les toca dos cosas, que por eso tienen nombre fijo. Sube el nodo `elevable` de la arsenalera para regular su
@@ -58,7 +58,7 @@ from mathutils import Matrix, Vector
 
 AQUI = Path(__file__).resolve().parent
 RAIZ = AQUI.parents[1]
-PUBLICO = RAIZ / 'public' / 'pabellon'
+PABELLON = RAIZ / 'privado' / 'pabellon'
 SALIDA = AQUI / 'salida'
 INSTRUMENTAL = RAIZ / 'ejemplos' / 'instrumental'
 
@@ -76,7 +76,7 @@ def argumentos():
     p.add_argument('--pieza', default='todo', choices=('arsenalera', 'quirurgica', 'todo'))
     p.add_argument('--vistas', action='store_true')
     p.add_argument('--muestras', type=int, default=128)
-    p.add_argument('--destino', default=str(PUBLICO))
+    p.add_argument('--destino', default=str(PABELLON))
     p.add_argument('--cuadros', type=int, default=70, help='cuántos cuadros se deja caer la funda')
     return p.parse_args(resto)
 
@@ -1717,7 +1717,7 @@ def fabricar_la_arsenalera(args, destino):
 
     oc = hornear_oclusion(funda, 1024, 1024, 0.06, 128)
     oc = np.clip(difuminar(oc, 1.5), 0, 1) ** 1.2
-    relieve = bpy.data.images.load(str(PUBLICO / 'tela-relieve.webp'), check_existing=True)
+    relieve = bpy.data.images.load(str(PABELLON / 'tela-relieve.webp'), check_existing=True)
     relieve.colorspace_settings.name = 'Non-Color'
     # El relieve del paño a menos de la mitad: el del colchón es un algodón que se arruga, y una funda de SMS es
     # lisa; con la fuerza entera el azul salía moteado de lejos.
@@ -1946,7 +1946,7 @@ def fabricar_la_quirurgica(args, destino):
     sombra = plano_de_sombra(-0.75, 0.75, -1.35, 1.35, SUELO + 0.002)
     # El colchón también hace sombra: se trae solo para hornear y se quita antes de exportar.
     antes = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=str(PUBLICO / 'colchon.glb'))
+    bpy.ops.import_scene.gltf(filepath=str(PABELLON / 'colchon.glb'))
     colchon = [o for o in bpy.data.objects if o not in antes]
     hornear_la_sombra(sombra, 'mesa-quirurgica', 512, 1024, 0.8, 128, fuerza=0.8)
     for o in colchon:
@@ -2087,7 +2087,7 @@ def hacer_las_vistas(args, destino, piezas):
         vaciar()
         estudio(args.muestras, SUELO)
         importar(Path(destino) / 'mesa-quirurgica.glb')
-        for o in importar(PUBLICO / 'colchon.glb'):
+        for o in importar(PABELLON / 'colchon.glb'):
             if o.type == 'MESH':
                 o.data.materials.clear()
                 o.data.materials.append(material_del_colchon())

@@ -1,5 +1,5 @@
 """
-Vistas de comprobación del campo quirúrgico (P-014, E1): abre lo que `generar.py` dejó en `public/pabellon/` y lo
+Vistas de comprobación del campo quirúrgico (P-014, E1): abre lo que `generar.py` dejó en `privado/pabellon/` y lo
 fotografía.
 
     blender --background --factory-startup --python scripts/pabellon/vistas.py -- [opciones]
@@ -98,7 +98,7 @@ def nodos_de(material):
 
 
 def imagen(nombre):
-    ruta = C.PUBLICO / nombre
+    ruta = C.PABELLON / nombre
     if not ruta.exists():
         return None
     img = bpy.data.images.load(str(ruta), check_existing=True)
@@ -382,12 +382,12 @@ def principal():
     ventana = VENTANAS.get(args.ventana)
 
     # El colchón viene en su propio marco, que es el de esta escena: no se mueve.
-    for objeto in importar(C.PUBLICO / 'colchon.glb'):
+    for objeto in importar(C.PABELLON / 'colchon.glb'):
         if objeto.type == 'MESH':
             objeto.data.materials.append(material_del_colchon(objeto.name, 'pared' in objeto.name, con_texturas))
 
     color = COLORES[args.color]
-    for objeto in importar(C.PUBLICO / f'campo-{args.decubito}{args.sufijo}.glb'):
+    for objeto in importar(C.PABELLON / f'campo-{args.decubito}{args.sufijo}.glb'):
         if objeto.type != 'MESH':
             continue
         objeto.matrix_world = tumbar @ objeto.matrix_world

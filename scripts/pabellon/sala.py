@@ -3,7 +3,7 @@ EL PABELLÓN QUIRÚRGICO COMPLETO: paredes, techo, piso y todo lo que hay en la 
 
     blender --background --factory-startup --python scripts/pabellon/sala.py -- [opciones]
 
-    --destino <carpeta>        dónde sale `sala.glb` (por omisión, `public/pabellon/`)
+    --destino <carpeta>        dónde sale `sala.glb` (por omisión, `privado/pabellon/`)
     --vistas                   además, las fotos de comprobación, en `salida/vistas/sala-*.png`: desde la camilla
                                (cabecera, pies, costados, rincón), la cenital sin techo y la planta anotada
     --vistas-cuales a,b,c      solo esas fotos: `cabecera`, `pies`, `costado-derecho`, `costado-izquierdo`, `rincon`, `cenital`,
@@ -92,7 +92,7 @@ from mathutils import Matrix, Vector
 
 AQUI = Path(__file__).resolve().parent
 RAIZ = AQUI.parents[1]
-PUBLICO = RAIZ / 'public' / 'pabellon'
+PABELLON = RAIZ / 'privado' / 'pabellon'
 SALIDA = AQUI / 'salida'
 TEXTURAS = SALIDA / 'sala'
 
@@ -105,7 +105,7 @@ SEMILLA = 20261118
 def argumentos():
     resto = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
     p = argparse.ArgumentParser(prog='sala.py')
-    p.add_argument('--destino', default=str(PUBLICO))
+    p.add_argument('--destino', default=str(PABELLON))
     p.add_argument('--vistas', action='store_true')
     p.add_argument('--muestras', type=int, default=48)
     p.add_argument('--muestras-oclusion', type=int, default=192)
@@ -3152,8 +3152,8 @@ def hornear_la_oclusion(lotes, img_final, lado, muestras, distancia=0.9):
     # Los oclusores y fuera los lotes mismos (ya están en la malla desechable).
     ocluyen = []
     for nombre in ('colchon.glb', 'mesa-quirurgica.glb'):
-        if (PUBLICO / nombre).exists():
-            ocluyen += importar(PUBLICO / nombre)
+        if (PABELLON / nombre).exists():
+            ocluyen += importar(PABELLON / nombre)
     for l in lotes:
         if getattr(l, 'ob', None) is not None:
             l.ob.hide_render = True
@@ -3412,7 +3412,7 @@ def importar(ruta):
 def el_colchon_de_la_foto():
     """La camilla, solo para las fotos: el colchón oscuro y la mesa de verdad, para ver la sala con su centro."""
     nuevos = []
-    colchon = PUBLICO / 'colchon.glb'
+    colchon = PABELLON / 'colchon.glb'
     if colchon.exists():
         for o in importar(colchon):
             nuevos.append(o)
@@ -3424,7 +3424,7 @@ def el_colchon_de_la_foto():
                 p.inputs['Base Color'].default_value = (*lineal((0.105, 0.110, 0.125)), 1.0)
                 p.inputs['Roughness'].default_value = 0.46
                 o.data.materials.append(m)
-    mesa = PUBLICO / 'mesa-quirurgica.glb'
+    mesa = PABELLON / 'mesa-quirurgica.glb'
     if mesa.exists():
         nuevos += importar(mesa)
     return nuevos

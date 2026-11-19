@@ -10,7 +10,7 @@ import { PANO_POR_OMISION, distanciaALaVentana, type PanoDelCaso } from '@/lib/c
  * El campo quirúrgico en la escena (P-014), con los archivos que de verdad viajan.
  *
  * `campoQuirurgico.test.ts` prueba la aritmética con telas y relieves de juguete. Aquí se monta el campo entero
- * —sin tarjeta gráfica: three arma geometrías igual en node— leyendo `public/pabellon/` del disco, que es lo que
+ * —sin tarjeta gráfica: three arma geometrías igual en node— leyendo `privado/pabellon/` del disco, que es lo que
  * el navegador pide. Es la única prueba que se entera si `scripts/pabellon/generar.py` cambia un nombre del
  * manifiesto, el tamaño del relieve o el nombre de una malla: en el navegador eso no da error, da un caso sin
  * colchón y un aviso que nadie lee.
@@ -19,8 +19,10 @@ import { PANO_POR_OMISION, distanciaALaVentana, type PanoDelCaso } from '@/lib/c
  */
 
 const PUBLICO = resolve(process.cwd(), 'public')
+/** Lo que sirve `pabellon/[archivo]/route.ts`, con sesión (D-419). */
+const PRIVADO = resolve(process.cwd(), 'privado')
 /** De la dirección que pide el campo —con el prefijo de la plataforma, si lo hay— al archivo del disco. */
-const delDisco = (direccion: string): Buffer => readFileSync(resolve(PUBLICO, direccion.slice(direccion.indexOf('/pabellon/') + 1)))
+const delDisco = (direccion: string): Buffer => readFileSync(resolve(PRIVADO, direccion.slice(direccion.indexOf('/pabellon/') + 1)))
 const comoArreglo = (bytes: Buffer): ArrayBuffer => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
 
 /** El cargador del lienzo, que aquí lee del disco. Lleva la cuenta de lo pedido. */
@@ -106,7 +108,7 @@ describe('el campo quirúrgico en la escena', () => {
     campo.liberar()
   })
 
-  it('acuesta al paciente con lo que hay en public/pabellon: el manifiesto, el colchón y el decúbito pedido', async () => {
+  it('acuesta al paciente con lo que hay en privado/pabellon: el manifiesto, el colchón y el decúbito pedido', async () => {
     const { campo, pedidos, fallos } = montar()
     expect(await acostar(campo)).toBe(true)
     expect(fallos).toEqual([])

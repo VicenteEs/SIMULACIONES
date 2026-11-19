@@ -6,7 +6,10 @@ decisiones están en `BITACORA.md`, de D-354 a D-359. Este archivo dice cómo se
 
 ## Qué viaja y qué no
 
-Lo que el navegador carga está en `public/pabellon/`, y va en git:
+Lo que el navegador carga está en `privado/pabellon/`, y va en git. No en `public/`: desde D-419 lo sirve
+`src/app/(frontend)/pabellon/[archivo]/route.ts` solo a quien tiene sesión, en la misma dirección `/pabellon/…`. Un
+archivo que vuelva a `public/pabellon/` lo taparía y quedaría abierto para cualquiera, y
+`tests/unit/archivosDelPabellon.test.ts` falla si aparece.
 
 | Archivo | Qué es | Lo hace |
 |---|---|---|
@@ -44,7 +47,7 @@ blender --background --factory-startup --python scripts/pabellon/vistas.py -- --
   **Simular es lo caro**: unos once minutos por decúbito en el equipo de desarrollo. `--etapa campo` rehace los
   `.glb`, el relieve y el manifiesto en segundos a partir de la tela que ya cayó.
 - Para probar algo sin pisar lo bueno, `--sufijo -prueba`: lo intermedio sale con ese sufijo. **No dejar
-  archivos `*-prueba.*` en `public/pabellon/`**, que viajarían con el despliegue.
+  archivos `*-prueba.*` en `privado/pabellon/`**, que viajarían con el despliegue.
 - `vistas.py` fotografía los mismos `.glb` que carga el simulador, no lo intermedio, y puede abrir una ventana de
   muestra (`--ventana`) o quitar el paño o la piel (`--sin-pano`, `--sin-piel`). Las fotos van a
   `salida/vistas/`. No es el aspecto final, que lo dan las luces del simulador. Sirve para decidir la forma
@@ -62,7 +65,7 @@ blender --background --factory-startup --python scripts/pabellon/vistas.py -- --
 El simulador lee todo a través de `manifiesto.json` y de los nombres de las mallas. Si un cambio en
 `generar.py` renombra una malla, cambia el tamaño del relieve o quita un campo del manifiesto, el caso abre sin
 campo y el lienzo solo avisa en la consola del navegador. Lo vigila `tests/unit/campoEnLaEscena.test.ts`, que
-monta el campo entero en node con los archivos que hay en `public/pabellon/`. Correrla después de regenerar:
+monta el campo entero en node con los archivos que hay en `privado/pabellon/`. Correrla después de regenerar:
 
 ```bash
 npx vitest run tests/unit/campoEnLaEscena.test.ts tests/unit/campoQuirurgico.test.ts
@@ -91,7 +94,7 @@ blender --background --factory-startup --python scripts/pabellon/mobiliario.py -
   que es lo único que se simula, unos veinte segundos.
 - `--vistas` deja en `salida/vistas/` cada mueble solo desde dos o tres lados y, con `--pieza todo`, los dos
   juntos con el colchón puesto (`conjunto-*.png`). `--muestras` baja la calidad de esas fotos para probar.
-- Para probar sin pisar lo bueno, `--destino` con otra carpeta: los `.glb` salen ahí y no en `public/pabellon/`.
+- Para probar sin pisar lo bueno, `--destino` con otra carpeta: los `.glb` salen ahí y no en `privado/pabellon/`.
 - Sale igual byte a byte en dos pasadas: la tela parte siempre de la misma forma, y los horneados de Cycles
   llevan semilla fija. Si un `.glb` cambia sin haber tocado el guion, algo de fuera cambió (Blender, el
   instrumental, el colchón).
@@ -104,7 +107,7 @@ del tablero hasta medio metro del suelo. La arsenalera tiene el origen en el sue
 con el poste hacia −X y la cara de arriba de la bandeja a 98 cm; la mesa quirúrgica, el del colchón. Por qué
 cada pieza es como es está en los comentarios de `mobiliario.py`.
 
-Lo vigila `tests/unit/mueblesDelPabellon.test.ts`, que lee los `.glb` de `public/pabellon/` sin descomprimirlos:
+Lo vigila `tests/unit/mueblesDelPabellon.test.ts`, que lee los `.glb` de `privado/pabellon/` sin descomprimirlos:
 que estén esos nombres, que la bandeja y la base midan lo que suponen los sitios de `src/lib/mesaDeArsenalera.ts`,
 que ningún sitio fijo meta la base de la arsenalera en la de la camilla y que el peso no se dispare.
 
@@ -124,7 +127,7 @@ blender --background --factory-startup --python scripts/pabellon/sala.py -- --vi
 
 - Tarda unos 25 s sin fotos; casi todo es el horneado de la oclusión, con Cycles en procesador.
 - Por omisión hornea con 192 muestras, las del archivo publicado. Sin opciones sale igual byte a byte que el de
-  `public/pabellon/`; si cambia sin haber tocado el guion, algo de fuera cambió.
+  `privado/pabellon/`; si cambia sin haber tocado el guion, algo de fuera cambió.
 - `--vistas` deja las fotos en `salida/vistas/sala-*.png`: desde la camilla (`cabecera`, `pies`, `costado-derecho`,
   `costado-izquierdo`, `rincon`), la `cenital` sin techo y la `planta` numerada. `--vistas-cuales` elige cuáles, y
   `cerca-<pieza>` saca el detalle de una pieza. `--solo-vistas` fotografía el `.glb` que ya hay, sin rehacerlo.
@@ -156,7 +159,7 @@ vigila la parte de la sala de `tests/unit/mueblesDelPabellon.test.ts`.
 ## La arsenalera de pie
 
 `arsenalera_a_la_web.py` lleva al simulador la arsenalera que el dueño modela a mano: de
-`salida/arsenalera_manual/arsenalera_manual.blend` a `public/pabellon/arsenalera-persona.glb` (D-418).
+`salida/arsenalera_manual/arsenalera_manual.blend` a `privado/pabellon/arsenalera-persona.glb` (D-418).
 
 ```bash
 blender --background --factory-startup --python scripts/pabellon/arsenalera_a_la_web.py

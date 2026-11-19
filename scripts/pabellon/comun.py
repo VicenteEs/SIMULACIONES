@@ -35,7 +35,7 @@ import numpy as np
 AQUI = Path(__file__).resolve().parent
 RAIZ = AQUI.parents[1]
 SALIDA = AQUI / 'salida'
-PUBLICO = RAIZ / 'public' / 'pabellon'
+PABELLON = RAIZ / 'privado' / 'pabellon'
 
 sys.path.insert(0, str(RAIZ / 'scripts' / 'atlas' / 'fascias'))
 from atlas import Atlas  # noqa: E402

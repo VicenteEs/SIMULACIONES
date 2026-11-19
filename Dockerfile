@@ -100,6 +100,10 @@ RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefo
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
 COPY --from=builder /app/public ./public
+# Los modelos del pabellon del simulador (D-419): fuera de `public/` para que
+# Next no los entregue sin sesion. Los sirve `pabellon/[archivo]/route.ts`, que
+# los busca aqui, relativos al directorio de trabajo.
+COPY --from=builder /app/privado ./privado
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # El proceso principal, que lanza varios `server.js` y relanza al que se cae

@@ -47,6 +47,29 @@ export function cacheDeArchivoPrivado({ headers }: { headers: Headers }): Header
 }
 
 /**
+ * Las de un archivo del pabellón del simulador (D-419), que sale con sesión
+ * por `pabellon/[archivo]`.
+ *
+ * Las de arriba, salvo la caché: `private, no-cache` y no una hora. Un archivo
+ * subido no cambia nunca de contenido, pero estos sí: `sala.glb` se llama igual
+ * después de rehacerlo en Blender, y el manifiesto y el relieve del paño tienen
+ * que llegar de la misma tanda. Con una hora, un despliegue dejaba a quien ya
+ * había abierto el simulador con la sala nueva y el paño viejo. `no-cache` no
+ * es «no guardar»: el navegador guarda la copia y pregunta cada vez con la
+ * huella, y lo que vuelve es un 304 sin cuerpo. Era lo que hacía Next con
+ * `public/` (`max-age=0`), y además cada pregunta vuelve a pasar por la sesión.
+ *
+ * `Cross-Origin-Resource-Policy` es la de las fotos públicas: que otra página
+ * no los incruste, aunque sin la cookie no le llegaría nada.
+ */
+export function cabecerasDelPabellon(headers: Headers): Headers {
+  cacheDeArchivoPrivado({ headers })
+  headers.set('Cache-Control', 'private, no-cache')
+  headers.set('Cross-Origin-Resource-Policy', 'same-origin')
+  return headers
+}
+
+/**
  * Las cabeceras de una foto de las páginas públicas (P-007 E2), que se sirve
  * sin sesión por `api/pagina/[archivo]`.
  *

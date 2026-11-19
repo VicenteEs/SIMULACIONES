@@ -3,7 +3,7 @@
  * arrastra por el suelo.
  *
  * Es geometría pura y sin three, para probarla con números. Todo va en el **marco del colchón** (`colchon.glb`, ver
- * `public/pabellon/manifiesto.json`), en metros: el origen en el centro de su cara de arriba, X a lo ancho, Y hacia
+ * `privado/pabellon/manifiesto.json`), en metros: el origen en el centro de su cara de arriba, X a lo ancho, Y hacia
  * arriba y la cabeza del paciente hacia −Z. La mesa cuelga del colchón en la escena y no del paciente, porque es
  * mobiliario de la sala: cuando al paciente se le da la vuelta, el colchón rueda con la cámara y la mesa con él, y en
  * la pantalla se queda donde estaba.
