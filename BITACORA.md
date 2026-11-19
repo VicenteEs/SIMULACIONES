@@ -12926,6 +12926,8 @@ En el navegador, con la copia desechable de la base, en el caso de la tibia 42-A
 - (−) Mover una pieza en `DISPOSICION` pide rehacer la sala, 25 s con la oclusión. Cambiar `texturas_sala.py` pide además rehacer sus texturas a mano.
 - (−) No se probó en una gráfica floja ni en un teléfono. Solo se quita sola desde la segunda pérdida de contexto.
 
+Desplegado con D-418, en `2ba4b1a`: ver la nota al final de D-418.
+
 ### D-418 · 2026-11-19 · vigente · pedido del dueño · amplía D-389 y D-417
 **La arsenalera está de pie junto a su mesa, por fuera y de frente a la bandeja, y la sigue cuando la mesa cambia de sitio. Es la que el dueño modela a mano, llevada a la web por un guion que nunca escribe en su archivo.**
 
@@ -13000,6 +13002,10 @@ En el navegador, con la copia desechable de la base, en el caso de la tibia 42-A
 - (−) Con la cámara detrás de ella, su espalda tapa la camilla, y no se aparta sola como los colgantes de D-417: hay que quitarla con el botón.
 - (−) Puesta, que es lo de omisión, cada caso baja 0,69 MB más.
 - (−) La figura automática queda reemplazada, y su guion (`scripts/pabellon/arsenalera_persona.py`) no se sube.
+
+Desplegado el 2026-11-19 en `2ba4b1a`, junto con D-417, a pedido del dueño («Sí, subir así» y «luego a contabo»):
+- ved a las 18:59 (Chile), con respaldo `base-20261119-185745`. El ensayo abre los 2 casos publicados con 0 errores y los 2 avisos de siempre. Salud 200 por fuera y 4 procesos. `arsenalera-persona.glb` y `sala.glb` salen con su tamaño exacto (706 772 y 1 406 904 bytes), y el código servido trae «Arsenalera de pie».
+- Contabo a las 19:28, con respaldo verificado `base-`/`medios-20261119-185853` y el override igual a la plantilla. El mismo ensayo, 4 procesos, salud 200 en `https://traumahub.cl`, los dos `.glb` con su tamaño exacto y el mismo texto servido.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
