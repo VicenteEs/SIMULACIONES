@@ -16,7 +16,8 @@ describe('la oclusión ambiental no cuenta la cinta de la herida', () => {
   it('reconoce lo que es interfaz igual que el resto del lienzo, también por el nombre de la cinta', () => {
     // Con solo `userData.deInterfaz` la cinta entraba en el cálculo sin normales y el velo la dejaba casi negra.
     expect(PABELLON).toContain("import { esDeInterfazDelModelo } from './nodosDelModelo'")
-    expect(PABELLON).toContain('if (esDeInterfazDelModelo(o) || transparente) {')
+    // Fuera también el recinto del pabellón (`sinOclusion`, D-417): no se opera y ya trae su oclusión horneada.
+    expect(PABELLON).toContain('if (esDeInterfazDelModelo(o) || transparente || o.userData.sinOclusion === true) {')
     expect(PABELLON).not.toContain('o.userData.deInterfaz === true || transparente')
   })
 })

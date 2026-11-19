@@ -869,10 +869,16 @@ function instrumentoPorId(bandeja: readonly InstrumentoDeBandeja[], id: string |
   return placa ? instrumentoDeLaPlacaRecta(placa) : null
 }
 
-/** La mesa de la arsenalera tal como se guarda: el sitio, y el punto del suelo si se dejó en «Libre». */
+/**
+ * La mesa de la arsenalera tal como se guarda: el sitio, el punto del suelo si se dejó en «Libre», si ella está de pie a
+ * su lado y si se ve el pabellón entero. Las dos últimas son el mismo tipo de gusto —lo que rodea la camilla— y viajan
+ * en el mismo dato, para no multiplicar las claves guardadas.
+ */
 interface MesaGuardada {
   lugar: LugarDeLaMesa
   libre: { x: number; z: number } | null
+  conPersona: boolean
+  conPabellon: boolean
 }
 
 const CLAVE_DE_LA_MESA = 'traumahub:simulador:mesa-de-la-arsenalera'
@@ -886,9 +892,10 @@ function leerLaMesaGuardada(): MesaGuardada {
     const dato = JSON.parse(window.localStorage.getItem(CLAVE_DE_LA_MESA) ?? 'null') as Partial<MesaGuardada> | null
     const libre = dato?.libre
     const valido = libre && Number.isFinite(libre.x) && Number.isFinite(libre.z) ? { x: libre.x, z: libre.z } : null
-    return { lugar: lugarDeLaMesa(dato?.lugar), libre: valido }
+    // Lo guardado antes de que hubiera arsenalera de pie o pabellón entero no trae el dato: se ven, que es lo que se pidió.
+    return { lugar: lugarDeLaMesa(dato?.lugar), libre: valido, conPersona: dato?.conPersona !== false, conPabellon: dato?.conPabellon !== false }
   } catch {
-    return { lugar: 'derecha', libre: null }
+    return { lugar: 'derecha', libre: null, conPersona: true, conPabellon: true }
   }
 }
 
@@ -6386,11 +6393,40 @@ instrumentoElegido ? (
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              className={`consola-modo consola-arsenalera-persona${mesaDeLaArsenalera.conPersona ? ' activo' : ''}`}
+              aria-pressed={mesaDeLaArsenalera.conPersona}
+              title="La arsenalera se para junto a la mesa, por fuera, mirando a la camilla; nunca sobre el paciente. Quítela si le tapa la vista."
+              onClick={() => cambiarLaMesa({ ...mesaDeLaArsenalera, conPersona: !mesaDeLaArsenalera.conPersona })}
+            >
+              <span>Arsenalera de pie</span>
+            </button>
             <p className="consola-ayuda">
               {mesaDeLaArsenalera.lugar === 'libre'
-                ? 'Arrastre la mesa por el suelo. Un clic sobre ella, sin arrastrar, pide un instrumento.'
-                : 'Un clic sobre la mesa pide un instrumento, como la tecla I.'}
+                ? 'Arrastre la mesa por el suelo y ella la sigue. Un clic sobre la mesa o sobre ella, sin arrastrar, pide un instrumento.'
+                : 'Un clic sobre la mesa o sobre ella pide un instrumento, como la tecla I.'}
             </p>
+          </div>
+        ) : null}
+
+        {/* El pabellón entero (pedido del dueño): paredes, techo, piso y equipo alrededor de la camilla. Se puede quitar:
+            pesa en la tarjeta gráfica y, mirando el tobillo de cerca, el fondo a veces sobra. Sin él vuelve el suelo
+            difuminado de siempre. Solo con camilla, como la mesa. */}
+        {campoMontado?.hay ? (
+          <div className="consola-paciente-bloque">
+            <h3 className="consola-subtitulo" id="consola-pabellon">
+              Pabellón
+            </h3>
+            <button
+              type="button"
+              className={`consola-modo consola-arsenalera-persona${mesaDeLaArsenalera.conPabellon ? ' activo' : ''}`}
+              aria-pressed={mesaDeLaArsenalera.conPabellon}
+              title="Paredes, techo, piso y el equipo de la sala alrededor de la camilla. Quítelo si el fondo le distrae o su equipo va justo de memoria."
+              onClick={() => cambiarLaMesa({ ...mesaDeLaArsenalera, conPabellon: !mesaDeLaArsenalera.conPabellon })}
+            >
+              <span>Pabellón completo</span>
+            </button>
           </div>
         ) : null}
 
@@ -6875,13 +6911,15 @@ instrumentoElegido ? (
             alGirarLaVista={() => setPosicion(null)}
             lugarDeLaMesa={mesaDeLaArsenalera.lugar}
             puntoLibreDeLaMesa={mesaDeLaArsenalera.libre}
+            conArsenalera={mesaDeLaArsenalera.conPersona}
+            conPabellon={mesaDeLaArsenalera.conPabellon}
             // Pinchar la mesa es pedirle un instrumento a la arsenalera: lo mismo que la I y que «Pedir instrumento».
             alPincharLaMesa={() => {
               if (!modoDeJuego || (terminado && !repaso)) return
               setMenuRadial(null)
               setPidiendo(true)
             }}
-            alMoverLaMesa={(punto) => cambiarLaMesa({ lugar: 'libre', libre: punto })}
+            alMoverLaMesa={(punto) => cambiarLaMesa({ ...mesaDeLaArsenalera, lugar: 'libre', libre: punto })}
             planoDelSeparador={planoDeSeparador}
             separadoresEnPareja={separadoresEnPareja}
             acompanarAlBisturi={acompanarAlBisturi}

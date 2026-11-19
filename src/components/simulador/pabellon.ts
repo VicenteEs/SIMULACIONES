@@ -202,7 +202,9 @@ export function crearOclusion(escena: THREE.Scene, camara: THREE.PerspectiveCame
       const m = o as THREE.Mesh
       const material = m.isMesh ? m.material : null
       const transparente = Array.isArray(material) ? material.some((x) => x.transparent) : !!material?.transparent
-      if (esDeInterfazDelModelo(o) || transparente) {
+      // `sinOclusion` es de lo que se pone alrededor y no se opera (el recinto del pabellón): su radio es de centímetros
+      // del hueso y, a escala de la sala, la pasada solo costaría las normales de cada pared y de cada estante.
+      if (esDeInterfazDelModelo(o) || transparente || o.userData.sinOclusion === true) {
         o.visible = false
         interno._visibilityCache.push(o)
       }

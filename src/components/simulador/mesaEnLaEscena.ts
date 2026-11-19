@@ -1,7 +1,16 @@
 import * as THREE from 'three'
 import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { ruta } from '@/lib/rutas'
-import { MEDIDAS_DE_LA_SALA, type ColocacionDeLaMesa } from '@/lib/mesaDeArsenalera'
+import {
+  caminoAlrededorDelColchon,
+  colocarALaArsenalera,
+  largoDelCamino,
+  MEDIDAS_DE_LA_SALA,
+  type ColocacionDeLaMesa,
+  type ColocacionDeLaPersona,
+  type LadoDeLaPersona,
+} from '@/lib/mesaDeArsenalera'
+import { crearElRecinto } from './recintoEnLaEscena'
 
 /**
  * Lo que hay de la sala alrededor de la camilla (pedido del dueño): la mesa de la arsenalera con su instrumental, la
@@ -15,7 +24,12 @@ import { MEDIDAS_DE_LA_SALA, type ColocacionDeLaMesa } from '@/lib/mesaDeArsenal
  * Colgar del colchón tiene otra ventaja que no se buscó: el colchón está dentro del grupo del campo, que la
  * fluoroscopia esconde entero mientras dibuja. La mesa no sale en la radiografía sin que nadie tenga que acordarse.
  *
- * Los modelos los hace `scripts/pabellon/mobiliario.py` con Blender; aquí solo se cargan, se colocan y se pinchan.
+ * También la arsenalera de pie (`arsenalera-persona.glb`): se para junto a la mesa, por fuera, de frente a la bandeja y
+ * con la camilla al otro lado, y sigue a la mesa cuando se la mueve (`colocarALaArsenalera`). Cuelga de la sala por la
+ * misma razón que la mesa.
+ *
+ * Los muebles los hace `scripts/pabellon/mobiliario.py` con Blender. La arsenalera es la que modeló el dueño a mano, y
+ * `scripts/pabellon/arsenalera_a_la_web.py` la lleva a la web (D-418). Aquí solo se cargan, se colocan y se pinchan.
  */
 
 export interface MesaEnLaEscena {
@@ -40,6 +54,18 @@ export interface MesaEnLaEscena {
    * avanza más que el cursor, así que la mesa se escapaba de la mano.
    */
   enElPlano(rayo: THREE.Ray, altura?: number): { x: number; z: number } | null
+  /**
+   * Pone o quita a la arsenalera de pie. Quitada no se pide su modelo, de 0,7 MB, y no se pincha.
+   * Puesta de nuevo, aparece ya en su sitio, sin caminar hasta él.
+   */
+  ponerLaPersona(activa: boolean): void
+  /**
+   * Pone o quita el pabellón entero: paredes, techo, piso y equipo (`recintoEnLaEscena.ts`). Quitado no se pide su
+   * modelo, y vuelve el suelo difuminado de siempre.
+   */
+  ponerElPabellon(activo: boolean): void
+  /** Aparta lo que cuelga del techo si se interpone entre la cámara y lo que se mira; `true` si algo cambió. */
+  despejarLaVista(desde: THREE.Vector3, hasta: THREE.Vector3): boolean
   /** La funda va del color del paño del caso: en un pabellón todo lo estéril es del mismo juego. */
   colorDeLaFunda(color: string): void
   /** La sala que refleja el metal (`crearEntornoDePabellon`). Sin ella el acero se ve negro. */
@@ -49,6 +75,14 @@ export interface MesaEnLaEscena {
 
 /** Lo que se desliza la mesa al cambiar de sitio. Una mesa que salta de un lado a otro de la camilla no parece una mesa. */
 const DURACION_DEL_CAMBIO_MS = 650
+/**
+ * Cuánto tarda ella en llegar a su sitio nuevo. Va a paso de persona y no al de la mesa: de un lado de la camilla al otro
+ * son tres metros rodeando los pies, y en 650 ms sería un deslizamiento, no un paseo. Con un tope, por si se la manda lejos.
+ */
+const VELOCIDAD_AL_CAMINAR = 1.3
+const DURACION_MAXIMA_AL_CAMINAR_MS = 2800
+/** Lo que se mueve de un cuadro a otro arrastrando la mesa en «Libre»: menos que esto se sigue de golpe, sin caminar. */
+const SALTO_QUE_YA_ES_UN_PASEO = 0.6
 
 export function crearLaMesaEnLaEscena({
   cargador,
@@ -75,6 +109,18 @@ export function crearLaMesaEnLaEscena({
   const cajaDeLoElevable = new THREE.Box3()
   let objetivo: ColocacionDeLaMesa | null = null
   let animacion = 0
+  // La arsenalera de pie. Cuelga de su propio grupo, con el origen entre sus pies, para colocarla como a la mesa.
+  let conPersona = true
+  let persona: THREE.Group | null = null
+  let personaPedida = false
+  /** Si ya está en algún sitio. La primera vez, y al volver a ponerla, aparece ahí y no camina desde donde la dejó. */
+  let personaColocada = false
+  /** Las cajas con que se la pincha, en su marco: la bata (con los brazos), los guantes y la cabeza. */
+  const cajasDeLaPersona: THREE.Box3[] = []
+  let ultimaMesa: ColocacionDeLaMesa | null = null
+  let objetivoDeLaPersona: ColocacionDeLaPersona | null = null
+  let ladoDeLaPersona: LadoDeLaPersona | undefined
+  let animacionDeLaPersona = 0
   const materiales = new Set<THREE.Material>()
   const geometrias = new Set<THREE.BufferGeometry>()
   const texturas = new Set<THREE.Texture>()
@@ -85,6 +131,19 @@ export function crearLaMesaEnLaEscena({
   materiales.add(suelo.material as THREE.Material)
   const alfaDelSuelo = (suelo.material as THREE.MeshStandardMaterial).alphaMap
   if (alfaDelSuelo) texturas.add(alfaDelSuelo)
+
+  // El recinto trae su propio piso: con él puesto, el suelo difuminado se esconde (dos suelos a la misma altura se
+  // pelearían, y el de siete metros se vería flotar sobre el de la sala).
+  const recinto = crearElRecinto({
+    cargador,
+    sombras,
+    pedirDibujo,
+    alCambiar: () => {
+      suelo.visible = !recinto.puesto()
+    },
+    alFallar,
+  })
+  sala.add(recinto.grupo)
 
   /** Lo de un modelo recién llegado: sombras, el reflejo del metal y la cuenta de lo que hay que soltar al final. */
   const prepararElModelo = (raiz: THREE.Object3D) => {
@@ -119,6 +178,66 @@ export function crearLaMesaEnLaEscena({
     if (elevable) elevable.position.y = c.subida
   }
 
+  const ponerLaPersonaEn = (c: { x: number; z: number; giro: number }) => {
+    if (!persona) return
+    persona.position.set(c.x, MEDIDAS_DE_LA_SALA.suelo, c.z)
+    persona.rotation.set(0, c.giro, 0)
+  }
+
+  /**
+   * Lleva a la arsenalera a donde le toca con la mesa donde va a quedar. Se calcula con el sitio al que va la mesa y no
+   * con el que lleva a mitad de camino: ella camina a su ritmo, y por el camino de la mesa cambiaría de lado cada vez
+   * que esta cruza la camilla.
+   */
+  const colocarALaPersona = (mesaFinal: ColocacionDeLaMesa, ms: number) => {
+    ultimaMesa = mesaFinal
+    if (!conPersona) return
+    const sitio = colocarALaArsenalera(mesaFinal, ladoDeLaPersona)
+    ladoDeLaPersona = sitio.lado
+    objetivoDeLaPersona = sitio
+    if (!persona) return
+    cancelAnimationFrame(animacionDeLaPersona)
+    const desde = { x: persona.position.x, z: persona.position.z, giro: persona.rotation.y }
+    const lejos = Math.hypot(sitio.x - desde.x, sitio.z - desde.z)
+    // Arrastrando la mesa por el suelo llega un cuadro tras otro: seguirla de golpe. Un salto grande (la mesa pasó al
+    // otro lado de la camilla) es un paseo, y se camina rodeando los pies del paciente, no por encima de él.
+    if (!personaColocada || (ms <= 0 && lejos < SALTO_QUE_YA_ES_UN_PASEO)) {
+      ponerLaPersonaEn(sitio)
+      personaColocada = true
+      pedirDibujo()
+      return
+    }
+    const camino = caminoAlrededorDelColchon(desde, sitio)
+    const largo = largoDelCamino(camino)
+    const duracion = Math.min(DURACION_MAXIMA_AL_CAMINAR_MS, Math.max(ms, DURACION_DEL_CAMBIO_MS, (largo / VELOCIDAD_AL_CAMINAR) * 1000))
+    let giro = sitio.giro - desde.giro
+    giro = Math.atan2(Math.sin(giro), Math.cos(giro))
+    const inicio = performance.now()
+    const cuadro = (ahora: number) => {
+      if (!vivo || objetivoDeLaPersona !== sitio) return
+      const k = Math.min(1, (ahora - inicio) / duracion)
+      const suave = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+      // A `suave · largo` metros del principio del camino.
+      let recorrido = suave * largo
+      let x = sitio.x
+      let z = sitio.z
+      for (let i = 1; i < camino.length; i++) {
+        const tramo = Math.hypot(camino[i].x - camino[i - 1].x, camino[i].z - camino[i - 1].z)
+        if (recorrido <= tramo || i === camino.length - 1) {
+          const f = tramo > 0 ? Math.min(1, recorrido / tramo) : 1
+          x = camino[i - 1].x + (camino[i].x - camino[i - 1].x) * f
+          z = camino[i - 1].z + (camino[i].z - camino[i - 1].z) * f
+          break
+        }
+        recorrido -= tramo
+      }
+      ponerLaPersonaEn({ x, z, giro: desde.giro + giro * suave })
+      pedirDibujo()
+      if (k < 1) animacionDeLaPersona = requestAnimationFrame(cuadro)
+    }
+    animacionDeLaPersona = requestAnimationFrame(cuadro)
+  }
+
   const pintarLaFunda = () => {
     if (!funda || !colorPendiente) return
     for (const material of Array.isArray(funda.material) ? funda.material : [funda.material]) {
@@ -131,7 +250,7 @@ export function crearLaMesaEnLaEscena({
   const pedirLosModelos = () => {
     if (pedida) return
     pedida = true
-    void cargador
+    const camilla = cargador
       .loadAsync(ruta('/pabellon/mesa-quirurgica.glb'))
       .then((gltf) => {
         if (!vivo) return
@@ -141,7 +260,7 @@ export function crearLaMesaEnLaEscena({
         pedirDibujo()
       })
       .catch(alFallar)
-    void cargador
+    const arsenalera = cargador
       .loadAsync(ruta('/pabellon/mesa-arsenalera.glb'))
       .then((gltf) => {
         if (!vivo) return
@@ -168,6 +287,43 @@ export function crearLaMesaEnLaEscena({
         pedirDibujo()
       })
       .catch(alFallar)
+    // El decorado, después de la camilla y la mesa: es lo más grande y lo que menos urge. Con los dos pedidos ya
+    // resueltos (bien o mal, que el recinto no depende de ellos), el navegador no reparte el ancho de banda entre
+    // todos a la vez, y lo que se opera llega antes que lo que lo rodea.
+    void Promise.allSettled([camilla, arsenalera]).then(() => {
+      if (vivo) recinto.pedir()
+    })
+  }
+
+  /** El modelo de la arsenalera, la primera vez que hace falta: pesa 0,7 MB y no todos la quieren. */
+  const pedirALaPersona = () => {
+    if (personaPedida || !conPersona) return
+    personaPedida = true
+    void cargador
+      .loadAsync(ruta('/pabellon/arsenalera-persona.glb'))
+      .then((gltf) => {
+        if (!vivo) return
+        prepararElModelo(gltf.scene)
+        // Las cajas, con el modelo todavía en su marco y sin colocar. La bata lleva los brazos: con ella basta, más los
+        // guantes y el gorro para lo que sobresale de ella.
+        gltf.scene.updateMatrixWorld(true)
+        for (const nombre of ['bata', 'guantes', 'gorro']) {
+          const nodo = gltf.scene.getObjectByName(nombre)
+          if (nodo) cajasDeLaPersona.push(new THREE.Box3().setFromObject(nodo))
+        }
+        if (cajasDeLaPersona.length === 0) cajasDeLaPersona.push(new THREE.Box3().setFromObject(gltf.scene))
+        persona = new THREE.Group()
+        persona.name = 'arsenalera-de-pie'
+        persona.add(gltf.scene)
+        persona.visible = conPersona
+        sala.add(persona)
+        // Se la coloca con donde está la mesa ahora, no con lo que se calculó antes de que llegara: pudo moverse, o ella
+        // haberse quitado y puesto, mientras el modelo bajaba.
+        personaColocada = false
+        if (ultimaMesa) colocarALaPersona(ultimaMesa, 0)
+        pedirDibujo()
+      })
+      .catch(alFallar)
   }
 
   const punto = new THREE.Vector3()
@@ -183,11 +339,13 @@ export function crearLaMesaEnLaEscena({
         colchon.add(sala)
       }
       pedirLosModelos()
+      pedirALaPersona()
     },
 
     colocar(c, ms = DURACION_DEL_CAMBIO_MS) {
       const desde = mesa && objetivo ? { x: mesa.position.x, z: mesa.position.z, giro: mesa.rotation.y, subida: elevable?.position.y ?? 0 } : null
       objetivo = c
+      colocarALaPersona(c, ms)
       cancelAnimationFrame(animacion)
       if (!mesa || !desde || ms <= 0) {
         ponerLaColocacion(c)
@@ -219,22 +377,30 @@ export function crearLaMesaEnLaEscena({
     lista: () => !!mesa && !!colchon && sala.parent !== null && esVisible(sala),
 
     distancia(rayo) {
-      if (!mesa || !esVisible(sala)) return null
-      mesa.updateWorldMatrix(true, false)
-      inversa.copy(mesa.matrixWorld).invert()
-      local.copy(rayo).applyMatrix4(inversa)
+      const conMesa = !!mesa && esVisible(sala)
+      const conAlguien = !!persona && conPersona && esVisible(persona)
+      if (!conMesa && !conAlguien) return null
       let mejor: number | null = null
-      const probar = (caja: THREE.Box3) => {
-        if (caja.isEmpty()) return
-        const cruce = local.intersectBox(caja, punto)
-        if (!cruce) return
-        // Sin escala en la cadena (la mesa y el colchón solo se mueven y giran): la distancia local es la de la escena.
-        const d = cruce.distanceTo(local.origin)
-        if (mejor === null || d < mejor) mejor = d
+      /** Prueba cajas en el marco de un objeto: el rayo se lleva a ese marco, y la distancia local es la de la escena. */
+      const probar = (objeto: THREE.Object3D, cajas: THREE.Box3[]) => {
+        objeto.updateWorldMatrix(true, false)
+        inversa.copy(objeto.matrixWorld).invert()
+        local.copy(rayo).applyMatrix4(inversa)
+        for (const caja of cajas) {
+          if (caja.isEmpty()) continue
+          const cruce = local.intersectBox(caja, punto)
+          if (!cruce) continue
+          // Sin escala en la cadena (la sala, el colchón y lo que cuelga solo se mueven y giran): la distancia local es la de la escena.
+          const d = cruce.distanceTo(local.origin)
+          if (mejor === null || d < mejor) mejor = d
+        }
       }
-      probar(cajaDeLaBase)
-      subida.copy(cajaDeLoElevable).translate(new THREE.Vector3(0, elevable?.position.y ?? 0, 0))
-      probar(subida)
+      if (conMesa && mesa) {
+        subida.copy(cajaDeLoElevable).translate(new THREE.Vector3(0, elevable?.position.y ?? 0, 0))
+        probar(mesa, [cajaDeLaBase, subida])
+      }
+      // Pincharla a ella es pedirle un instrumento, igual que a su mesa: de quién es el instrumental, si no.
+      if (conAlguien && persona) probar(persona, cajasDeLaPersona)
       return mejor
     },
 
@@ -255,6 +421,27 @@ export function crearLaMesaEnLaEscena({
       return cruce ? { x: cruce.x, z: cruce.z } : null
     },
 
+    ponerLaPersona(activa) {
+      if (conPersona === activa) return
+      conPersona = activa
+      if (persona) persona.visible = activa
+      if (activa) {
+        // Vuelve ya en su sitio: la mesa no se movió mientras no estaba, y caminar desde donde se quitó no tiene sentido.
+        personaColocada = false
+        if (persona && ultimaMesa) colocarALaPersona(ultimaMesa, 0)
+        else pedirALaPersona()
+      } else {
+        cancelAnimationFrame(animacionDeLaPersona)
+      }
+      pedirDibujo()
+    },
+
+    ponerElPabellon(activo) {
+      recinto.poner(activo)
+    },
+
+    despejarLaVista: (desde, hasta) => recinto.despejarLaVista(desde, hasta),
+
     colorDeLaFunda(color) {
       colorPendiente = color
       pintarLaFunda()
@@ -262,6 +449,7 @@ export function crearLaMesaEnLaEscena({
 
     ponerElEntorno(nuevo) {
       entorno = nuevo
+      recinto.ponerElEntorno(nuevo)
       for (const material of materiales) {
         const conReflejo = material as THREE.MeshStandardMaterial
         if (conReflejo.isMeshStandardMaterial && conReflejo.metalness > 0.5) {
@@ -274,6 +462,8 @@ export function crearLaMesaEnLaEscena({
     liberar() {
       vivo = false
       cancelAnimationFrame(animacion)
+      cancelAnimationFrame(animacionDeLaPersona)
+      recinto.liberar()
       sala.removeFromParent()
       for (const g of geometrias) g.dispose()
       for (const t of texturas) t.dispose()

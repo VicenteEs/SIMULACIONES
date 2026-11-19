@@ -111,3 +111,88 @@ que ningún sitio fijo meta la base de la arsenalera en la de la camilla y que e
 Hay que rehacer la arsenalera si cambia algún instrumento de `ejemplos/instrumental/` (se recoloca solo, pero si
 uno crece puede dejar de caber en la compresa: el guion se para y dice cuál), y la mesa quirúrgica si cambian
 las medidas del colchón.
+
+## El pabellón: la sala entera alrededor de la camilla
+
+`sala.py` hace `sala.glb`: paredes, techo, piso y todo el equipo de un pabellón, en el marco del colchón (D-417).
+No modela la camilla, que la pone el simulador. `texturas_sala.py` hace sus texturas con numpy y Pillow (mapas de
+normales, el atlas de rótulos, las pantallas) en `salida/sala/`.
+
+```bash
+blender --background --factory-startup --python scripts/pabellon/sala.py -- --vistas
+```
+
+- Tarda unos 25 s sin fotos; casi todo es el horneado de la oclusión, con Cycles en procesador.
+- Por omisión hornea con 192 muestras, las del archivo publicado. Sin opciones sale igual byte a byte que el de
+  `public/pabellon/`; si cambia sin haber tocado el guion, algo de fuera cambió.
+- `--vistas` deja las fotos en `salida/vistas/sala-*.png`: desde la camilla (`cabecera`, `pies`, `costado-derecho`,
+  `costado-izquierdo`, `rincon`), la `cenital` sin techo y la `planta` numerada. `--vistas-cuales` elige cuáles, y
+  `cerca-<pieza>` saca el detalle de una pieza. `--solo-vistas` fotografía el `.glb` que ya hay, sin rehacerlo.
+- `--sin-oclusion` no hornea: sirve para probar la forma en segundos, pero el `.glb` sale sin oclusión y no se publica.
+- Las texturas se hacen solas si faltan. Si se cambia `texturas_sala.py`, hay que rehacerlas a mano con
+  `python scripts/pabellon/texturas_sala.py`, porque `sala.py` no mira si están al día.
+
+**Repintar y reordenar.** Los colores están en la tabla `PINTURA` y la posición de cada cosa en `DISPOSICION`, las
+dos al principio del guion. La foto `sala-planta.png` numera cada entrada de `DISPOSICION`. Para probar un color
+sin Blender está `PINTURA_DEL_PABELLON`, en `src/lib/pabellonCompleto.ts`.
+
+**El guion para si algo falla:**
+- `comprobar_zonas` mide cada pieza del piso y falla si invade la zona libre de la mesa y la arsenalera (|x| ≤ 2 y
+  −1,3 ≤ z ≤ 2,6, ni a menos de 2,6 m del centro, salvo la anestesia en la cabecera), si se sale de la sala o si
+  pisa otra pieza.
+- `comprobar_las_caras` falla si una pieza cerrada tiene las caras hacia dentro.
+- `comprobar_el_techo` falla si algo pegado al techo tiene una cara hacia arriba.
+
+Lo que el simulador busca por su nombre, y que un cambio aquí no debe romper:
+- **Los tres grupos raíz:** `estructura`, `equipos` y `colgantes`.
+- **Los colgantes**, cada uno un nodo `colgante-*` con su pivote en el anclaje al techo. El simulador los aparta
+  cuando tapan al paciente, así que cada uno tiene que ser un nodo entero y compacto.
+- **Los materiales `pintura-*`**, que son los repintables.
+- **El piso, `piso-vinilo`**, el único material que recibe sombra.
+
+Todo es de una cara: el simulador deja ver la sala desde fuera y desde arriba, y una cara de más la cerraría. Lo
+vigila la parte de la sala de `tests/unit/mueblesDelPabellon.test.ts`.
+
+## La arsenalera de pie
+
+`arsenalera_a_la_web.py` lleva al simulador la arsenalera que el dueño modela a mano: de
+`salida/arsenalera_manual/arsenalera_manual.blend` a `public/pabellon/arsenalera-persona.glb` (D-418).
+
+```bash
+blender --background --factory-startup --python scripts/pabellon/arsenalera_a_la_web.py
+```
+
+- **La fuente no se escribe nunca.** El guion la copia a una carpeta temporal y abre la copia, que tampoco guarda.
+  `salida/arsenalera_manual/` es del dueño, que sigue modelando ahí: no se borra, no se rehace y ningún guion
+  escribe en ella.
+- El `.glb` publicado es una foto del `.blend` del momento en que se corrió. Para ver en el simulador lo último que
+  modeló el dueño, hay que volver a correrlo.
+- Sin opciones sale igual byte a byte que el publicado. Si cambia sin haber tocado el `.blend` ni el guion, algo de
+  fuera cambió, como la versión de Blender.
+- `--destino <carpeta>` lo deja en otra parte, para probar sin pisar lo que viaja. `--fuente` lee otro `.blend`.
+- `--lado-color`, `--lado-relieve` (0 deja fuera el relieve), `--calidad`, `--cofia` y `--muestras` cambian el peso
+  y la sombra. Sus omisiones son las del publicado.
+
+**Qué hace con cada pieza.** El detalle y el porqué están al principio del guion:
+- La figura se parte por material en `bata`, `pantalon`, `guantes` y `zapatos`, con sus atlas en 1024 y WebP.
+- La cabeza va con sus modificadores aplicados, menos la Subdivisión y la Solidificación de la cofia, que se simplifica.
+- Los lentes van sin transmisión.
+- La cara lleva la foto con su alfa.
+- La sombra de contacto se hornea como la de la mesa.
+- Lo que los materiales hacen con nodos no viaja.
+
+**El guion para si algo falla.** Comprueba:
+- los pies en el suelo, la cofia a la altura de una persona y la cara por delante de la cabeza;
+- que lo que baja hasta la altura de las patas de la mesa quepa en `radioDeLosPies`;
+- que nada pase delante de la funda de la mesa;
+- el peso, bajo 1,2 MB.
+
+Las medidas las lee de `src/lib/mesaDeArsenalera.ts` y de `mobiliario.py`, no de una copia.
+
+Lo que el simulador busca por su nombre:
+- **La raíz** `arsenalera-persona`, con el origen en el suelo entre los pies y mirando a +Z.
+- **Las piezas** `bata`, `pantalon`, `guantes`, `zapatos`, `cabeza`, `cara`, `gorro`, `mascarilla` y `gafas`, y la
+  `sombra`.
+- **Lo que pincha:** la bata, los guantes y el gorro.
+
+Lo vigila la parte de la arsenalera de pie de `tests/unit/mueblesDelPabellon.test.ts`.

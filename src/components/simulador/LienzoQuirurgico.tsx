@@ -1138,6 +1138,8 @@ export function LienzoQuirurgico({
   alGirarLaVista,
   lugarDeLaMesa = 'derecha',
   puntoLibreDeLaMesa = null,
+  conArsenalera = true,
+  conPabellon = true,
   alPincharLaMesa,
   alMoverLaMesa,
   planoDelSeparador = 'auto',
@@ -1223,6 +1225,13 @@ export function LienzoQuirurgico({
   lugarDeLaMesa?: LugarDeLaMesa
   /** El punto del suelo, en el marco del colchón, donde se dejó la mesa en «Libre». */
   puntoLibreDeLaMesa?: { x: number; z: number } | null
+  /** La arsenalera de pie junto a su mesa, por fuera, mirando a la camilla. Se puede quitar si estorba la vista. */
+  conArsenalera?: boolean
+  /**
+   * El pabellón entero alrededor de la camilla: paredes, techo, piso y equipo (`recintoEnLaEscena.ts`). Se puede quitar:
+   * pesa en la tarjeta gráfica y a quien mira el tobillo de cerca el fondo le sobra. Con la calidad más baja no se pone.
+   */
+  conPabellon?: boolean
   /** Se pinchó la mesa sin arrastrarla: es pedirle un instrumento a la arsenalera, como la tecla I. */
   alPincharLaMesa?: () => void
   /** Se terminó de arrastrar la mesa en «Libre»: el punto del suelo donde quedó, para guardarlo. */
@@ -1594,6 +1603,8 @@ export function LienzoQuirurgico({
     arsenalera?: MesaEnLaEscena
     /** Lleva la mesa de la arsenalera al sitio elegido, según cómo esté acostado el paciente y por dónde se opera. */
     colocarLaArsenalera?: (ms?: number) => void
+    /** Si la calidad gráfica de ahora deja poner el recinto del pabellón (`calidadDelDibujo`). */
+    recintoPermitido?: boolean
     /** El lienzo va a desmontarse para volver a un estado guardado (P-009): ya no guarda nada en la pestaña. */
     sinGuardar?: boolean
     /** Quita la placa de cristal y la línea de la broca (P-009): las vistas previas de antes de actuar. */
@@ -1695,6 +1706,8 @@ export function LienzoQuirurgico({
     alGirarLaVista,
     lugarDeLaMesa,
     puntoLibreDeLaMesa,
+    conArsenalera,
+    conPabellon,
     alPincharLaMesa,
     alMoverLaMesa,
     planoDelSeparador,
@@ -1770,6 +1783,8 @@ export function LienzoQuirurgico({
       alGirarLaVista,
       lugarDeLaMesa,
       puntoLibreDeLaMesa,
+      conArsenalera,
+      conPabellon,
       alPincharLaMesa,
       alMoverLaMesa,
       planoDelSeparador,
@@ -1851,6 +1866,15 @@ export function LienzoQuirurgico({
   useEffect(() => {
     taller.current.colocarLaArsenalera?.()
   }, [claveDeLaMesa])
+  // Con o sin la arsenalera de pie. Al montar la escena se lee de `ultimas`; esto es para cuando se cambia después.
+  useEffect(() => {
+    taller.current.arsenalera?.ponerLaPersona(conArsenalera)
+  }, [conArsenalera])
+  // Con o sin el pabellón entero. La calidad manda sobre el gusto: tras perder el contexto gráfico dos veces no se pone.
+  useEffect(() => {
+    const t = taller.current
+    t.arsenalera?.ponerElPabellon(conPabellon && t.recintoPermitido !== false)
+  }, [conPabellon])
 
   // Solo en desarrollo: lo que las pruebas de extremo a extremo y las grabaciones del instrumental necesitan medir
   // desde fuera —dónde cae una pieza en pantalla, si un separador está sobre su labio— (`sondaDelLienzo`).
@@ -3350,6 +3374,9 @@ export function LienzoQuirurgico({
       alFallar: (motivo) => console.warn('[simulador] la mesa de la arsenalera no se pudo montar:', motivo),
     })
     arsenalera.ponerElEntorno(entorno)
+    arsenalera.ponerLaPersona(ultimas.current.conArsenalera !== false)
+    taller.current.recintoPermitido = calidad.recinto
+    arsenalera.ponerElPabellon(calidad.recinto && ultimas.current.conPabellon !== false)
     taller.current.arsenalera = arsenalera
     /** El giro del último sitio fijo: «Libre» arrastra la mesa sin girarla. */
     let giroDelUltimoSitio: number | undefined
@@ -8671,6 +8698,8 @@ export function LienzoQuirurgico({
       sinCaerse('oclusión', () => oclusion?.calcular(render))
       sinCaerse('imagen', () => {
         pabellon.seguirLaCamara(camara)
+        // Lo que cuelga del techo (cialíticas, brazos con monitores) se aparta si se interpone entre el ojo y lo que se mira.
+        taller.current.arsenalera?.despejarLaVista(camara.position, controles.target)
         // La sombra de la lámpara se rehace aquí y solo aquí (ver `prepararElRenderizador`).
         render.shadowMap.needsUpdate = true
         render.render(escena, camara)
@@ -8710,6 +8739,9 @@ export function LienzoQuirurgico({
         // La oclusión era de la tarjeta de antes, y con el contexto perdido una vez ya no se calcula (`calidadDelDibujo`).
         oclusion?.liberar()
         oclusion = calidadNueva.oclusion ? crearOclusion(escena, camara) : null
+        // El decorado es lo primero que sobra: con la calidad más baja se quita el recinto y vuelve el suelo difuminado.
+        taller.current.recintoPermitido = calidadNueva.recinto
+        if (!calidadNueva.recinto) taller.current.arsenalera?.ponerElPabellon(false)
         nuevo.setPixelRatio(razonDePixeles(devicePixelRatio, contenedor.clientWidth, contenedor.clientHeight, calidadNueva.razonMaxima))
         nuevo.setSize(contenedor.clientWidth, contenedor.clientHeight)
       } catch (error) {

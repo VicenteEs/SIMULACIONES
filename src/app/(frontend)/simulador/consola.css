@@ -1674,6 +1674,8 @@ main:has(.consola:not(.consola-editor)) .consola:not(.consola-editor) {
 .consola-arsenalera-sitios { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .consola-arsenalera-sitios .consola-modo { min-height: 34px; padding: var(--e-1); text-align: center; line-height: 1.15; }
 .consola-arsenalera-bloque .consola-ayuda { margin: 0; font-size: var(--t-xs); }
+/* El interruptor de la arsenalera de pie: un botón de ancho completo bajo los sitios, con la misma altura que ellos. */
+.consola-arsenalera-persona { min-height: 34px; padding: var(--e-1); text-align: center; line-height: 1.15; }
 .consola-separador-plano {
   grid-area: plano;
   justify-self: start;

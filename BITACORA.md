@@ -11621,7 +11621,7 @@ Comprobado después:
 - las 5 cuentas siguen ahí (D-384);
 - la salud por fuera da 200, y `salud.sh` solo marca lo de siempre, los respaldos sin cifrar.
 
-### D-389 · 2026-11-16 · vigente · pedido del dueño · amplía D-173 y D-356
+### D-389 · 2026-11-16 · vigente · pedido del dueño · amplía D-173 y D-356 · superada en parte por D-417: con el pabellón puesto, el suelo difuminado se esconde y las paredes tapan el fondo pintado
 **La vista llega a donde se pone quien opera: con el paciente acostado, el arrastre gira alrededor de la vertical de la sala y no del «arriba» de la pantalla. Y la sala se amuebla: paredes de pabellón, la base de la camilla y la mesa de la arsenalera, que se pincha para pedir instrumental.**
 
 - **Por qué no se llegaba al lado.** En «Supino» y «Prono» el «arriba» de la cámara es el costado del paciente (+X del colchón), para que el hueso salga horizontal (D-173). `OrbitControls` orbita alrededor de su «arriba», así que el costado era su polo, y al polo no se llega: el arrastre se frenaba justo antes de ver el tobillo de lado y en diagonal, que es la vista de quien opera.
@@ -12859,6 +12859,147 @@ Desplegado el 2026-11-17 en `a47509e`, a pedido del dueño («Sí, súbelo y des
 - (−) En esa T, al cerrarse el pedacito de punta de la primera incisión, la piel que ese pedacito apartaba vuelve a su sitio. Con ella vuelve la barra, que se ve más corta que el trazo del lado que se apartaba: 13 mm arriba y 5 abajo en el caso 3. Es el tejido que se cortó; cortar el que se ve después de cerrar pediría pinchar otra vez.
 - (−) La medida del paso de un trazo nuevo sigue siendo la del trazo como se vio. La lista de incisiones mide la guardada, en reposo: sobre piel apartada pueden diferir unos milímetros.
 - (−) Una incisión guardada en reposo que otra herida aparta queda corrida respecto de su línea. Repasarla o alargarla desde una punta que se movió se mide contra la línea guardada, no contra la que se ve.
+
+### D-417 · 2026-11-18 · vigente · pedido del dueño · amplía D-389 · supera en parte a D-389 (el suelo difuminado y el fondo pintado, con el pabellón puesto)
+**Alrededor de la camilla está el pabellón entero: paredes, techo, piso y su equipo, de un `.glb` aparte que se repinta y se reordena con dos tablas. Se ve a través desde fuera y desde arriba, y lo que cuelga del techo se aparta cuando tapa al paciente.**
+
+*Qué pasó.* El dueño pidió que el entorno fuera «un pabellón, con monitores, estantes, luces y demás», lo más realista y detallado posible, con la camilla al centro y paredes, techo y piso alrededor «para poder pintar u organizar todo». Hasta ahora la sala era el fondo pintado y el suelo difuminado de D-389, con la base de la camilla y la mesa de la arsenalera.
+
+*El modelo* (`scripts/pabellon/sala.py` y `texturas_sala.py`, Blender en segundo plano):
+- Una sala de 7,6 × 7,6 m y 3,1 m de alto, en el marco del colchón: el piso en y = −0,95 y la camilla, que no se modela aquí, en el centro.
+- La envolvente: paneles con juntas, zócalo sanitario, barra de protección, techo de paneles con el plénum de flujo laminar y sus luminarias, la doble puerta corrediza, una puerta de paso, la ventana al pasillo y el lavamanos quirúrgico en su nicho.
+- Lo que cuelga del techo: dos cialíticas y un brazo con dos monitores.
+- La cabecera: la máquina de anestesia con su monitor de signos y su ventilador, el carro de anestesia, el poste de suero, el banco y la columna de gases.
+- Contra las paredes: estantes y armarios con insumos, la torre de insumos, el carro de instrumental, el gabinete de calentamiento, el electrobisturí con su pedal, el aspirador, el arco en C estacionado, el monitor del PACS con una radiografía de tibia, la pizarra de conteo, el reloj, el panel de control, los delantales plomados, los cubos de residuos, el extintor y los rótulos. Las marcas son inventadas.
+- Cada pantalla es un nodo `pantalla-*` con su material emisivo y su imagen, para cambiarla sin tocar nada más.
+- Pesa 1,41 MB: 566 KB de geometría con Draco, 668 KB de imágenes WebP (la oclusión, 250 KB; el atlas de rótulos, 222 KB) y 173 KB de lo demás. Son 66 432 triángulos, 58 mallas y 27 materiales: el 40 % del peso y el 44 % de los triángulos que se le dieron de tope.
+- **La oclusión ambiental va horneada** con Cycles en procesador, en un atlas de 2048² sobre una segunda UV, y viaja como `occlusionTexture`. Es lo que dice que un carro toca el piso. El color base queda limpio, sin luz horneada: la luz la pone el simulador.
+- **Se repinta y se reordena sin leer el guion.** Los colores viven en la tabla `PINTURA`, y todo lo repintable lleva un material `pintura-*` (pared, zócalo, techo, puerta, mueble, equipo). Dónde va cada cosa vive en `DISPOSICION`, y `sala-planta.png` la dibuja numerada. Sin Blender, `PINTURA_DEL_PABELLON` (`pabellonCompleto.ts`) cambia el color de un material en el navegador; viene vacía.
+- **El guion se comprueba a sí mismo y para si algo falla.** `comprobar_zonas` mide cada pieza del piso desde su geometría. Falla si invade la zona libre de la mesa y la arsenalera (|x| ≤ 2 m y −1,3 ≤ z ≤ 2,6, ni a menos de 2,6 m del centro, salvo la anestesia en la cabecera), si se sale de la sala o si pisa otra pieza; encontró choques de verdad, y ocho piezas se movieron en `DISPOSICION` (estantes, armarios, torre de insumos, arco en C, los tres cubos y el gabinete). `comprobar_las_caras` mira el volumen con signo de cada pieza cerrada: encontró siete al revés, que en el navegador se habrían visto del revés. `comprobar_el_techo` exige que lo pegado al techo solo tenga caras hacia abajo.
+- Sale igual byte a byte: tres pasadas dieron el mismo sha256, en unos 25 s cada una. Al rehacerlo aparte salió distinto, porque el guion horneaba la oclusión con 96 muestras por omisión y el publicado se hizo con 192; la omisión pasó a 192 y ahora la orden sin opciones da el archivo publicado.
+
+*En el simulador* (`recintoEnLaEscena.ts`, nuevo; `pabellonCompleto.ts`, nuevo; `mesaEnLaEscena.ts`):
+- **Se pide después de los muebles y solo si está puesto.** La camilla y la mesa llegan antes que el decorado. Mientras está, el suelo difuminado se esconde.
+- **Paredes, techo y piso son de una cara.** Desde fuera y desde arriba se ve a través, y la vista cenital no choca con el techo. Por eso todo lo pegado al techo tiene solo caras hacia abajo.
+- **Lo que cuelga se aparta.** Cada colgante (`colgante-*`) se esconde cuando el segmento de la cámara a lo que se mira pasa a menos de 1,05 veces su radio, y vuelve pasado 1,35. La holgura evita que parpadee al orbitar justo en el borde.
+- **Nada echa sombra y solo el piso la recibe.** La lámpara del simulador cuelga dentro del cabezal de la cialítica modelada, y si este echara sombra dejaría al paciente a oscuras.
+- **La sala no entra en la oclusión de pantalla** (`sinOclusion`). Esa pasada vuelve a dibujar la escena entera, su radio es de centímetros, y la sala ya trae la suya horneada.
+- **Los metales reflejan el entorno del pabellón**, como los muebles.
+- **«Pabellón completo»**, en la consola, lo pone y lo quita. Se guarda en el navegador junto con el sitio de la mesa (`traumahub:simulador:mesa-de-la-arsenalera`), y por omisión está puesto. Quitado, vuelven el fondo pintado y el suelo de D-389.
+- **Sale en equipos con poca gráfica** (`calidadDelDibujo`): desde la segunda pérdida del contexto de WebGL, el recinto no se pone.
+
+*Qué se probó.* `recintoDelPabellon.test.ts` (14), con un cargador de mentira:
+- la tabla de pintura;
+- quién recibe sombra;
+- la distancia al segmento y la holgura;
+- que se pide una vez y solo puesto, y que un 404 avisa;
+- sombras y oclusión, y el reflejo solo en el metal;
+- el colgante que se esconde con la cámara cenital y vuelve de lado, aunque el colchón ruede.
+
+`mueblesDelPabellon.test.ts` lee el `sala.glb` de verdad (9 casos nuevos):
+- los tres grupos y el prefijo de los colgantes;
+- los colgantes por encima de 1,75 m;
+- el piso en el suelo y como único que recibe sombra;
+- todo de una cara, la pintura repintable, y sin luces ni cámaras;
+- las extensiones;
+- ninguna pieza del suelo en la zona libre, con los sitios fijos de la arsenalera dentro de ella;
+- el peso.
+
+`controlDelContexto.test.ts`, con el recinto en cada nivel.
+
+En el navegador, con la copia desechable de la base, en el caso de la tibia 42-A2:
+- `sala.glb` llega con 200 después de los muebles: 1,1 MB transferidos con la compresión del servidor.
+- En «De pie», «Supino» y «Prono» la sala queda derecha, rodando con la camilla.
+- Desde arriba el techo no tapa y la cialítica que cae sobre el paciente se aparta.
+- Quitado vuelve el fondo de antes, y puesto otra vez vuelve la sala.
+- Tras recargar, ningún error en la consola.
+
+*Consecuencias.*
+- (+) La escena se lee como un pabellón, y la camilla deja de flotar en un fondo.
+- (+) Se repinta y se reordena con dos tablas, y el guion no deja guardar una sala que tape el paso de la arsenalera.
+- (+) Quitado no cuesta nada: no se pide.
+- (−) Con el pabellón puesto, que es lo de omisión, cada caso baja 1,4 MB más (1,1 MB por la red).
+- (−) Desde fuera la sala se ve como una maqueta abierta, y al girar la cámara las paredes de delante desaparecen. Es a propósito, pero no es una sala cerrada.
+- (−) El equipo no echa sombra en tiempo real; solo trae la horneada. Las cialíticas no alumbran: son de adorno.
+- (−) En «Libre» la mesa llega hasta 2,4 m del centro, y por la cabecera puede meterse en el equipo de anestesia, que está a 1,45 m. Nada lo impide.
+- (−) La arsenalera de pie no se aparta como los colgantes. Con la cámara detrás de ella, su espalda tapa la camilla.
+- (−) Mover una pieza en `DISPOSICION` pide rehacer la sala, 25 s con la oclusión. Cambiar `texturas_sala.py` pide además rehacer sus texturas a mano.
+- (−) No se probó en una gráfica floja ni en un teléfono. Solo se quita sola desde la segunda pérdida de contexto.
+
+### D-418 · 2026-11-19 · vigente · pedido del dueño · amplía D-389 y D-417
+**La arsenalera está de pie junto a su mesa, por fuera y de frente a la bandeja, y la sigue cuando la mesa cambia de sitio. Es la que el dueño modela a mano, llevada a la web por un guion que nunca escribe en su archivo.**
+
+*Qué pasó.* El dueño pidió a la arsenalera de pie junto a su mesa, en el mismo cambio que la sala de D-417. La primera figura salió de un guion automático (`scripts/pabellon/arsenalera_persona.py`). El dueño pidió cambiarla por la que modela a mano en `scripts/pabellon/salida/arsenalera_manual/arsenalera_manual.blend`: la última que modificó, con el cuello que sigue bajo la bata, y no una versión anterior con un hueco en el escote.
+
+*Dónde se para* (`colocarALaArsenalera`, en `src/lib/mesaDeArsenalera.ts`). Hay cuatro sitios alrededor de la bandeja, en el marco de la mesa: uno a cada costado, a 51 cm del eje de la bandeja; uno tras el poste, a 70 cm del centro; y uno pasada la punta, a 60 cm. Se elige con cuatro reglas, en este orden:
+1. **Nunca sobre el paciente.** Su falda (28 cm de radio) y 8 cm de holgura no pisan el colchón.
+2. **Al costado externo.** Gana el sitio más lejos del colchón, y la mesa queda entre ella y la camilla.
+3. **Sin saltos.** El sitio en que estaba se queda, salvo que otro lo supere por más de 20 cm. Arrastrando la mesa, dos sitios casi empatados la harían cambiar de lado a cada cuadro.
+4. **De frente a la bandeja.** Con la mesa entre ella y la camilla, es también mirar a la camilla.
+
+Si ningún sitio sirve, se toma el más lejano y se la saca del colchón por el camino más corto. Las distancias salen de lo que alcanza con las manos, 38 cm por delante de su eje, y de que su base no pise la de la mesa: los pies, y lo que baja hasta la altura de las patas, caben en 20 cm de radio (`radioDeLosPies`).
+
+*Cómo se mueve* (`mesaEnLaEscena.ts`):
+- Cuando la mesa cambia de sitio, ella camina a 1,3 m/s, con un tope de 2,8 s, y rodea los pies del paciente en vez de cruzar la camilla (`caminoAlrededorDelColchon`).
+- Su destino se calcula con el sitio al que va la mesa, no con el de mitad de camino: por el camino de la mesa cambiaría de lado cada vez que esta cruza la camilla.
+- Arrastrando la mesa en «Libre», un paso de menos de 60 cm se sigue de golpe.
+- La primera vez, y al volver a ponerla, aparece ya en su sitio.
+
+*En la consola* (`ConsolaQuirurgica.tsx`):
+- «Arsenalera de pie», bajo los sitios de la mesa, la pone y la quita.
+- Se guarda en el navegador en el mismo dato que el sitio de la mesa y el pabellón (`traumahub:simulador:mesa-de-la-arsenalera`), y por omisión está puesta. Lo guardado antes de que existiera no trae el dato, y se lee como puesta.
+- Quitada, su modelo no se pide.
+- Un clic sobre ella pide un instrumento, como sobre la mesa y como la tecla I. Se la pincha por las cajas de la bata (que lleva los brazos), los guantes y el gorro.
+
+*El modelo* (`scripts/pabellon/arsenalera_a_la_web.py`, nuevo):
+- **La fuente no se escribe nunca.** Es el archivo de trabajo del dueño, fuera de git (`salida/` está en `.gitignore`). El guion lo copia a una carpeta temporal y abre la copia, que tampoco guarda: todo pasa en memoria. Un guardado desde ahí le borraría lo que tuviera sin guardar.
+- La figura se parte por material en `bata`, `pantalon`, `guantes` y `zapatos`. Sus atlas de color y de normales, de 4096 px, viajan en 1024 y en WebP.
+- La cabeza va con sus modificadores aplicados, salvo la Subdivisión y la Solidificación de la cofia: con ellas eran 267 000 triángulos para una tela que ocupa unos pocos píxeles. La cofia se simplifica a la cuarta parte.
+- Los lentes van sin transmisión, ámbar y con transparencia simple: `KHR_materials_transmission` haría dibujar la escena entera otra vez en cada cuadro.
+- La sombra de contacto se hornea con Cycles en el procesador, igual que la de la mesa.
+- **El contrato cambió en una pieza:** `ojos` pasó a ser `cara`. Los ojos y las cejas están en la foto de la cara, y no en mallas aparte.
+- Pesa 690 KB (706 772 bytes): 168 KB de imágenes y 522 de geometría con Draco y lo demás, en unos 154 000 triángulos. La automática pesaba 770 KB.
+- Sale igual byte a byte en cada pasada.
+- **Se comprueba antes de escribir, y para si algo falla.** Mira los pies en el suelo y la cofia a 1,676 m, y la cara por delante de la cabeza. Mira lo que baja hasta la altura de las patas de la mesa (14,9 cm): la bata llega a 15,3 cm del eje, el pantalón a 17,5 y los cubrecalzados a 18,8, dentro de `radioDeLosPies`. Mira que nada pase delante de la funda: las puntas de los pies quedan a 16,2 cm de su eje y la funda a 26,4. Y el peso, bajo 1,2 MB. Las medidas las lee de `mesaDeArsenalera.ts` y de `mobiliario.py`, no de una copia.
+
+*Dos errores que salieron al hacerlo:*
+- La altura de las patas se medía con la caja de la base de la mesa, que incluye el poste (63 cm), y la bata quedaba fuera de la huella. Ahora sale de `ALTO_DE_LAS_PATAS`, en `mobiliario.py`: el poste queda lejos de su falda en todos los sitios.
+- El mapa de normales viajaba en 4096 sin ningún aviso. Cambiar el espacio de color después de achicar la imagen la recargaba de su original. El espacio de color va ahora antes y el guion comprueba el tamaño. Así se pasó de 1106 KB a 690.
+
+*La figura del dueño no es la anterior:*
+- Tiene los brazos abajo, a los costados; la automática apoyaba las palmas en la bandeja. Los sitios no se movieron: con ellos la bandeja le queda delante, a un paso corto, y la punta de los pies a 10 cm de la funda. Cambiaron los comentarios de `mesaDeArsenalera.ts`, no los valores.
+- La bata baja hasta unos 6,5 cm del suelo.
+
+*Qué se probó.* `arsenaleraDePie.test.ts` (138 casos), en cada sitio fijo, decúbito y zona:
+- nunca sobre el paciente;
+- mirando a la camilla por encima de su bandeja;
+- junto a la mesa sin pisarla, con la bandeja al alcance de la mano;
+- con la mesa en «Libre», arrastrada a cualquier parte;
+- sin saltos;
+- el camino que rodea el colchón.
+
+`mueblesDelPabellon.test.ts` lee el `arsenalera-persona.glb` de verdad (6 casos):
+- los nodos que la escena pincha, y la cara;
+- las extensiones, sin la transmisión;
+- de pie en el suelo, con la estatura de una persona;
+- con los brazos abajo, nada llega a la funda;
+- cabe en su huella y en su radio;
+- el peso.
+
+En el navegador, con la copia desechable de la base, en el caso de la tibia 42-A2:
+- `arsenalera-persona.glb` llega con 200, con los 706 772 bytes y el sha256 del publicado.
+- Todo lo de `pabellon/` llega con 200.
+- Ella queda detrás de su mesa, al otro lado de la camilla y dentro de la sala, con el cuello continuo bajo la bata.
+
+*Consecuencias.*
+- (+) Es la arsenalera del dueño, y pesa menos que la automática.
+- (+) Ponerla al día después de modelar es una orden, y el guion no deja publicar una figura que pise la mesa o la funda.
+- (−) La fuente está fuera de git y cambia mientras el dueño modela. El `.glb` publicado es una foto del `.blend` del 19 de noviembre a las 21:44, y hay que volver a correr el guion para ponerlo al día. En otra máquina, sin ese `.blend`, no se puede rehacer.
+- (−) Lo que sus materiales hacen con nodos no viaja: el ruido fino de la tela y la mezcla de normales de la cara de atrás. La cofia va de color liso.
+- (−) Se desliza sin mover las piernas, y con los brazos abajo no hace el gesto de alcanzar la bandeja.
+- (−) Con la cámara detrás de ella, su espalda tapa la camilla, y no se aparta sola como los colgantes de D-417: hay que quitarla con el botón.
+- (−) Puesta, que es lo de omisión, cada caso baja 0,69 MB más.
+- (−) La figura automática queda reemplazada, y su guion (`scripts/pabellon/arsenalera_persona.py`) no se sube.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**

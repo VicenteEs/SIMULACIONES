@@ -53,6 +53,42 @@ export const MEDIDAS_DE_LA_SALA = {
   subidaSobreElPaciente: 0.35,
   /** Lo más lejos del centro del colchón que se puede dejar en «Libre»: más allá ya no se vería desde la mesa. */
   alcanceLibre: 2.4,
+  /**
+   * Lo que ocupa en planta la arsenalera de pie: la falda de la bata, algo abierta, sin contar las manos. Es lo que no
+   * puede pisar el colchón, que está a la altura de su cadera.
+   */
+  radioDeLaPersona: 0.28,
+  /**
+   * Lo que ocupa abajo, hasta la altura de las patas de la mesa: los cubrecalzados, 16 cm por delante del eje y 19 a cada
+   * lado, y lo que de la bata y el pantalón baja hasta ahí (15 y 17,5 cm). Es lo que no puede pisar la base de la mesa.
+   * Más arriba la bata se abre hasta 21 cm, pero ahí ya no hay patas: medirla con eso la obligaría a pararse lejos de su
+   * mesa. Lo comprueba `scripts/pabellon/arsenalera_a_la_web.py` al exportarla (D-418).
+   */
+  radioDeLosPies: 0.2,
+  /** Lo que se deja entre ella y el borde del colchón: la camilla lleva rieles, y quien opera necesita pasar. */
+  holguraAlColchon: 0.08,
+  /**
+   * Lo que alcanza con las manos por delante del eje de su cuerpo: a 38 cm cae lo que tiene a mano, a la altura de la
+   * bandeja sin subir (98 cm). Lo fijó la figura anterior, que apoyaba ahí las palmas. La del dueño (D-418) tiene los
+   * brazos abajo, y se conservó porque con ella la bandeja le queda delante, a un paso corto. Los sitios de abajo salen
+   * de aquí.
+   */
+  alcanceDeLasManos: 0.38,
+  /**
+   * Del eje de la bandeja al eje de ella cuando se para a su lado: lo que alcanza (38 cm por delante) cae 13 cm dentro
+   * del eje, a siete del borde de la bandeja. Lo más adelantado de ella, las puntas de los pies a 16,2 cm de su eje,
+   * queda a 10 cm de la funda, que cuelga hasta 24,6 cm del eje de la bandeja. Con 55 cm la bandeja le quedaba fuera de
+   * alcance.
+   */
+  delEjeDeLaBandejaALaPersona: 0.51,
+  /**
+   * Del centro de la bandeja a ella cuando se para tras el poste: el pie del poste llega a 38,4 cm del centro, y con
+   * 70 cm lo más adelantado de ella queda a unos 16 cm de la funda (con la figura anterior, de manos por delante, eran
+   * dos). Es el sitio de la mesa de Mayo, que va subida sobre el paciente.
+   */
+  detrasDelPoste: 0.7,
+  /** Del centro de la bandeja a ella cuando se para pasada la punta: lo que alcanza cae 22 cm dentro, a ocho del extremo. */
+  masAllaDeLaPunta: 0.6,
 } as const
 
 /** Dónde queda la mesa, en el marco del colchón. */
@@ -147,4 +183,190 @@ export function colocarLaMesa(lugar: LugarDeLaMesa, datos: DatosDelSitio): Coloc
 /** Si un valor guardado es un sitio de la mesa. Lo que no lo es —una versión vieja, una mano en la consola— es «Derecha». */
 export function lugarDeLaMesa(valor: unknown): LugarDeLaMesa {
   return LUGARES_DE_LA_MESA.some((l) => l.valor === valor) ? (valor as LugarDeLaMesa) : 'derecha'
+}
+
+// ---------------------------------------------------------------------------------------------------------- la persona
+
+/**
+ * Dónde se para la arsenalera respecto de su mesa. Son cuatro sitios alrededor de la bandeja, en el marco de la mesa:
+ * a cada lado de la bandeja, tras el poste, y pasada la punta. Se llaman por lo que son para la mesa y no por un lado
+ * de la sala, porque al girar la mesa lo que era «izquierda» deja de serlo.
+ */
+export type LadoDeLaPersona = 'costado-a' | 'costado-b' | 'poste' | 'punta'
+
+/** Dónde queda ella, en el marco del colchón, y hacia dónde mira. */
+export interface ColocacionDeLaPersona {
+  /** El punto del suelo entre sus pies. */
+  x: number
+  z: number
+  /** El giro alrededor de la vertical, como el `rotation.y` de three: con 0 mira a +Z, que es el frente de su modelo. */
+  giro: number
+  lado: LadoDeLaPersona
+}
+
+export interface PuntoDelSuelo {
+  x: number
+  z: number
+}
+
+/** Cuánto falta, en el suelo, para llegar al colchón: 0 si se está encima. Es la distancia a un rectángulo. */
+export function distanciaAlColchon(x: number, z: number): number {
+  const m = MEDIDAS_DE_LA_SALA
+  return Math.hypot(Math.max(Math.abs(x) - m.medioAnchoDelColchon, 0), Math.max(Math.abs(z) - m.medioLargoDelColchon, 0))
+}
+
+/** El punto del colchón más cercano a otro del suelo. Dentro de él, el propio punto. */
+function puntoMasCercanoDelColchon(x: number, z: number): PuntoDelSuelo {
+  const m = MEDIDAS_DE_LA_SALA
+  return { x: limitar(x, -m.medioAnchoDelColchon, m.medioAnchoDelColchon), z: limitar(z, -m.medioLargoDelColchon, m.medioLargoDelColchon) }
+}
+
+/** Lo que tiene que haber entre el centro de ella y el colchón para que ninguna parte de su falda lo pise. */
+const DISTANCIA_MINIMA_AL_COLCHON = MEDIDAS_DE_LA_SALA.radioDeLaPersona + MEDIDAS_DE_LA_SALA.holguraAlColchon
+
+/**
+ * Hacia el centro de la bandeja: es lo que tiene a mano. Antes miraba al punto del colchón más cercano, que en los
+ * sitios fijos da lo mismo (la bandeja va paralela al borde y ella detrás), pero con la mesa arrastrada en diagonal la
+ * dejaba de lado a la bandeja.
+ */
+function girarHaciaLaBandeja(x: number, z: number, mesa: ColocacionDeLaMesa): number {
+  const dx = mesa.x - x
+  const dz = mesa.z - z
+  if (Math.hypot(dx, dz) < 1e-6) {
+    // Sobre el centro mismo de la bandeja (solo si se la sacó del colchón y cayó ahí): hacia la camilla.
+    const c = puntoMasCercanoDelColchon(x, z)
+    return Math.atan2(c.x - x, c.z - z)
+  }
+  // `rotation.y` de three: el +Z del modelo apunta a (sen giro, cos giro).
+  return Math.atan2(dx, dz)
+}
+
+/** Saca un punto de lo que ocupa el colchón con su holgura, por el camino más corto. Lo que ya está fuera no se mueve. */
+function sacarDelColchon(x: number, z: number): PuntoDelSuelo {
+  const m = MEDIDAS_DE_LA_SALA
+  if (distanciaAlColchon(x, z) >= DISTANCIA_MINIMA_AL_COLCHON) return { x, z }
+  const c = puntoMasCercanoDelColchon(x, z)
+  const dx = x - c.x
+  const dz = z - c.z
+  const d = Math.hypot(dx, dz)
+  if (d > 1e-6) return { x: c.x + (dx / d) * DISTANCIA_MINIMA_AL_COLCHON, z: c.z + (dz / d) * DISTANCIA_MINIMA_AL_COLCHON }
+  // Dentro del colchón: por el lado por donde se sale con menos camino.
+  const porLosCostados = { x: Math.sign(x || 1) * (m.medioAnchoDelColchon + DISTANCIA_MINIMA_AL_COLCHON), z, coste: m.medioAnchoDelColchon - Math.abs(x) }
+  const porLasPuntas = { x, z: Math.sign(z || 1) * (m.medioLargoDelColchon + DISTANCIA_MINIMA_AL_COLCHON), coste: m.medioLargoDelColchon - Math.abs(z) }
+  const mejor = porLasPuntas.coste < porLosCostados.coste ? porLasPuntas : porLosCostados
+  return { x: mejor.x, z: mejor.z }
+}
+
+/**
+ * Dónde se para la arsenalera, dada la mesa. Cuatro reglas, en este orden de importancia:
+ *
+ * 1. **Nunca sobre el paciente.** Su falda no pisa el colchón ni su holgura: un sitio que la mete encima se descarta.
+ * 2. **Al costado externo.** De los sitios que quedan junto a la mesa gana el más lejos del colchón: la mesa queda entre
+ *    ella y la camilla, como en un pabellón, y no ella entre la mesa y el paciente.
+ * 3. **Sin saltos.** Si el sitio en que estaba sigue sirviendo, se queda, salvo que otro lo supere por más de 20 cm. Al
+ *    arrastrar la mesa por el suelo, dos sitios casi empatados harían que cambiara de lado a cada cuadro.
+ * 4. **De frente a la bandeja,** que es lo que tiene a mano. Como la mesa queda entre ella y la camilla, mirar a la
+ *    bandeja es también mirar a la camilla: de los cuatro sitios gana el más lejano del colchón, y el centro de la
+ *    bandeja, que está entre sitios opuestos, nunca queda más lejos que él.
+ *
+ * Si ningún sitio sirve (una mesa arrastrada sobre la camilla, o pegada a ella por todos lados) se toma el más lejano y
+ * se la saca del colchón: no se la deja encima del paciente por ser el único hueco.
+ */
+export function colocarALaArsenalera(mesa: ColocacionDeLaMesa, anterior?: LadoDeLaPersona): ColocacionDeLaPersona {
+  const m = MEDIDAS_DE_LA_SALA
+  const a = haciaLaBandeja(mesa.giro)
+  // El lado de la bandeja: perpendicular a su eje, en el suelo.
+  const p = { x: -a.z, z: a.x }
+  const sitios: { lado: LadoDeLaPersona; a: number; p: number }[] = [
+    { lado: 'costado-a', a: 0, p: m.delEjeDeLaBandejaALaPersona },
+    { lado: 'costado-b', a: 0, p: -m.delEjeDeLaBandejaALaPersona },
+    { lado: 'poste', a: -m.detrasDelPoste, p: 0 },
+    { lado: 'punta', a: m.masAllaDeLaPunta, p: 0 },
+  ]
+  const candidatos = sitios.map((s) => {
+    const x = mesa.x + a.x * s.a + p.x * s.p
+    const z = mesa.z + a.z * s.a + p.z * s.p
+    return { lado: s.lado, x, z, lejos: distanciaAlColchon(x, z) }
+  })
+  const buenos = candidatos.filter((c) => c.lejos >= DISTANCIA_MINIMA_AL_COLCHON)
+  const sirve = (buenos.length > 0 ? buenos : candidatos).slice()
+  // Gana el más lejos del colchón; el anterior, con 20 cm de ventaja.
+  const puntaje = (c: (typeof candidatos)[number]) => c.lejos + (c.lado === anterior ? 0.2 : 0)
+  const elegido = sirve.reduce((mejor, c) => (puntaje(c) > puntaje(mejor) ? c : mejor))
+  const sitio = buenos.length > 0 ? { x: elegido.x, z: elegido.z } : sacarDelColchon(elegido.x, elegido.z)
+  return { x: sitio.x, z: sitio.z, giro: girarHaciaLaBandeja(sitio.x, sitio.z, mesa), lado: elegido.lado }
+}
+
+/**
+ * El camino de un punto a otro del suelo sin cruzar el colchón: recto si se puede y, si no, rodeándolo por donde sea
+ * más corto. Es por donde camina la arsenalera cuando la mesa cambia de lado, y no atravesando al paciente.
+ */
+export function caminoAlrededorDelColchon(desde: PuntoDelSuelo, hasta: PuntoDelSuelo): PuntoDelSuelo[] {
+  const m = MEDIDAS_DE_LA_SALA
+  // El rectángulo por el que se rodea: el colchón con la holgura de ella y un poco más, para no rozarlo al doblar.
+  const margen = DISTANCIA_MINIMA_AL_COLCHON + 0.04
+  const hx = m.medioAnchoDelColchon + margen
+  const hz = m.medioLargoDelColchon + margen
+  if (!segmentoCruzaElRectangulo(desde, hasta, hx, hz)) return [desde, hasta]
+  const enElRectangulo = (q: PuntoDelSuelo) => Math.abs(q.x) < hx - 1e-9 && Math.abs(q.z) < hz - 1e-9
+  // Dentro del rectángulo no hay camino que rodear: se va recto y la colocación ya habrá sacado a quien esté ahí.
+  if (enElRectangulo(desde) || enElRectangulo(hasta)) return [desde, hasta]
+  const perimetro = 4 * hx + 4 * hz
+  const esquinas = [
+    { s: 0, x: -hx, z: -hz },
+    { s: 2 * hx, x: hx, z: -hz },
+    { s: 2 * hx + 2 * hz, x: hx, z: hz },
+    { s: 4 * hx + 2 * hz, x: -hx, z: hz },
+  ]
+  /** Dónde cae un punto, al proyectarlo al borde, a lo largo del perímetro: del lado de −Z hacia +X, y así en redondo. */
+  const aLoLargo = (q: PuntoDelSuelo) => {
+    const x = limitar(q.x, -hx, hx)
+    const z = limitar(q.z, -hz, hz)
+    if (Math.abs(z + hz) < 1e-9) return { s: x + hx, x, z }
+    if (Math.abs(x - hx) < 1e-9) return { s: 2 * hx + (z + hz), x, z }
+    if (Math.abs(z - hz) < 1e-9) return { s: 2 * hx + 2 * hz + (hx - x), x, z }
+    return { s: 4 * hx + 2 * hz + (hz - z), x, z }
+  }
+  const a = aLoLargo(desde)
+  const b = aLoLargo(hasta)
+  const delante = (((b.s - a.s) % perimetro) + perimetro) % perimetro
+  const sentido = delante <= perimetro / 2 ? 1 : -1
+  const recorrido = sentido === 1 ? delante : perimetro - delante
+  // Las esquinas que quedan entre los dos, en el orden en que se las encuentra.
+  const intermedias = esquinas
+    .map((e) => ({ ...e, a: sentido === 1 ? (((e.s - a.s) % perimetro) + perimetro) % perimetro : (((a.s - e.s) % perimetro) + perimetro) % perimetro }))
+    .filter((e) => e.a > 1e-9 && e.a < recorrido - 1e-9)
+    .sort((u, v) => u.a - v.a)
+  return [desde, { x: a.x, z: a.z }, ...intermedias.map((e) => ({ x: e.x, z: e.z })), { x: b.x, z: b.z }, hasta]
+}
+
+/** Si el segmento toca el rectángulo centrado en el origen, de medios lados `hx` y `hz` (el método de las franjas). */
+function segmentoCruzaElRectangulo(desde: PuntoDelSuelo, hasta: PuntoDelSuelo, hx: number, hz: number): boolean {
+  let t0 = 0
+  let t1 = 1
+  const dx = hasta.x - desde.x
+  const dz = hasta.z - desde.z
+  for (const [d, o, h] of [
+    [dx, desde.x, hx],
+    [dz, desde.z, hz],
+  ] as const) {
+    if (Math.abs(d) < 1e-12) {
+      if (Math.abs(o) >= h) return false
+      continue
+    }
+    let a = (-h - o) / d
+    let b = (h - o) / d
+    if (a > b) [a, b] = [b, a]
+    t0 = Math.max(t0, a)
+    t1 = Math.min(t1, b)
+    if (t0 >= t1) return false
+  }
+  return true
+}
+
+/** El largo de un camino, en metros. */
+export function largoDelCamino(camino: PuntoDelSuelo[]): number {
+  let largo = 0
+  for (let i = 1; i < camino.length; i++) largo += Math.hypot(camino[i].x - camino[i - 1].x, camino[i].z - camino[i - 1].z)
+  return largo
 }

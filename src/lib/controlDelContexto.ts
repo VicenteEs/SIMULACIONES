@@ -58,11 +58,14 @@ export const PIXELES_MAXIMOS_DEL_LIENZO = 16_000_000
  * resolución, y la escena dibujada otra vez para las normales) se deja a la primera pérdida, y las sombras de la lámpara (un
  * mapa de 2048 × 2048 y otra pasada de la escena), a la segunda. Lo que se pierde se ve: el modelo queda más plano. Pero es
  * lo primero que sobra cuando la tarjeta no da para más, y sin ello el simulador es el de antes.
+ *
+ * El recinto del pabellón (paredes, techo y equipo: unas decenas de megabytes de texturas ya descomprimidas en la tarjeta) se
+ * deja a la segunda pérdida, con las sombras. Es decorado, no lo que se opera, y vuelve el suelo difuminado de antes.
  */
-export function calidadDelDibujo(perdidas: number): { razonMaxima: number; suavizado: boolean; oclusion: boolean; sombras: boolean } {
-  if (perdidas <= 0) return { razonMaxima: 3, suavizado: true, oclusion: true, sombras: true }
-  if (perdidas === 1) return { razonMaxima: 2, suavizado: true, oclusion: false, sombras: true }
-  return { razonMaxima: 1, suavizado: false, oclusion: false, sombras: false }
+export function calidadDelDibujo(perdidas: number): { razonMaxima: number; suavizado: boolean; oclusion: boolean; sombras: boolean; recinto: boolean } {
+  if (perdidas <= 0) return { razonMaxima: 3, suavizado: true, oclusion: true, sombras: true, recinto: true }
+  if (perdidas === 1) return { razonMaxima: 2, suavizado: true, oclusion: false, sombras: true, recinto: true }
+  return { razonMaxima: 1, suavizado: false, oclusion: false, sombras: false, recinto: false }
 }
 
 /**
