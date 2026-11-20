@@ -12749,7 +12749,7 @@ Desplegado el 2026-11-17 en `c77bb1c`, con D-413, a pedido del dueño («súbelo
 - (+) El paso juzga la incisión que pide, aunque se profundice antes de aplicarlo.
 - (−) Con el bisturí profundo en la mano en el paso de la piel, la línea de guía de la piel se borra al marcar el inicio de una recta y el panel sigue diciendo 92,6. La herida sigue ahí, pero su raya no.
 
-### D-415 · 2026-11-17 · vigente · pedido del dueño · amplía D-410
+### D-415 · 2026-11-17 · vigente · pedido del dueño · amplía D-410 · superada en parte por D-420 (el milímetro de aparte, cada brazo del cruce como su propia incisión y la L descartada)
 **Dos incisiones de la misma capa que se cruzan quedan unidas: el trazo nuevo no corta encima de la herida, y lo que deja a cada lado nace en su borde. Junto a una punta, la primera se acorta hasta el cruce y quedan en T. Antes eran dos incisiones superpuestas, y con los Farabeuf la piel del cruce quedaba arrugada en jirones.**
 
 *Qué pasó.* «Quiero asegurarme que si hago dos cortes estos se puedan unificar si se cruzan sin que quede la cagada, quiero que si no están cerca sean independientes, quiero asegurarme que la piel no se achurrasque como en la foto.» La foto muestra una incisión cruzada cerca de su punta izquierda, con los Farabeuf puestos: esa punta, un amasijo de piel doblada. Lo reproduje en el caso 3 (`cruces.cjs`: incisión de 92 mm, un segundo corte de cada forma y dos Farabeuf a 14 mm):
@@ -12759,7 +12759,7 @@ Desplegado el 2026-11-17 en `c77bb1c`, con D-413, a pedido del dueño («súbelo
 *Lo que cambia* (`decidirElTrazo` y `cruzarLasIncisiones`, en `incisiones.ts`, puras):
 - **Las huellas del trazo se guardan por incisión.** Cuando no hay repaso (menos de 5 mm a lo largo), el trazo se parte en tramos: los que caen sobre alguna incisión —dentro de su corredor de lado y de hondo, como en D-410— y los de fuera. Lo de fuera que mide 4 mm o más es un brazo; menos, el pulso.
 - **Sobre la herida no se corta nada.** Cada brazo nace en la línea de la incisión que dejó o a la que llega (`sobreLaIncision`), en el punto del cruce: la muestra más cercana a la línea, llevada a ella y con la normal de la piel ahí, no la del fondo. El brazo más largo es la incisión; los demás, ramas.
-- **Cerca de una punta, una T** (`PUNTA_DEL_CRUCE_MM`, 20 mm, y nunca más de un tercio de la incisión). Si el trazo cruza de lado a lado a menos de eso de una punta, la incisión se acorta hasta el cruce (`alarga` con `enElCruce` y `tramo`), y el pedacito de punta del otro lado se cierra. El trazo nuevo pasa entero y recto por la punta nueva. Se probó antes unir las dos en una incisión que doblara en el cruce, una L: con los Farabeuf daba 168 triángulos doblados, contra 28 sin tocar nada. La L dobla la grieta 90° en un punto, y los dos labios de dentro del codo se montan.
+- **Cerca de una punta, una T** (`PUNTA_DEL_CRUCE_MM`, 20 mm, y nunca más de un tercio de la incisión). Si el trazo cruza de lado a lado a menos de eso de una punta, la incisión se acorta hasta el cruce (`alarga` con `enElCruce` y `tramo`), y el pedacito de punta del otro lado se cierra. El trazo nuevo pasa entero y recto por la punta nueva. Se probó antes unir las dos en una incisión que doblara en el cruce, una L: con los Farabeuf daba 168 triángulos doblados, contra 28 sin tocar nada. La L dobla la grieta 90° en un punto, y los dos labios de dentro del codo se montan. *(D-420 la hace entrar como unión.)*
 - **El corredor es el de cada sitio** (`corredor(id, s)`). El lienzo mide el hueco entre los labios a esa altura de la incisión (`labioEnLaPosicion`), y no el máximo de toda la herida. Con los Farabeuf a 14 mm el corredor del medio es de 19,5 mm, pero junto a la punta la herida apenas se abre. Con el del medio en todas partes, un cruce a 8 mm de la punta caía entero «sobre la incisión» y no cortaba nada.
 - **Las ramas nacen a 1 mm de la línea, de su lado** (`APARTE_DE_LA_LINEA_MM`). Sobre la línea, la malla tiene los vértices de los dos labios repetidos en el mismo sitio, y la rama que empezaba ahí partía también el borde del labio de enfrente. Con la herida abierta a 35 mm, era una franja de piel tendida de lado a lado sobre el cruce. La barra de la T sí pasa por la punta nueva: la cruza.
 - **El repaso de D-410 no pierde nada.** Lo que sale por un lado nace también en la línea, a 1 mm. Si sale por los dos lados, el más largo es la incisión y el otro una rama; antes ese segundo pedazo se tiraba.
@@ -12807,9 +12807,9 @@ Desplegado el 2026-11-17 en `f0ced5e`, a pedido del dueño («súbelo al git y d
 - (+) Cruzar en medio no corta encima de la herida, y lo que sale a cada lado se abre por su cuenta, unido al borde.
 - (+) Un corte que no toca otra incisión es independiente, como antes.
 - (−) Acortar en el cruce cambia la medida del paso: la incisión de 92 mm pasa a 85. Si estaba justa en el mínimo, puede quedar corta. La consola lo dice.
-- (−) Entre la rama y el borde queda un milímetro de piel sin cortar. En pabellón la esquina de la T se abre; aquí, no.
+- (−) Entre la rama y el borde queda un milímetro de piel sin cortar. En pabellón la esquina de la T se abre; aquí, no. *(Resuelto en D-420.)*
 - (−) Con los Farabeuf ya abiertos, el trazo se corta donde estaba la piel en reposo, no donde se ve. `cortarCapa` toma el trazo como geometría en reposo. En la T junto a la punta, la mitad de abajo de la barra se tuerce: 28/24 contra 12/19 sin segundo corte. Poniendo los Farabeuf después queda limpia. Lo correcto es llevar el trazo a la piel en reposo antes de cortar, y queda pendiente. *(Resuelto en D-416.)*
-- (−) El cruce en medio deja dos o tres incisiones en la lista del recuadro «Herida», no una.
+- (−) El cruce en medio deja dos o tres incisiones en la lista del recuadro «Herida», no una. *(Resuelto en D-420.)*
 - (−) Los 2 cm y el tercio son reglas medidas en un caso, la pierna del 3.
 
 ### D-416 · 2026-11-17 · vigente · pedido del dueño · amplía D-415
@@ -13062,6 +13062,134 @@ Desplegado el 2026-11-19 en `efdec37`, junto con la nota de D-418 (`7015243`), a
 - La suite entera, con la integración obligatoria, dio 7614 pruebas bien y 7 mal, todas del entorno Windows. Tres leen el código del simulador y fallan en CRLF: `agarrarElTrozo`, `alargarIncision` y `trazoEnReposo`, que pasan en LF junto con `respaldoCifrado`. Las otras cuatro, `directorioDeRespaldos` ×2, `respaldoCifrado` bajo carga y `tableroDeRevision` por la zona horaria, ya estaban anotadas.
 - ved terminó a las 19:42 (Chile), con respaldo `base-20261119-194018`. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre. Salud 200 por fuera. En el contenedor hay 14 archivos en `privado/pabellon` y ninguno en `public/`. Los seis pedidos sin sesión dieron 403 con `no-store`.
 - Contabo terminó a las 20:04. Antes se hizo un respaldo verificado, `base-`/`medios-20261119-193614`, y el de su propio despliegue fue `base-20261119-194920`. El override era igual a la plantilla. El mismo ensayo, 4 procesos y salud 200 en `https://traumahub.cl`. **Los 14 archivos del pabellón dan 403 sin sesión**, también con una consulta `?v=` que salta cualquier caché. Cloudflare responde `DYNAMIC` en los `.glb` y el `.json`, y `BYPASS` en los `.bin` y los `.webp`, que antes habría podido guardar.
+
+### D-420 · 2026-11-20 · vigente · pedido del dueño · amplía D-415 y D-416 · supera en parte a D-415 (el milímetro de aparte, cada brazo como su propia incisión y la L descartada)
+**Dos incisiones de la misma capa que se cruzan o se tocan son una sola: una fila en el recuadro «Herida», una medida, un gesto que se deshace entero y un cierre. La esquina de la T y de la cruz se abre con los separadores, y un trazo que sale en ángulo de una punta nace en ella, en L, en vez de alargarla quebrada.**
+
+*Qué pasó.* «Si dos incisiones se chocan o se cruzan, que queden como UNA sola incisión y se comporten como tal: al abrirla con los separadores, al alargarla, al medirla y al cerrarla. No quiero que se comporten como dos por separado.» D-415 había dejado cada pedazo como su propia incisión, y eso se notaba en siete sitios:
+- **Datos.** Nada decía que un pedazo nacía de otro. La sesión los guardaba y los rehacía por separado.
+- **Malla.** Cada pedazo tenía su punta del cruce cerrada, a 1 mm de la otra (`APARTE_DE_LA_LINEA_MM`). Eran dos husos que se tocan, y la esquina de la T no se abría. D-415 lo anotó como consecuencia.
+- **Separadores.** Cada uno abría solo su pedazo.
+- **Alargar.** Las puntas del cruce también alargaban, y una cruz enseñaba seis bolas amarillas, dos en el cruce.
+- **Medir.** El recuadro listaba cada pedazo con su ×. El paso medía uno solo: tras un cruce en medio, el brazo de 29 mm en vez de la incisión de 92. Y el pedazo nuevo contaba como incisión de más.
+- **Cerrar.** «Borrar trazo» deshacía la última rama. La sutura se medía contra el pedazo más largo, así que coser la barra de 60 mm daba por cerrada al 70 % la de 85 sin una puntada en ella.
+- **Retracción.** Cada pedazo se retraía según su propio largo.
+
+El dueño aprobó el plan entero: «quiero que hagas el plan completo, no quiero que la piel quede como cristal como las veces anteriores». Tres decisiones se tomaron como se recomendaron en el plan:
+- una incisión en T o en cruz mide la suma de sus trazos, «93 + 73 mm»;
+- cruzar una incisión no es una incisión de más en el paso;
+- la L entra, como unión.
+
+*Lo que cambia.*
+
+**1. El dato de la unión** (`incisiones.ts` y el lienzo):
+- Cada pedazo dice dónde nace (`Nacimiento`, `CorteGuardado.nace`): en qué incisión y en qué punto de su línea. Las sesiones guardadas antes no lo traen y se rehacen como se cortaron.
+- Los grupos se calculan, no se guardan (`unionesDe`): las que nacen unas en otras, por mucho que se encadenen. Cerrar un pedazo rompe los lazos que salían de él.
+- La esquina no es una punta (`puntasLibresDe`). No lleva la bola amarilla, y no se alarga ni se acorta en un cruce: eso la separaría de la otra.
+- El recuadro «Herida» lista la incisión en una fila, con el número del grupo y lo que mide cada trazo, el más largo primero: «Incisión 1 · piel · 93 + 73 mm» (`medidaDeLaIncision`). Los dos brazos de un trazo que cruzó otra se leen juntos (`tramosDeLosTrazos`), porque son la raya que se hizo: «93 + 41 + 32» contaba tres cortes donde se dieron dos.
+- Su × cierra la incisión entera, y «Borrar trazo» deshace el gesto entero: todos sus pedazos y, si acortó o alargó una incisión, la deja como estaba, con lo puesto en ella en su sitio.
+- El paso mide la incisión entera y la cuenta con el número del grupo (`alIncidir`), así que no es incisión de más.
+
+**2. La esquina que se abre** (`corteDeMalla.ts` y `heridas.ts`):
+- El pedazo que nace en otra **pasa** su línea 1 mm (`PASADO_DE_LA_LINEA_MM`, `cruzarLaLinea`), en vez de quedarse a 1 mm antes. Así su grieta llega al labio de la otra.
+- Lo de enfrente no se corta ni se arrastra (`naceDe` en los parámetros del corte, `apartadosPorLaOtra`). D-415 dejaba el milímetro justamente para no partir el labio de enfrente: ahora se deja aparte. Junto a una punta de la otra, lo de enfrente vuelve a unirse en 10 mm (`FUNDIDO_JUNTO_A_LA_PUNTA_MM`), porque ahí la otra ya no está partida.
+- El extremo que da a la otra queda abierto: ni vértice sencillo ni huso cerrado.
+- En la T junto a una punta, la barra se corta antes que la incisión acortada, que nace en ella.
+- Rehacer una incisión obliga a rehacer lo que nace en ella: lo de enfrente solo se sabe con ella cortada. `cerrarCapa` lo cierra antes y lo vuelve a cortar al final, en orden.
+
+**3. Cerrar como una** (`sutura.ts` y el lienzo):
+- Lo cerrado se mide contra lo que miden juntos los pedazos.
+- Cada puntada guarda su incisión y sigue a su labio. Buscada solo por la malla, la del brazo seguía al primer pedazo.
+- La consola cuenta incisiones, no pedazos: la T cerrada es una.
+
+En el navegador, con el cierre de un clic: la incisión sola de 92 mm lleva 14 puntadas, la T de 93 + 39 mm lleva 20 y la cruz de 93 + 73 mm lleva 26, y el cuadro dice «Piel · cerrada».
+
+**4. La L** (`codoEnLaPunta`):
+- Un trazo que sale de una punta girando 30° o más (`ANGULO_DEL_CODO_GRADOS`) ya no la alarga quebrado: nace en ella.
+- La incisión sigue 3,5 mm de frente (`PASADO_DEL_CODO_MM`), y la pierna nace donde estaba su punta. En la punta misma no hay grieta que cruzar, porque la grieta acaba hasta 3 mm antes del trazo. Nacida ahí, la pierna empezaba en piel sana, con un puente de piel en la esquina.
+- La nueva punta, la de la pasada, cuenta como la de la esquina y no se alarga.
+
+Por qué no seguir alargando: la malla no sabe abrir una esquina. Cada labio se aparta en perpendicular a la línea, y en el codo las dos perpendiculares tiran del mismo tejido hacia sitios distintos. En una lámina plana (92 mm y 40 más desde la punta, un Farabeuf a cada lado de la esquina) daba 0 triángulos doblados recto, 47 girando 45°, 63 a 90° y 68 a 135°. En la pierna, con un par de Farabeuf en cada pierna, alargar girando 20° dobla 7 triángulos y la incisión recta 9. A 45°, alargar doblaba 74.
+
+**5. Cada labio en la esquina** (`puntasDeLosLabios`, `solturaDelLabio`, `husoDelLabio`, `cruceHaciaCadaLabio`). Unida así, la L de 90° con un par de Farabeuf en cada brazo daba 221 triángulos doblados en la pierna del caso 3, más que los 168 de la L que D-415 descartó. La causa estaba en la cuña de dentro del codo:
+- La pierna abría su labio de la cuña desde cero en su arranque, con pendiente de hasta 2.
+- La incisión cerraba el suyo hacia su punta, 3,5 mm pasada la esquina.
+- Las dos rampas juntas aplastaban la cuña hasta darla vuelta.
+
+Ahora cada labio del extremo que da a la otra sabe a qué da (`HeridaEnCapa.cruces`):
+- **El de la cuña da a un tramo largo y abierto de la otra.** Es la punta de un colgajo: queda **suelto**, sin cerrarse en el extremo, en el huso de la retracción y en la cuerda de los separadores.
+- **El de fuera da a la punta cerrada de la otra**, a 3 mm. Queda **sujeto**: se cierra como en una punta.
+- Entre los dos, lo suelto crece con lo que la otra sigue partida hacia ese lado, de 0 a 1 en 10 mm.
+
+Tres detalles salieron de medir:
+- **El labio suelto de una pierna que sale en sesgo hacia delante** arrastra la piel que queda detrás de su arranque. Su punta se aleja como mucho 4 mm entre el cubo del seno de la inclinación sobre el de 45° (`PUNTA_DEL_LABIO_EN_SESGO_MM`). En la lámina: a 45°, 21 doblados con 4 mm, 27 con 3 y 45 con 5. A 60°, 44 (111 antes y 83 del todo suelto). A 75°, 12 con 8 mm o más y 78 con 5.
+- **Lo de enfrente, bajo la esquina, se decide por el lado del corte** en que cae cada vértice, no por su altura a lo largo de la otra. Partido por la altura, la lámina daba 50 doblados a 135° en la línea de la esquina.
+- **Un vértice de la franja afinada cuyos dos padres quedan a lados distintos del corte** toma lo apartado del padre de su lado. Con la media de los dos, la L recién cortada daba dos triángulos de la pared dados vuelta.
+
+Se probaron, y se descartaron, dos arreglos más:
+- **Desplegar, después de abrir, los triángulos que se daban vuelta.** Arreglaba unos y doblaba otros: en la lámina, a 60° la pierna pasaba de 6 a 32, a 105° de 0 a 30, y a 135° la primera de 2 a 24.
+- **Que la pierna no empujara hacia la línea de la primera.** Pasados los 90°, la perpendicular de la pierna lleva, del lado de la cuña, una parte hacia la primera, y ese tejido ya lo aparta el labio de la primera hacia fuera. Quitando esa parte, la lámina bajaba mucho: a 105°, de 78 a 12, y a 110°, de 109 a 15. En la pierna, poco: 217 → 201 a 100°, 227 → 184 a 105° y 202 → 159 a 110°. Y doblaba lo recién cortado, sin separadores: 20 triángulos en la cruz en sesgo y 5 en la L a 45° y a 135°, donde antes no había ninguno.
+
+*Qué se probó.*
+- `unionDeIncisiones.test.ts`, nuevo. En una lámina con las funciones del simulador:
+  - cada brazo de la cruz cruza la grieta de la otra y queda abierto por ahí, sin pliegues;
+  - la L abre su esquina, y sin la pasada la pierna empezaba en piel sana;
+  - con un Farabeuf en cada brazo de la L, la cuña no se da vuelta (con las puntas de antes, más de 100);
+  - lo suelto y lo sujeto de cada labio, su huso y lo de enfrente bajo la esquina.
+- `incisiones.test.ts`, trece casos nuevos:
+  - la pasada de la línea;
+  - las puntas que dan a otra, que no se alargan ni se acortan;
+  - los grupos y las puntas libres;
+  - rehacer en orden;
+  - la medida del panel y los dos brazos de un trazo;
+  - la L por cada punta, con el umbral y el pulso de la mano.
+- `exposicion.test.ts`, cuatro sobre las puntas de cada labio.
+- `alargarIncision.test.ts` y `gestoDeMas.test.ts`, al día con los pedazos y el gesto que cuenta una.
+
+En el navegador, en el caso 3 con la base desechable, se contaron los triángulos dados vuelta, sin los 23 que la piel tiene ya cerrada.
+
+Los cruces, con dos Farabeuf a 14 mm en la incisión de 92 mm, puestos después del segundo corte o antes (piel/fascia):
+
+| Cruce | después, D-416 | después, D-420 | antes, D-416 | antes, D-420 |
+| --- | --- | --- | --- | --- |
+| sin segundo corte | 9/14 | 9/14 | 12/19 | 12/19 |
+| en medio | 24/32 | 24/32 | 32/37 | 32/37 |
+| T en medio | 9/14 | 9/14 | 12/21 | 12/19 |
+| en sesgo, a 45° | 11/19 | 12/20 | — | — |
+| junto a la punta | 7/12 | 31/27 | 29/28 | 29/25 |
+
+- En la T junto a la punta, con los Farabeuf después, la esquina abre 32 mm. Con D-416 eran dos heridas que se tocaban, y la esquina no se abría. Ver las consecuencias.
+- Los repasos de D-410, por el medio y desde la punta, siguen diciendo que la piel ya está cortada ahí, sin cortar nada, y una incisión lejana sigue siendo independiente: 9/14 las tres, como sin segundo corte.
+
+La L, con un par de Farabeuf a 14 mm en cada brazo (piel; recién cortada, ninguno salvo 1 a 135°):
+
+| Giro | con los Farabeuf |
+| --- | --- |
+| T en medio, para comparar | 7 |
+| 45° | 25 |
+| 60° | 24 |
+| 75° | 21 |
+| 90° | 42 (221 antes de soltar los labios) |
+| 100° | 217 |
+| 105° | 227 |
+| 110° | 202 |
+| 120° | 48 |
+| 135° | 9 (139 antes de soltar los labios) |
+
+Antes de D-420, el mismo trazo alargaba la incisión quebrada: con los Farabeuf en otro sitio (`ele.cjs`), 74 a 45°, 119 a 90° y 176 a 135°, y a 135° ya 55 recién cortada.
+
+Antes de subir: Antes de subir, en un worktree con `src` pasado a LF (con CRLF fallan siempre las pruebas que leen el código del simulador): `typecheck` y `lint`, limpios (las 15 advertencias de `<img>` ya estaban); `build` con `/traumahub`, bien; `test:integration`, 406 de 406; `test:coverage`, 7644 pasan y 3 fallan, las del entorno Windows de siempre: `directorioDeRespaldos` ×2 y `tableroDeRevision` (la zona horaria: con `TZ=UTC` pasa). En otra pasada vencieron además `autoria` y `crearComentarioDelTaller` ×2 bajo la carga de la suite; solas pasan. Cobertura: 87 % de las sentencias, 80 % de las ramas y 89 % de las funciones y de las líneas, sobre un umbral de 58.
+
+*Consecuencias.*
+- (+) La T, la cruz y la L son una incisión: una fila, una medida, un deshacer y un cierre, en el paso y en la sesión.
+- (+) La esquina se abre con los separadores, en vez de quedar como dos heridas que se tocan.
+- (+) La L con dos pares de Farabeuf se dobla mucho menos: a 90°, 42 triángulos en vez de 221, y a 135°, 9 en vez de 139.
+- (−) **La L que gira entre unos 95° y 115°**, con un par de Farabeuf en cada brazo, se sigue doblando: 217 triángulos a 100°, 227 a 105° y 202 a 110°, junto al labio de la cuña de la pierna, a 6–9 mm de la esquina. La lámina plana da mucho menos (13, 78 y 109), así que lo agrava la piel curva de la pierna. Queda pendiente.
+- (−) **En la T junto a una punta, con los Farabeuf puestos después**, salen 31 triángulos doblados en vez de 7, a 22–27 mm del labio. Es el precio de que la esquina se abra: dejándola casi cerrada (7 mm) eran 9. Son del mismo tipo que los 9 de una incisión sola abierta a 35 mm, a 21–24 mm del labio: el campo de los separadores empuja en una dirección fija y la piel de la pierna es curva.
+- (−) La L sigue 3,5 mm de frente pasada la esquina, y la incisión mide eso más.
+- (−) Cada pedazo se sigue retrayendo solo según su propio largo: en la cruz, la incisión de 92 mm descansa abierta 7 mm y sus brazos de 40 y 30 mm, 5,6 y 4,4.
+- (−) Los 30° del codo, los 10 mm del fundido y la ley del sesgo se midieron en un caso, la pierna del 3, y en la lámina.
+- (−) Las sesiones guardadas antes de este cambio no saben qué nace de qué: sus brazos se rehacen a 1 mm, como incisiones aparte.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**

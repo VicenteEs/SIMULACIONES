@@ -24,6 +24,7 @@
  * sola al cortarla va aparte (`retraccionDelCorte.ts`) y se suma en la malla.
  */
 
+import { solturaDelLabio, type CruceDelLabio } from './corteDeMalla'
 import type { PlanoBlando } from './planosBlandos'
 
 /**
@@ -279,6 +280,11 @@ const suave = (x: number) => {
 export interface PuntasDeLaHerida {
   desde: number
   hasta: number
+  /**
+   * Las de la cuerda de cada labio, cuando no son las de la herida (`puntasDeLosLabios`, D-420): pueden caer fuera del
+   * trazo, antes de 0 o después de 1. Las pinzas y la separación roma siguen con las de la herida.
+   */
+  porLabio?: { mas: { desde: number; hasta: number }; menos: { desde: number; hasta: number } }
 }
 
 /**
@@ -299,6 +305,74 @@ export function puntasDeLaGrieta(grieta: { desde: number; hasta: number; cerrada
 }
 
 const TRAZO_ENTERO: PuntasDeLaHerida = { desde: 0, hasta: 1 }
+
+/**
+ * Hasta dónde se lleva la punta de la cuerda de un labio suelto (`puntasDeLosLabios`), en fracciones del trazo: tan
+ * lejos que de la punta a la primera hoja el labio va plano.
+ */
+const PUNTA_DEL_LABIO_SUELTO = 1000
+
+/**
+ * Lo que se puede alejar la punta de la cuerda de un labio suelto cuando el corte sale en sesgo y le deja piel detrás
+ * del arranque (`CruceDelLabio.detras`), en milímetros, con el corte inclinado 45° de la perpendicular. Menos
+ * inclinado, más: con el cubo del seno de la inclinación, sin tope al salir de frente. Es lo que menos pliega en la
+ * losa de prueba con un Farabeuf de 14 mm en cada brazo de una L (D-420): a 45°, 21 triángulos vueltos con 4 mm, 27 con
+ * 3 y 45 con 5; a 60°, 44 (111 con la cuerda de antes, 83 suelta del todo); a 75°, 12 con 8 mm o más, y 78 con 5.
+ */
+const PUNTA_DEL_LABIO_EN_SESGO_MM = 4
+
+/**
+ * Las puntas de la herida de una malla, como `puntasDeLaGrieta`, y además las de la cuerda de cada labio en el extremo
+ * que da a otra incisión (D-420).
+ *
+ * Por ese extremo la herida no tiene punta y valía el trazo entero, que pasa la línea de la otra un milímetro
+ * (`PASADO_DE_LA_LINEA_MM`): la cuerda se anclaba a cero ahí, a un milímetro de la grieta, y subía con la pendiente que
+ * aguanta una punta (`PENDIENTE_MAXIMA_DEL_LABIO`). Era como si en el cruce hubiera una punta. En la L, la cuña de
+ * dentro tiene un labio de cada incisión: este subía 1,8 mm por milímetro desde la esquina y el de la primera bajaba
+ * 0,7 hacia su punta, que cae a tres milímetros. Las dos cizallas se multiplican, pasaban de 1, y con un Farabeuf en cada
+ * brazo la cuña se daba la vuelta: 161 triángulos en la losa y 207 en la pierna del caso 3. Cada Farabeuf solo, ninguno.
+ *
+ * Y ahí no hay punta. El labio que da a un tramo largo de la otra es la punta de un colgajo: no lo sujeta nada, y se va
+ * con la hoja que tira de él. Su cuerda llega plana al cruce. El que da a la punta de la otra, a pocos milímetros, sí
+ * está sujeto, por ella: su cuerda se ancla a cero en la grieta, como en una punta. Entre los dos, la punta de la cuerda
+ * se aleja lo suelto que está el labio (`solturaDelLabio`, el mismo fundido que lo de enfrente, `fundidoMm`): a un
+ * milímetro de la grieta, como antes, cuando está suelto a medias, y del todo a `fundidoMm` de la punta de la otra.
+ *
+ * Con el corte en sesgo, el labio suelto que se inclina hacia fuera deja detrás de su arranque piel de su lado de la
+ * otra, y la arrastra (`CruceDelLabio.detras`): ahí la punta de la cuerda se aleja menos (`PUNTA_DEL_LABIO_EN_SESGO_MM`).
+ *
+ * `cruces` es el de `HeridaEnCapa.cruces`, con `partida` en milímetros; `largoMm`, el del trazo.
+ */
+export function puntasDeLosLabios(
+  grieta: { desde: number; hasta: number; cerradaAlInicio: boolean; cerradaAlFinal: boolean },
+  cruces: { alInicio?: CrucesDeUnExtremo; alFinal?: CrucesDeUnExtremo } | undefined,
+  fundidoMm: number,
+  largoMm: number,
+): PuntasDeLaHerida {
+  const puntas = puntasDeLaGrieta(grieta)
+  const alInicio = !grieta.cerradaAlInicio ? cruces?.alInicio : undefined
+  const alFinal = !grieta.cerradaAlFinal ? cruces?.alFinal : undefined
+  if ((!alInicio && !alFinal) || !(puntas.hasta > puntas.desde) || !(largoMm > 0)) return puntas
+  // Lo que la punta de la cuerda queda por fuera de la grieta, en fracciones del trazo. `fuera` es lo que quedaba
+  // hasta D-420: la punta del trazo.
+  const alejar = (c: CruceDelLabio, fuera: number) => {
+    const suelto = solturaDelLabio(c.partida, fundidoMm)
+    let lejos = suelto > 1 - 1e-3 ? PUNTA_DEL_LABIO_SUELTO : (fuera * suelto) / (1 - suelto)
+    if (c.detras > 1e-3) lejos = Math.min(lejos, PUNTA_DEL_LABIO_EN_SESGO_MM / Math.pow(c.detras / Math.SQRT1_2, 3) / largoMm)
+    return lejos
+  }
+  const labio = (cual: 'mas' | 'menos') => ({
+    desde: alInicio ? grieta.desde - alejar(alInicio[cual], grieta.desde) : puntas.desde,
+    hasta: alFinal ? grieta.hasta + alejar(alFinal[cual], 1 - grieta.hasta) : puntas.hasta,
+  })
+  return { ...puntas, porLabio: { mas: labio('mas'), menos: labio('menos') } }
+}
+
+/** Cómo da cada labio de un extremo a la otra incisión (`HeridaEnCapa.cruces`), con `partida` en milímetros. */
+interface CrucesDeUnExtremo {
+  mas: CruceDelLabio
+  menos: CruceDelLabio
+}
 
 /** Lo que dista la posición de la punta más cercana, en fracción del trazo: negativo fuera de la herida. */
 const hastaLaPunta = (posicion: number, puntas: PuntasDeLaHerida) => Math.min(posicion - puntas.desde, puntas.hasta - posicion)
@@ -433,8 +507,8 @@ export function perfilDeLosSeparadores(
     if (s.lado >= 0) mas.push(apoyo)
     if (s.lado <= 0) menos.push(apoyo)
   }
-  const cuerdaMas = cuerdaDelLabio(mas, largo, puntas)
-  const cuerdaMenos = cuerdaDelLabio(menos, largo, puntas)
+  const cuerdaMas = cuerdaDelLabio(mas, largo, puntas.porLabio?.mas ?? puntas)
+  const cuerdaMenos = cuerdaDelLabio(menos, largo, puntas.porLabio?.menos ?? puntas)
   return (posicion) => {
     let m = cuerdaMas(posicion)
     let n = cuerdaMenos(posicion)

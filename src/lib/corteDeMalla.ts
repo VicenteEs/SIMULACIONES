@@ -124,6 +124,19 @@ export interface OpcionesDeCorte {
    * con los triángulos que traiga.
    */
   afinar?: number
+  /**
+   * Lo que el corte deja aparte, por vértice de la malla que entra (D-420): 0 lo suyo, 1 lo que queda al otro lado de la
+   * incisión en que nace, y en medio lo que se arrastra solo en parte (`apartadosPorLaOtra`). Sin él, todo es suyo.
+   *
+   * Es lo que hace de una T una sola incisión. El brazo llega hasta el labio de la otra y lo cruza, y sin esto su telón
+   * partía también el labio de enfrente, y su arrastre lo movía: los dos labios de la otra se juntaban en el cruce. Con
+   * él, lo de enfrente ni se parte ni se mueve, y la grieta del brazo acaba en el borde de la otra: abierta, como la
+   * esquina de una T en pabellón.
+   *
+   * Lo apartado del todo no tiene lado (0): así no cuenta como tejido entero entre los dos labios, que cerraría la punta
+   * que da a la otra (`cerrarLasPuntasConTejidoEntero`, `distanciaALasPuntas`).
+   */
+  apartados?: Float32Array
 }
 
 /**
@@ -872,6 +885,13 @@ interface VerticeDelLabio {
   t: number
 }
 
+/**
+ * Lo que tiene que acompañar la cara de dentro a la de fuera, a lo largo, para levantar la pared entre ellas, cuando el
+ * corte nace en otra incisión (`soloCarasLargas`, D-420). Un cuarto: la cara de dentro de la piel sigue a la de fuera en
+ * todo el largo, y la pared de la otra incisión, que el brazo cruza en su punta, ocupa una o dos décimas.
+ */
+const CARA_DE_DENTRO_A_LO_LARGO = 0.25
+
 /** Lo más cerca que queda `p` de la polilínea que forman `cadena` (posiciones por `leerVertice`). */
 function distanciaACadena(p: Vec3, cadena: readonly number[], leerVertice: (i: number) => Vec3): number {
   let mejor = Infinity
@@ -909,6 +929,7 @@ function levantarLaPared({
   grosorMaximo,
   nuevoVertice,
   indices,
+  soloCarasLargas = false,
 }: {
   curva: CurvaDeIncision
   cascara: (i: number) => number
@@ -920,23 +941,35 @@ function levantarLaPared({
   grosorMaximo: number
   nuevoVertice: (p: Vec3, origen: number, lado: number, t: number, entre?: readonly [number, number, number]) => number
   indices: number[]
+  /**
+   * La cara de dentro tiene que acompañar a la de fuera en al menos `CARA_DE_DENTRO_A_LO_LARGO` de su largo (D-420). Lo
+   * pide el brazo de una T: su telón cruza también la pared de la otra incisión, que es una cáscara suelta entre las dos
+   * caras, y sus pocos vértices quedan más cerca de la cara de fuera que la de dentro. Elegida como cara de dentro, la
+   * pared del brazo se tendía entre su labio y ese pedacito, sus triángulos salían más largos que el límite y el brazo
+   * quedaba sin pared, con el grosor de la piel a la vista.
+   */
+  soloCarasLargas?: boolean
 }): { labios: { mas: VerticeDelLabio[]; menos: VerticeDelLabio[] }; hondura: Map<number, number> } | null {
   const todos = [...labios.mas, ...labios.menos]
-  const alturas = new Map<number, { suma: number; n: number }>()
+  const alturas = new Map<number, { suma: number; n: number; tMenor: number; tMayor: number }>()
   for (const v of todos) {
     const c = cascara(v.i)
-    const e = alturas.get(c) ?? { suma: 0, n: 0 }
+    const e = alturas.get(c) ?? { suma: 0, n: 0, tMenor: Infinity, tMayor: -Infinity }
     e.suma += proyectar(curva, leerVertice(v.i)).altura
     e.n++
+    e.tMenor = Math.min(e.tMenor, v.t)
+    e.tMayor = Math.max(e.tMayor, v.t)
     alturas.set(c, e)
   }
   if (alturas.size < 2) return null
   const fuera = [...alturas].sort((a, b) => b[1].suma / b[1].n - a[1].suma / a[1].n)[0][0]
   const deFuera = todos.filter((v) => cascara(v.i) === fuera).map((v) => v.i)
+  const largoDe = (c: number) => alturas.get(c)!.tMayor - alturas.get(c)!.tMenor
   let dentro = -1
   let mejor = Infinity
   for (const [c] of alturas) {
     if (c === fuera) continue
+    if (soloCarasLargas && largoDe(c) < CARA_DE_DENTRO_A_LO_LARGO * largoDe(fuera)) continue
     const suyos = todos.filter((v) => cascara(v.i) === c)
     // Con dos docenas de muestras basta para saber cuál está debajo: las cadenas tienen cientos de vértices.
     const paso = Math.max(1, Math.floor(suyos.length / 24))
@@ -1088,6 +1121,7 @@ function distanciaALasPuntas(
   pesoLateral: Float32Array,
   nVertices: number,
   alcance: number,
+  apartados?: Float32Array,
 ): { distancia: Float32Array; alcance: number } {
   const total = lado.length
   const distancia = new Float32Array(total).fill(Infinity)
@@ -1095,6 +1129,9 @@ function distanciaALasPuntas(
   const esPunta = new Uint8Array(total)
   for (let i = nVertices; i < total; i++) if (lado[i] === 0) esPunta[i] = 1
   for (let t = 0; t + 2 < indices.length; t += 3) {
+    // Lo de enfrente de la incisión en que nace el corte (D-420) no es tejido entero de este: está al otro lado de una
+    // grieta. Contado, el labio de enfrente, que cruza la prolongación del trazo, cerraba el brazo justo en el cruce.
+    if (apartados && (apartados[indices[t]] > 0 || apartados[indices[t + 1]] > 0 || apartados[indices[t + 2]] > 0)) continue
     const a = lado[indices[t]]
     const b = lado[indices[t + 1]]
     const c = lado[indices[t + 2]]
@@ -1154,9 +1191,12 @@ export function cerrarLasPuntasConTejidoEntero(
   lado: Int8Array,
   pesoLateral: Float32Array,
   largoT: Float32Array,
+  /** Lo que el corte deja aparte (`OpcionesDeCorte.apartados`): no es tejido entero de esta herida. */
+  apartados?: Float32Array,
 ) {
   if (grieta.cerradaAlInicio && grieta.cerradaAlFinal) return
   for (let t = 0; t + 2 < indices.length; t += 3) {
+    if (apartados && (apartados[indices[t]] > 0 || apartados[indices[t + 1]] > 0 || apartados[indices[t + 2]] > 0)) continue
     // Solo cuenta lo que la herida arrastra: lo demás no tiene su sitio a lo largo medido, y no se desgarra.
     let mas = false
     let menos = false
@@ -1190,6 +1230,160 @@ export function husoDeLaGrieta(grieta: TramoDeLaGrieta, t: number, punta = 0.5):
   return u * (2 - u)
 }
 
+// ------------------------------------------------------------------------ la unión (D-420)
+
+/**
+ * El lado de una incisión de antes en cada vértice de la malla de ahora, que otros cortes hechos después partieron y
+ * afinaron (D-420). Cada vértice que añadió un corte posterior toma el de los dos de que sale (`mezcla`), y si el
+ * primero no tiene, el del segundo.
+ *
+ * No se puede saber por la posición: los dos labios de una incisión ocupan el mismo sitio en reposo, uno encima del
+ * otro, y el más cercano a un punto era cualquiera de los dos. En el prototipo, sin llevar el lado por la mezcla, el
+ * segundo brazo de una cruz se cortó del lado del primero y dejó 724 triángulos vueltos.
+ */
+export function ladoEnLaMallaDeAhora(lado: Int8Array, despues: readonly Pick<MallaCortada, 'mezcla' | 'origen'>[]): Int8Array {
+  let actual = lado
+  for (const c of despues) {
+    const total = c.origen.length
+    const siguiente = new Int8Array(total)
+    siguiente.set(actual.subarray(0, Math.min(actual.length, c.mezcla.desde, total)))
+    for (let v = c.mezcla.desde; v < total; v++) {
+      const j = v - c.mezcla.desde
+      const a = siguiente[c.mezcla.de[2 * j]]
+      siguiente[v] = a !== 0 ? a : siguiente[c.mezcla.de[2 * j + 1]]
+    }
+    actual = siguiente
+  }
+  return actual
+}
+
+/** De qué lado de una incisión cae un punto, por el mismo campo con que se partió (+1 el labio «más»). */
+export function ladoRespectoDe(curva: CurvaDeIncision, p: Vec3): 1 | -1 {
+  return proyectar(curva, p).lateral >= 0 ? 1 : -1
+}
+
+/**
+ * Lo que deja aparte un corte que nace en otra incisión, del lado `suyo` de ella (D-420): 1 en lo de enfrente, a lo
+ * largo de su grieta, y 0 en lo de este lado (`OpcionesDeCorte.apartados`).
+ *
+ * Junto a una punta cerrada de la otra, lo de enfrente vuelve a estar unido a lo de este lado: pasada la punta, el
+ * tejido es uno solo. Ahí lo apartado baja a cero a lo largo de `fundido` (en las unidades de la malla), y más allá de
+ * la punta no hay nada aparte. De golpe, en la punta, el brazo arrastraba el tejido de un lado de la prolongación de la
+ * otra y no el del otro, a dos milímetros. Por una punta abierta —la otra nace a su vez en una tercera— no se une nada.
+ *
+ * Con `cruce` —el punto de la otra donde nace el corte y el lateral del corte ahí—, cada vértice mira solo la punta de
+ * la otra que le queda **de su lado del corte**. Lo de enfrente del otro lado se une a lo de este lado por la punta de
+ * ese lado, sí, pero a lo de este lado del otro lado del corte, que el corte arrastra hacia allá: arrastrarlo con su
+ * propio labio era tirar de él al revés. En la L (D-420) la primera acaba a tres milímetros de la esquina, y lo que
+ * queda bajo ella del lado de la cuña se arrastraba hacia la cuña con siete décimas de la fuerza. Con el labio de la
+ * cuña suelto en la esquina (`solturaDelLabio`), eso partía en dos el tejido entero de debajo de la esquina. Se probó a
+ * decidir el lado por la altura a lo largo de la otra, antes o después del cruce: con el brazo en sesgo la frontera no
+ * caía en su prolongación sino en la vertical del cruce, donde el labio no cambia, y ahí se desgarraba (50 triángulos de
+ * la losa con la pierna a 135°).
+ */
+export function apartadosPorLaOtra(
+  posiciones: Float32Array,
+  ladoDeLaOtra: Int8Array,
+  otra: Pick<MallaCortada, 'curva' | 'grieta'>,
+  suyo: 1 | -1,
+  fundido: number,
+  cruce?: { punto: Vec3; lateral: Vec3 },
+): Float32Array {
+  const n = ladoDeLaOtra.length
+  const apartados = new Float32Array(n)
+  const { desde, hasta, cerradaAlInicio, cerradaAlFinal } = otra.grieta
+  const largoTotal = otra.curva.largoTotal
+  // Hacia qué punta de la otra da el labio «más» del corte.
+  const masAlFinal = cruce ? punto(cruce.lateral, enLaGrietaDe(otra.curva, cruce.punto).tangente) >= 0 : false
+  for (let i = 0; i < n; i++) {
+    if (ladoDeLaOtra[i] !== -suyo) continue
+    const p = leer(posiciones, i)
+    const t = enLaGrietaDe(otra.curva, p).t
+    let mirarInicio = true
+    let mirarFinal = true
+    if (cruce) {
+      const delLadoMas = punto(resta(p, cruce.punto), cruce.lateral) >= 0
+      mirarFinal = delLadoMas === masAlFinal
+      mirarInicio = !mirarFinal
+    }
+    const alInicio = cerradaAlInicio && mirarInicio ? (t - desde) * largoTotal : Infinity
+    const alFinal = cerradaAlFinal && mirarFinal ? (hasta - t) * largoTotal : Infinity
+    apartados[i] = solturaDelLabio(Math.min(alInicio, alFinal), fundido)
+  }
+  return apartados
+}
+
+/**
+ * Cuánto se suelta lo que la otra incisión aparta, a `dentro` de su punta cerrada (en las mismas unidades que
+ * `fundido`): de 0 en la punta a 1 a `fundido` de ella, en curva suave; 1 sin punta (`Infinity`). Es lo de enfrente en
+ * `apartadosPorLaOtra`, y es también lo suelto que está, en el cruce, el labio del corte que da a ese lado: lo de
+ * enfrente que se suelta y el labio que se suelta son el mismo tejido, que se une por la misma punta (D-420).
+ */
+export function solturaDelLabio(dentro: number, fundido: number): number {
+  if (dentro === Infinity || !(fundido > 0)) return 1
+  return dentro <= 0 ? 0 : suave(Math.min(1, dentro / fundido))
+}
+
+/** Dónde cae un punto a lo largo de una curva como la mide su grieta (con la de apertura, si la hay), y hacia dónde va ahí. */
+function enLaGrietaDe(curva: CurvaDeIncision, p: Vec3): { t: number; tangente: Vec3 } {
+  const ap = curva.deApertura
+  if (!ap) {
+    const q = proyectar(curva, p)
+    return { t: q.t, tangente: curva.tramos[q.tramo].d }
+  }
+  const q = proyectar(ap, p)
+  return { t: ap.tDelNodo[q.tramo] * (1 - q.u) + ap.tDelNodo[q.tramo + 1] * q.u, tangente: ap.tramos[q.tramo].d }
+}
+
+/**
+ * Cómo da a la otra incisión el extremo de un corte que nace en ella (`nace`), del lado de cada labio de él (D-420).
+ * `lateral` es el del corte en ese extremo —hacia él va su labio «más»— y `avance`, hacia dónde se aleja de la otra.
+ *
+ * `partida` es lo que la otra sigue partida hacia ese lado, en las unidades de la malla, hasta su punta cerrada
+ * (`Infinity` si por ahí está abierta): lo que dice si el labio, ahí, es la punta de un colgajo (`solturaDelLabio`).
+ * `detras` es el seno de lo que el corte se inclina hacia el otro lado: con el corte en sesgo, de este lado queda piel
+ * de este lado de la otra por detrás de su arranque, que su labio, suelto, también arrastra.
+ */
+export function cruceHaciaCadaLabio(
+  otra: Pick<MallaCortada, 'curva' | 'grieta'>,
+  nace: Vec3,
+  lateral: Vec3,
+  avance: Vec3,
+): { mas: CruceDelLabio; menos: CruceDelLabio } {
+  const { t, tangente } = enLaGrietaDe(otra.curva, nace)
+  const L = otra.curva.largoTotal
+  const haciaElFinal = otra.grieta.cerradaAlFinal ? Math.max(0, (otra.grieta.hasta - t) * L) : Infinity
+  const haciaElInicio = otra.grieta.cerradaAlInicio ? Math.max(0, (t - otra.grieta.desde) * L) : Infinity
+  // Lo que el corte avanza hacia el final de la otra: el lado que da al final queda detrás de él si avanza hacia el inicio.
+  const haciaElFinalAvanza = punto(unitario(avance), tangente)
+  const alFinal: CruceDelLabio = { partida: haciaElFinal, detras: Math.max(0, -haciaElFinalAvanza) }
+  const alInicio: CruceDelLabio = { partida: haciaElInicio, detras: Math.max(0, haciaElFinalAvanza) }
+  return punto(lateral, tangente) >= 0 ? { mas: alFinal, menos: alInicio } : { mas: alInicio, menos: alFinal }
+}
+
+/** Cómo da a la otra incisión un labio de un corte que nace en ella (`cruceHaciaCadaLabio`). */
+export interface CruceDelLabio {
+  partida: number
+  detras: number
+}
+
+/**
+ * El lateral y el avance de un trazo en un extremo, medidos a lo largo de `largo` (en las unidades de la malla), como
+ * los de `prepararIncision`: normal × avance, a la izquierda de quien traza. El avance es hacia dentro del trazo: del
+ * extremo hacia el resto.
+ */
+export function enElExtremoDelTrazo(puntos: readonly Vec3[], normales: readonly Vec3[], alInicio: boolean, largo: number): { lateral: Vec3; avance: Vec3 } {
+  const n = puntos.length
+  const desde = alInicio ? 0 : n - 1
+  const paso = alInicio ? 1 : -1
+  let k = desde + paso
+  while (k + paso >= 0 && k + paso < n && Math.hypot(...resta(puntos[k], puntos[desde])) < largo) k += paso
+  const avance = unitario(resta(puntos[Math.min(n - 1, Math.max(0, k))], puntos[desde]))
+  // El lateral va con el avance del trazo, que es del inicio al final.
+  const delTrazo: Vec3 = alInicio ? avance : [-avance[0], -avance[1], -avance[2]]
+  return { lateral: unitario(cruz(unitario(normales[desde]), delTrazo)), avance }
+}
+
 /**
  * Parte la malla a lo largo de la incisión. Devuelve `null` si la incisión no
  * toca la malla (no cortó ninguna arista): quien llama deja la malla como estaba.
@@ -1207,6 +1401,14 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
 
   const nVertices = malla.posiciones.length / 3
   const nTriangulos = malla.indices.length / 3
+  const nEntrada = entrada.posiciones.length / 3
+  // Lo apartado (D-420), también en los vértices que puso la franja afinada: el medio de su arista, como su posición.
+  const aparte = opciones.apartados ? new Float32Array(nVertices) : null
+  if (aparte && opciones.apartados) {
+    aparte.set(opciones.apartados.subarray(0, Math.min(nEntrada, opciones.apartados.length)))
+    const padres = afinada?.padres ?? new Uint32Array(0)
+    for (let j = 0; nEntrada + j < nVertices; j++) aparte[nEntrada + j] = (aparte[padres[2 * j]] + aparte[padres[2 * j + 1]]) / 2
+  }
 
   // A qué altura del largo del trazo cae un punto: con la curva de apertura, si la hay (`deApertura`). La grieta, los
   // labios y el arrastre lo miden igual, o no casan. Medido con el trazo, donde el bisturí hondo hace esquina todo lo
@@ -1241,6 +1443,21 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
     // corte y no se parten aristas en su mismo extremo.
     campo[i] = pr.lateral === 0 ? 1e-9 : pr.lateral
   }
+  // Un vértice de la franja que cae de un lado del corte y sale de una arista que lo cruza toma lo apartado del
+  // extremo de su lado, no la media (D-420). Lo de enfrente se suelta distinto a cada lado del corte
+  // (`apartadosPorLaOtra`): bajo la esquina de la L, suelto del todo del lado de la cuña y sujeto a medias del otro. Con
+  // la media, el del medio de esa arista quedaba suelto a medias y del lado de la cuña, y se iba con la retracción de la
+  // cuña mientras sus vecinos se quedaban: la pared de la primera se daba la vuelta recién cortada.
+  if (aparte && afinada) {
+    const padres = afinada.padres
+    for (let j = 0; nEntrada + j < nVertices; j++) {
+      const v = nEntrada + j
+      const a = padres[2 * j]
+      const b = padres[2 * j + 1]
+      if (Number.isNaN(campo[v]) || Number.isNaN(campo[a]) || Number.isNaN(campo[b]) || campo[a] * campo[b] >= 0) continue
+      aparte[v] = campo[a] * campo[v] > 0 ? aparte[a] : aparte[b]
+    }
+  }
 
   // -- 2. qué aristas se parten ---------------------------------------------
   const claveDeArista = (a: number, b: number) => (a < b ? a * nVertices + b : b * nVertices + a)
@@ -1266,6 +1483,8 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
     const clave = claveDeArista(a, b)
     const antes = partidas.get(clave)
     if (antes) return true
+    // Lo de enfrente de la incisión en que nace no se parte (D-420): la grieta acaba en su borde.
+    if (aparte && (aparte[a] > 0 || aparte[b] > 0)) return false
     const fa = campo[a]
     const fb = campo[b]
     if (Number.isNaN(fa) || Number.isNaN(fb) || fa * fb >= 0) return false
@@ -1344,7 +1563,7 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
     de: [] as number[],
     cuanto: [] as number[],
   }
-  for (let i = 0; i < nVertices; i++) lista.lado[i] = Number.isNaN(campo[i]) ? 0 : campo[i] > 0 ? 1 : -1
+  for (let i = 0; i < nVertices; i++) lista.lado[i] = Number.isNaN(campo[i]) || (aparte !== null && aparte[i] >= 1) ? 0 : campo[i] > 0 ? 1 : -1
   /** `entre` dice de qué dos vértices sale y cuánto del segundo; sin él, es una copia de `origen`. */
   const nuevoVertice = (p: Vec3, origen: number, lado: number, t: number, entre?: readonly [number, number, number]) => {
     lista.posiciones.push(p[0], p[1], p[2])
@@ -1455,6 +1674,7 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
       grosorMaximo: opciones.pared,
       nuevoVertice,
       indices,
+      soloCarasLargas: aparte !== null,
     })
   }
 
@@ -1485,8 +1705,11 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
     const cerca = 1 - suave(Math.hypot(medida.lateral, fueraDelAbanico(medida)) / Math.max(opciones.alcance, 1e-9))
     const t = ap && curva.deApertura ? curva.deApertura.tDelNodo[ap.tramo] * (1 - ap.u) + curva.deApertura.tDelNodo[ap.tramo + 1] * ap.u : enElLargo(p, pr)
     largoT[i] = t
-    peso[i] = cerca * afilado(t)
-    pesoLateral[i] = cerca
+    // Lo que se arrastra solo en parte (D-420): lo de enfrente junto a una punta de la otra incisión, donde vuelve a
+    // estar unido a lo de este lado.
+    const suelto = aparte && i < nVertices ? 1 - Math.min(1, aparte[i]) : 1
+    peso[i] = cerca * afilado(t) * suelto
+    pesoLateral[i] = cerca * suelto
     const haciaDonde = ap ? ap.direccion : pr.direccion
     direccion[3 * i] = haciaDonde[0]
     direccion[3 * i + 1] = haciaDonde[1]
@@ -1494,8 +1717,11 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
   }
   // Los vértices de la punta (sencillos) no se mueven: la herida acaba cerrada.
   for (let i = nVertices; i < total; i++) if (lado[i] === 0) peso[i] = pesoLateral[i] = 0
-  cerrarLasPuntasConTejidoEntero(grieta, indices, lado, pesoLateral, largoT)
-  const hastaLaPunta = distanciaALasPuntas(posiciones, indices, lado, pesoLateral, nVertices, opciones.alcance * ALCANCE_DE_LAS_PUNTAS)
+  // Lo apartado, hasta el último vértice: los que añadió el corte son todos de este lado.
+  const apartadoEnTodos = aparte ? new Float32Array(total) : undefined
+  if (apartadoEnTodos && aparte) apartadoEnTodos.set(aparte)
+  cerrarLasPuntasConTejidoEntero(grieta, indices, lado, pesoLateral, largoT, apartadoEnTodos)
+  const hastaLaPunta = distanciaALasPuntas(posiciones, indices, lado, pesoLateral, nVertices, opciones.alcance * ALCANCE_DE_LAS_PUNTAS, apartadoEnTodos)
   const pared = new Float32Array(total).fill(-1)
   if (deLaPared) for (const [v, h] of deLaPared.hondura) pared[v] = h
 
@@ -1507,7 +1733,6 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
   if (afinada) for (let i = 0; i < origen.length; i++) origen[i] = afinada.origen[origen[i]]
 
   // Y de qué dos, para lo que se interpola: primero los de la franja (el medio de su arista), detrás los del corte.
-  const nEntrada = entrada.posiciones.length / 3
   const deLaFranja = afinada ? afinada.padres : new Uint32Array(0)
   const nuevos = total - nEntrada
   const mezcla: MezclaDeVertices = { desde: nEntrada, de: new Uint32Array(2 * nuevos), peso: new Float32Array(nuevos) }
@@ -1573,6 +1798,15 @@ export function abrirHerida(
   return salida
 }
 
+/**
+ * Lo suelto que está cada labio en cada extremo de la grieta que queda abierto, de 0 (sujeto: se cierra como en una
+ * punta) a 1 (suelto, como hasta D-420). Ver `solturaDelLabio`.
+ */
+export interface SolturaDeLosLabios {
+  mas: { alInicio: number; alFinal: number }
+  menos: { alInicio: number; alFinal: number }
+}
+
 /** Cuánto abre cada labio de un corte: lo mismo que pide `abrirHerida`. */
 export interface AperturaDeUnCorte {
   mas: number
@@ -1585,6 +1819,8 @@ export interface AperturaDeUnCorte {
   reposo?: number
   /** La fracción del largo de la grieta que tarda el huso en abrirse del todo desde cada punta (ver `husoDeLaGrieta`). Sin ella, la mitad. */
   punta?: number
+  /** Lo suelto de cada labio en los extremos abiertos de la grieta (`SolturaDeLosLabios`). Sin ella, los dos sueltos. */
+  soltura?: SolturaDeLosLabios
 }
 
 /**
@@ -1601,7 +1837,7 @@ function cuantoSeAparta(corte: MallaCortada, i: number, apertura: AperturaDeUnCo
     const aqui = apertura.perfil ? apertura.perfil(corte.largoT[i]) : null
     k = peso * (lado > 0 ? (aqui ? aqui.mas : apertura.mas) : aqui ? aqui.menos : apertura.menos)
   }
-  if (apertura.reposo) k += retraccionDelVertice(corte, i, apertura.reposo, apertura.punta)
+  if (apertura.reposo) k += retraccionDelVertice(corte, i, apertura.reposo, apertura.punta, apertura.soltura)
   return lado > 0 ? k : -k
 }
 
@@ -1612,11 +1848,32 @@ function cuantoSeAparta(corte: MallaCortada, i: number, apertura: AperturaDeUnCo
  * `PENDIENTE_MAXIMA_EN_LA_PUNTA`. Lo usa la apertura y lo usa quien pregunta dónde descansa un labio: las dos cuentas
  * tienen que ser la misma.
  */
-export function retraccionDelVertice(corte: MallaCortada, i: number, reposo: number, punta?: number): number {
+export function retraccionDelVertice(corte: MallaCortada, i: number, reposo: number, punta?: number, soltura?: SolturaDeLosLabios): number {
   if (!reposo || corte.lado[i] === 0) return 0
   const peso = corte.pesoLateral[i]
   if (peso === 0) return 0
-  return peso * reposo * husoDeLaGrieta(corte.grieta, corte.largoT[i], punta) * cierreJuntoALaPunta(corte, i, reposo)
+  const delLabio = soltura ? (corte.lado[i] > 0 ? soltura.mas : soltura.menos) : undefined
+  return peso * reposo * husoDelLabio(corte.grieta, corte.largoT[i], punta, delLabio) * cierreJuntoALaPunta(corte, i, reposo)
+}
+
+/**
+ * El huso de un labio (`husoDeLaGrieta`) con lo suelto que está en cada extremo abierto (`SolturaDeLosLabios`): sujeto
+ * del todo, se cierra en ese extremo como en una punta. Es el labio de fuera de la L (D-420), al que sujeta la punta de
+ * la otra, a tres milímetros: retraído entero hasta la esquina, tiraba del tejido entero que hay más allá de ella.
+ */
+export function husoDelLabio(grieta: TramoDeLaGrieta, t: number, punta?: number, soltura?: { alInicio: number; alFinal: number }): number {
+  const huso = husoDeLaGrieta(grieta, t, punta)
+  if (!soltura || huso === 0) return huso
+  let k = huso
+  if (!grieta.cerradaAlInicio && soltura.alInicio < 1) {
+    const cerrado = husoDeLaGrieta({ ...grieta, cerradaAlInicio: true, cerradaAlFinal: false }, t, punta)
+    k *= soltura.alInicio + (1 - soltura.alInicio) * cerrado
+  }
+  if (!grieta.cerradaAlFinal && soltura.alFinal < 1) {
+    const cerrado = husoDeLaGrieta({ ...grieta, cerradaAlInicio: false, cerradaAlFinal: true }, t, punta)
+    k *= soltura.alFinal + (1 - soltura.alFinal) * cerrado
+  }
+  return k
 }
 
 /**

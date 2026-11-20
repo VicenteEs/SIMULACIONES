@@ -965,13 +965,19 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   cortada ahí, y para ir más hondo está el bisturí profundo. Lo que el repaso se pasa de una punta
   la alarga, y lo que se sale por un lado, a media incisión, es otra que nace en ella (D-410). **Cruzar**
   una incisión tampoco corta encima de la herida: lo que el trazo deja a cada lado nace del borde de la que
-  cruzó, como una T. Si el cruce cae a menos de 2 cm de una punta, la incisión se acorta hasta el
-  cruce —el pedacito de punta del otro lado se cierra, y el panel da su largo nuevo— y el trazo nuevo
-  pasa entero por esa punta: quedan unidas en T. Si cae en medio, cada lado es su propia incisión, y la
-  lista las muestra por separado (D-415). Un corte que no toca otra queda independiente. Un trazo hecho
+  cruzó, y con ella es **una sola incisión**, en T o en cruz (D-420). Su esquina se abre con los
+  separadores, el panel la lista en una fila y la mide como la suma de sus trazos —«Incisión 1 · piel ·
+  93 + 73 mm»—, el paso la cuenta como una y no como incisión de más, y se cierra entera. Si el cruce cae a
+  menos de 2 cm de una punta, la incisión se acorta hasta el cruce —el pedacito de punta del otro lado se
+  cierra— y el trazo nuevo pasa entero por esa punta: quedan unidas en T (D-415). Un trazo que **sale de
+  una punta girando 30° o más** no la alarga quebrada: nace en ella, en **L**, y también es la misma
+  incisión; la incisión sigue 3,5 mm de frente pasada la esquina. La esquina de una T, de una cruz o de
+  una L no es una punta: no lleva la bola amarilla ni se alarga ni se acorta desde ahí. Un corte que no
+  toca otra queda independiente. Un trazo hecho
   con la herida ya abierta o apartada por los separadores corta el tejido que se ve bajo él, aunque esté
   corrido de su sitio (D-416). Con más de una,
-  el recuadro «Herida» las lista —«Incisión 2 · músculo · 30 mm»— con una **×** que cierra solo esa;
+  el recuadro «Herida» las lista —«Incisión 2 · músculo · 30 mm»— con una **×** que cierra solo esa, y
+  una en T, en cruz o en L entera;
   «Cerrar todas las heridas» las cierra todas. Cada separador y cada pinza abre la incisión en que
   se puso; un separador apoyado en un plano profundo abre además la incisión de la piel o de la
   fascia que tiene justo encima, si cae debajo de ella: a 30 mm o menos de su línea, a lo ancho o pasado el extremo,
@@ -979,7 +985,8 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   y se sigue viendo: cuelga del borde de la piel de encima, como uno de la piel, con la pala bajando por la herida
   (D-413). En el paso de la incisión de piel, la medida del panel es la de la piel: los trazos del bisturí profundo
   hechos en ese mismo paso no la cambian (D-414). Para corregir una incisión mal trazada, ciérrela desde esa lista (o «Borrar trazo»,
-  que deshace la última) y trace otra. El **borde rojo** de una incisión recién hecha desaparece en
+  que deshace el último trazo con todo lo que hizo: los pedazos de un cruce y el acortar o alargar la
+  incisión que tocó) y trace otra. El **borde rojo** de una incisión recién hecha desaparece en
   cuanto la herida se abre lo bastante para que se vea el hueco, o cuando algo la aparta (P-015). En
   la fascia y el músculo solo marca el sitio mientras la herida se abre, y después se va: lo hondo no
   queda con líneas rojas (D-411).

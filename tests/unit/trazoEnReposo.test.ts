@@ -124,7 +124,7 @@ describe('el lienzo lleva al reposo lo que va a cortar (D-416)', () => {
     expect(mide).toBeGreaterThan(0)
     expect(mide).toBeLessThan(corte.indexOf('const decision = decidirElTrazo('))
     // Solo con un trazo de verdad: lo que rehace la sesión ya está en reposo.
-    expect(corte.slice(0, mide)).toContain('if (id === undefined && !desdeLaSesion && !esRehacer && !deDiseccion && !esRama) {\n        const conReposo')
+    expect(corte.slice(0, mide)).toContain('if (deUnTrazo) {\n        const conReposo')
   })
 
   it('lleva lo principal y las ramas antes de cerrar la incisión que se alarga y antes de cortar', () => {

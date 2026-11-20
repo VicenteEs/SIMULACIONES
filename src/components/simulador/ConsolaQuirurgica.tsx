@@ -299,7 +299,7 @@ import {
   type CapaDeLaHerida,
 } from '@/lib/exposicion'
 import { cuentaParaElPaso, NOMBRE_DEL_PLANO } from '@/lib/planosBlandos'
-import { rotuloDeLaIncision } from '@/lib/incisiones'
+import { medidaDeLaIncision, rotuloDeLaIncision } from '@/lib/incisiones'
 import type {
   AyudasDeEscopia,
   DatosDeNodo,
@@ -4214,7 +4214,10 @@ export function ConsolaQuirurgica({
         // Se cortó con ese músculo elegido: hay una incisión muscular que no estaba al elegirlo.
         cortado:
           musculoObjetivo?.accion === 'cortar' &&
-          (herida?.incisiones ?? []).some((x) => x.capa === 'musculo' && !musculoObjetivo.yaCortadas.includes(x.id)),
+          // Por pedazos (D-420): el corte que nace en una incisión muscular de antes es de su grupo, y también es nuevo.
+          (herida?.incisiones ?? []).some(
+            (x) => x.capa === 'musculo' && (x.pedazos ?? [x.id]).some((p) => !musculoObjetivo.yaCortadas.includes(p)),
+          ),
         retraidoMm: retracciones.find((r) => r.nodo === musculoObjetivo?.nodo)?.aperturaMm ?? 0,
       },
     }),
@@ -4456,7 +4459,7 @@ export function ConsolaQuirurgica({
       nombre: nodo.replace(/_/g, ' '),
       accion: 'cortar',
       // Lo que ya estaba cortado antes de elegir no cuenta: solo vale la incisión nueva.
-      yaCortadas: (herida?.incisiones ?? []).filter((x) => x.capa === 'musculo').map((x) => x.id),
+      yaCortadas: (herida?.incisiones ?? []).filter((x) => x.capa === 'musculo').flatMap((x) => x.pedazos ?? [x.id]),
     })
     elegirInstrumento(instrumento.id)
     setModo('trazar')
@@ -6436,7 +6439,7 @@ instrumentoElegido ? (
             {herida.capas.length > 0 ? (
               <p className="consola-herida-datos">
                 {herida.capas.map((c) => NOMBRE_DEL_PLANO[c]).join(' y ')} ·{' '}
-                {Math.round(herida.largoMm)} mm de largo · abierta {Math.round(herida.aperturaMm)} mm
+                {medidaDeLaIncision(herida)} de largo · abierta {Math.round(herida.aperturaMm)} mm
               </p>
             ) : null}
             {herida.aviso ? <p className="consola-herida-aviso">{herida.aviso}</p> : null}
@@ -7058,8 +7061,10 @@ instrumentoElegido ? (
             // el lienzo, que ya es su dueño; subirlos a React repintaba la
             // consola entera —los dos campos ricos del pie incluidos— unas
             // treinta veces por incisión, compitiendo con el bucle de dibujo.
-            alTrazar={(puntos, plano) => {
-              const largo = largoDelTrazo(puntos, escalaMm)
+            alTrazar={(puntos, plano, largoMm) => {
+              // Una incisión en T o en cruz (D-420) mide la suma de sus pedazos: el lienzo la da aparte de la guía. Redondeada
+              // a la décima, como `largoDelTrazo`: sin redondear, el paso decía «119.63881472175106 mm».
+              const largo = largoMm !== undefined ? Math.round(largoMm * 10) / 10 : largoDelTrazo(puntos, escalaMm)
               // La raya del bisturí es la incisión: con ella empieza el reloj del procedimiento (P-012 E5).
               if (largo > 0 && queHace.corta) arrancarElProcedimiento()
               // Un trazo hondo en el paso de la incisión de piel no cambia lo que el paso mide (D-414).
@@ -7542,7 +7547,7 @@ instrumentoElegido ? (
                                           nombre: info.ficha.nombre,
                                           accion,
                                           // Lo que ya estaba cortado antes de elegir no cuenta: solo vale la incisión nueva.
-                                          yaCortadas: (herida?.incisiones ?? []).filter((x) => x.capa === 'musculo').map((x) => x.id),
+                                          yaCortadas: (herida?.incisiones ?? []).filter((x) => x.capa === 'musculo').flatMap((x) => x.pedazos ?? [x.id]),
                                         })
                                         setEligiendoAccion(null)
                                         elegirInstrumento(i.id)

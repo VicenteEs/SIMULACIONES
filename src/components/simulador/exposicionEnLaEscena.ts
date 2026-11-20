@@ -16,14 +16,14 @@ import {
   deLaIncision,
   direccionDelMango,
   perfilDeLaCapa,
-  puntasDeLaGrieta,
+  puntasDeLosLabios,
   type CapaDeLaHerida,
   type Pellizco,
   type SeparadorColocado,
 } from '@/lib/exposicion'
 import { LIMITE_PARA_COLOCAR_MM, HONDURA_PARA_CAMBIAR_DE_PLANO_MM } from '@/lib/abordajePorPlanos'
 import { bajoElTrazo } from '@/lib/corteDeMalla'
-import { abrirCapa, largoEnMm, verticeEnReposo, type HeridaEnCapa } from './heridas'
+import { abrirCapa, FUNDIDO_JUNTO_A_LA_PUNTA_MM, largoEnMm, verticeEnReposo, type HeridaEnCapa } from './heridas'
 
 /**
  * Las pinzas y los separadores puestos en el campo, dentro de la escena.
@@ -549,9 +549,11 @@ export function aplicarSeparadoresALasHeridas(
       for (const h of deEsta) h.sostenida = sostenida
       // Lo que abre cada hoja se reparte con el largo de la herida en milímetros: la hoja mide lo mismo en una
       // incisión corta que en una larga (P-008 E2). Las heridas de una misma incisión comparten trazo y largo.
-      // Pero no puntas: el labio de cada malla se cierra donde se cierra su grieta (`puntasDeLaGrieta`, P-015).
+      // Pero no puntas: el labio de cada malla se cierra donde se cierra su grieta (`puntasDeLaGrieta`, P-015), y el que
+      // es la punta de un colgajo, en el cruce con otra, no se cierra (`puntasDeLosLabios`, D-420).
       for (const h of deEsta) {
-        const enMm = perfilDeLaCapa(capa, suyos, suyas, largoEnMm(h), puntasDeLaGrieta(h.corte.grieta))
+        const puntas = puntasDeLosLabios(h.corte.grieta, h.cruces, FUNDIDO_JUNTO_A_LA_PUNTA_MM, largoEnMm(h))
+        const enMm = perfilDeLaCapa(capa, suyos, suyas, largoEnMm(h), puntas)
         let mas = 0
         let menos = 0
         for (let i = 0; i <= 80; i++) {

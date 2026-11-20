@@ -54,6 +54,12 @@ export interface PuntoDeSutura {
   ref?: {
     /** La malla cortada en la que se picó (su `uuid`). */
     malla: string
+    /**
+     * La incisión de esa malla a cuyo labio va cosida (D-420). Una malla tiene una herida por incisión, y los pedazos de una
+     * en T o en cruz son incisiones de la misma malla: buscada solo por la malla, la puntada del brazo seguía al labio del
+     * primer pedazo, que no es el suyo. Ausente en lo guardado antes: la primera herida de la malla, como entonces.
+     */
+    incision?: number
     /** Hacia dónde se separa el labio, en el mundo. */
     dir: Vec3
     lado: 1 | -1

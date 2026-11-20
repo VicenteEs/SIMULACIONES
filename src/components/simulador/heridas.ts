@@ -1,5 +1,21 @@
 import * as THREE from 'three'
-import { afilado, componerCortes, cortarMalla, husoDeLaGrieta, retraccionDelVertice, type MallaCortada, type Vec3 } from '@/lib/corteDeMalla'
+import {
+  afilado,
+  apartadosPorLaOtra,
+  componerCortes,
+  cortarMalla,
+  cruceHaciaCadaLabio,
+  enElExtremoDelTrazo,
+  husoDelLabio,
+  ladoEnLaMallaDeAhora,
+  ladoRespectoDe,
+  retraccionDelVertice,
+  solturaDelLabio,
+  type CruceDelLabio,
+  type MallaCortada,
+  type SolturaDeLosLabios,
+  type Vec3,
+} from '@/lib/corteDeMalla'
 import { puntaDelHuso, topeDeLaRetraccionMm } from '@/lib/retraccionDelCorte'
 
 /**
@@ -98,6 +114,34 @@ export interface HeridaEnCapa {
   profundizada?: boolean
   /** Es de la fascia o del músculo (`ParametrosDeCorte.hondo`): no deja ninguna línea roja una vez se ve (D-411). */
   hondo?: boolean
+  /** Qué extremo del trazo da a otra incisión de la que nace (`ParametrosDeCorte.naceDe`, D-420): ahí no tiene punta. */
+  unida?: { alInicio: boolean; alFinal: boolean }
+  /**
+   * De cada extremo unido, cómo da cada labio a la otra incisión (`cruceHaciaCadaLabio`), con `partida` en milímetros.
+   * Con ello cada labio, ahí, se suelta o se sujeta (`solturaDeLaHerida`, `puntasDeLosLabios`, D-420).
+   */
+  cruces?: { alInicio?: CrucesDelExtremo; alFinal?: CrucesDelExtremo }
+}
+
+/** Cómo da cada labio de un extremo unido a la otra incisión (`HeridaEnCapa.cruces`), con `partida` en milímetros. */
+export interface CrucesDelExtremo {
+  mas: CruceDelLabio
+  menos: CruceDelLabio
+}
+
+/**
+ * Lo suelto de cada labio de una herida en sus extremos unidos (`solturaDelLabio`, con el fundido de lo de enfrente): el
+ * labio que da a un tramo largo de la otra es la punta de un colgajo, suelto; el que da a su punta, a pocos milímetros,
+ * está sujeto por ella. Sin cruces, nada.
+ */
+export function solturaDeLaHerida(h: Pick<HeridaEnCapa, 'cruces'>): SolturaDeLosLabios | undefined {
+  const { cruces } = h
+  if (!cruces) return undefined
+  const de = (c: CruceDelLabio | undefined) => (c ? solturaDelLabio(c.partida, FUNDIDO_JUNTO_A_LA_PUNTA_MM) : 1)
+  return {
+    mas: { alInicio: de(cruces.alInicio?.mas), alFinal: de(cruces.alFinal?.mas) },
+    menos: { alInicio: de(cruces.alInicio?.menos), alFinal: de(cruces.alFinal?.menos) },
+  }
 }
 
 /**
@@ -145,7 +189,37 @@ export interface ParametrosDeCorte {
    * cuanto el hueco se ve solo. Sin él, la herida es de piel, y su borde dura hasta que se abre de verdad.
    */
   hondo?: boolean
+  /**
+   * Las incisiones en cuya línea nace este corte (D-420): el brazo de una T o de una cruz, que con ellas es una sola
+   * incisión. De cada una, el punto de su línea donde la toca (`punto`) y otro del corte, lejos del cruce, que dice de
+   * qué lado de ella queda (`lado`); los dos en el mundo y en reposo. Lo de enfrente no se parte ni se arrastra
+   * (`apartadosPorLaOtra`), y el extremo que da a ella queda abierto.
+   *
+   * Se guardan las incisiones y no lo apartado: cerrar una incisión hecha antes en la misma malla obliga a cortar otra
+   * vez las siguientes (`cerrarCapa`), y con ellas cambian los índices de los vértices.
+   */
+  naceDe?: { incision: number; punto: THREE.Vector3; lado: THREE.Vector3 }[]
 }
+
+/**
+ * Lo que tarda en volver a unirse lo de enfrente de la incisión en que nace un corte junto a una punta de ella, en
+ * milímetros (`apartadosPorLaOtra`, D-420). Algo más que lo que la herida tarda en cerrarse en su punta, y menos que los
+ * 20 mm a que tiene que cruzarla un trazo para no acortarla (`PUNTA_DEL_CRUCE_MM`): el cruce nunca cae en el fundido.
+ */
+export const FUNDIDO_JUNTO_A_LA_PUNTA_MM = 10
+
+/**
+ * Lo que se mide del trazo en el extremo que da a otra incisión para saber hacia dónde sale de ella, en milímetros
+ * (`enElExtremoDelTrazo`, D-420). Lo mismo que mira `codoEnLaPunta` para decidir que un trazo sale en ángulo: menos y
+ * un temblor de la mano lo tuerce; más y una incisión que se curva al salir ya no sale hacia donde dice.
+ */
+const LARGO_DEL_EXTREMO_MM = 5
+
+/**
+ * Hasta dónde de un extremo del trazo puede caer el punto en que toca a la otra incisión para que ese extremo sea el
+ * que da a ella, en milímetros: el milímetro que el brazo la cruza (`PASADO_DE_LA_LINEA_MM`) y holgura para el pulso.
+ */
+export const EXTREMO_QUE_DA_A_LA_OTRA_MM = 4
 
 /**
  * La piel con su grasa mide 4 mm en el cuerpo y 2 en la cabeza (D-331). La cara de dentro se busca hasta 6 mm por
@@ -310,11 +384,57 @@ export function cortarCapa(
   }
 
   const alcanceLocal = parametros.alcance / escala
+  // El brazo de una T o de una cruz (D-420): lo de enfrente de cada incisión en que nace queda aparte, y el extremo que
+  // da a ella, abierto. Si esa incisión no cortó esta malla —la fascia que la otra no alcanzó—, se corta entera.
+  let apartados: Float32Array | undefined
+  const unida = { alInicio: false, alFinal: false }
+  let cruces: HeridaEnCapa['cruces']
+  const puntosLocales = puntos.map(aLocalVec)
+  const normalesLocales = normales.map(aLocalDir)
+  const mmLocal = (parametros.unidadesPorMm ?? 0.001) / escala
+  for (const nace of parametros.naceDe ?? []) {
+    let k = -1
+    for (let i = previas.length - 1; i >= 0 && k < 0; i--) if (previas[i].incision === nace.incision) k = i
+    if (k < 0) continue
+    const otra = previas[k]
+    const lado = ladoEnLaMallaDeAhora(otra.corte.lado, previas.slice(k + 1).map((h) => h.corte))
+    if (lado.length !== posicion.count) continue
+    const suyo = ladoRespectoDe(otra.corte.curva, aLocalVec(nace.lado))
+    const donde = aLocalVec(nace.punto)
+    const alPrimero = Math.hypot(...([0, 1, 2].map((e) => donde[e] - puntosLocales[0][e]) as [number, number, number]))
+    const alUltimo = Math.hypot(...([0, 1, 2].map((e) => donde[e] - puntosLocales[puntosLocales.length - 1][e]) as [number, number, number]))
+    const enUnExtremo = Math.min(alPrimero, alUltimo) <= EXTREMO_QUE_DA_A_LA_OTRA_MM * mmLocal
+    // En el extremo que da a la otra, el lateral y el avance del corte: deciden de qué lado de él cae cada cosa.
+    const extremo = enUnExtremo
+      ? enElExtremoDelTrazo(puntosLocales, normalesLocales, alPrimero <= alUltimo, LARGO_DEL_EXTREMO_MM * mmLocal)
+      : null
+    const estos = apartadosPorLaOtra(
+      posiciones,
+      lado,
+      otra.corte,
+      suyo,
+      FUNDIDO_JUNTO_A_LA_PUNTA_MM * mmLocal,
+      extremo ? { punto: donde, lateral: extremo.lateral } : undefined,
+    )
+    if (apartados) for (let i = 0; i < estos.length; i++) apartados[i] = Math.max(apartados[i], estos[i])
+    else apartados = estos
+    if (extremo) {
+      const cual = alPrimero <= alUltimo ? 'alInicio' : 'alFinal'
+      unida[cual] = true
+      const enUnidades = cruceHaciaCadaLabio(otra.corte, donde, extremo.lateral, extremo.avance)
+      const enMm = (c: CruceDelLabio): CruceDelLabio => ({ partida: c.partida / mmLocal, detras: c.detras })
+      const este = { mas: enMm(enUnidades.mas), menos: enMm(enUnidades.menos) }
+      // Si dos dan al mismo extremo, manda la que menos sigue partida: es la que sujeta el labio.
+      const ya = cruces?.[cual]
+      const elMenor = (a: CruceDelLabio, b: CruceDelLabio) => (a.partida <= b.partida ? a : b)
+      cruces = { ...cruces, [cual]: ya ? { mas: elMenor(ya.mas, este.mas), menos: elMenor(ya.menos, este.menos) } : este }
+    }
+  }
   const corte = cortarMalla(
     { posiciones, indices },
     {
-      puntos: puntos.map(aLocalVec),
-      normales: normales.map(aLocalDir),
+      puntos: puntosLocales,
+      normales: normalesLocales,
       normalesDeEncima: parametros.normalesDeEncima?.map((n) => (n ? aLocalDir(n) : null)),
     },
     {
@@ -326,6 +446,7 @@ export function cortarCapa(
       pasoDelLabio: (PASO_DEL_LABIO_MM * (parametros.unidadesPorMm ?? 0.001)) / escala,
       pared: parametros.pared ? parametros.pared / escala : undefined,
       afinar: parametros.afinar ? parametros.afinar / escala : undefined,
+      apartados,
     },
   )
   if (!corte) return null
@@ -425,6 +546,8 @@ export function cortarCapa(
     trazo: { puntos: puntos.map((p) => p.clone()), normales: normales.map((n) => n.clone()), parametros },
     tardoMs: 0,
     hondo: parametros.hondo === true,
+    ...(unida.alInicio || unida.alFinal ? { unida } : {}),
+    ...(cruces ? { cruces } : {}),
   }
   herida.tardoMs = performance.now() - alEmpezar
   CADENAS.set(malla, [...previas, herida])
@@ -456,7 +579,7 @@ export function verticeEnReposo(h: HeridaEnCapa, v: number, destino = new THREE.
   const lado = c.lado[v]
   const reposo = reposoVigente(h) / h.escala
   if (lado === 0 || reposo === 0) return destino
-  const k = lado * retraccionDelVertice(c, v, reposo, h.punta)
+  const k = lado * retraccionDelVertice(c, v, reposo, h.punta, solturaDeLaHerida(h))
   destino.x += c.direccion[3 * v] * k
   destino.y += c.direccion[3 * v + 1] * k
   destino.z += c.direccion[3 * v + 2] * k
@@ -532,6 +655,7 @@ function actualizarCinta(h: HeridaEnCapa) {
   const levantar = 1 * (h.unidadesPorMm / h.escala)
   // Lo que la herida se abre sola, que va en huso y se suma a lo demás, como en la malla.
   const reposo = reposoVigente(h) / h.escala
+  const soltura = solturaDeLaHerida(h)
   let abertura = 0
   for (let k = 0; k < nodos; k++) {
     const ultimo = k === nodos - 1
@@ -547,9 +671,10 @@ function actualizarCinta(h: HeridaEnCapa) {
     const abre = h.perfil ? h.perfil(t) : { mas: h.mas, menos: h.menos }
     // Cuánto se separa cada labio en este punto, como la malla: con perfil, el perfil ya se cierra en las puntas.
     const peso = h.perfil ? 1 : afilado(t)
-    const sola = reposo > 0 ? reposo * husoDeLaGrieta(h.corte.grieta, t, h.punta) : 0
-    const mas = (abre.mas / h.escala) * peso + sola
-    const menos = (abre.menos / h.escala) * peso + sola
+    const solaMas = reposo > 0 ? reposo * husoDelLabio(h.corte.grieta, t, h.punta, soltura?.mas) : 0
+    const solaMenos = reposo > 0 ? reposo * husoDelLabio(h.corte.grieta, t, h.punta, soltura?.menos) : 0
+    const mas = (abre.mas / h.escala) * peso + solaMas
+    const menos = (abre.menos / h.escala) * peso + solaMenos
     // El lateral es el mismo que mueve a los labios: el «más» va hacia `+lateral` y el «menos» hacia `-lateral`.
     const centro = (mas - menos) / 2
     const mitad = Math.max(medioAncho, (mas + menos) / 2)
@@ -648,6 +773,7 @@ function recomponer(malla: THREE.Mesh) {
           : undefined,
         reposo: reposoVigente(h) / h.escala,
         punta: h.punta,
+        soltura: solturaDeLaHerida(h),
       },
     })),
   )
@@ -694,7 +820,8 @@ export function cerrarCapa(h: HeridaEnCapa): HeridaEnCapa[] {
       const actual = CADENAS.get(w.malla)!
       // Y con la retracción que le quedaba: una herida cosida no se vuelve a abrir porque se cierre otra.
       const { mas, menos, perfil, incision, tension, asentada } = w
-      Object.assign(w, nueva, { mas, menos, perfil, incision, tension, asentada })
+      // El extremo que da a otra incisión, el de ahora: si ella ya no está en la malla, el corte se rehízo entero.
+      Object.assign(w, nueva, { mas, menos, perfil, incision, tension, asentada, unida: nueva.unida, cruces: nueva.cruces })
       actual[actual.length - 1] = w
       recomponer(w.malla)
     }

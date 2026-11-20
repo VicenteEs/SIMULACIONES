@@ -40,20 +40,26 @@ const unir = (x: TrazoDeIncision, y: TrazoDeIncision): TrazoDeIncision => ({
  * Se elige el par de extremos **más cercano**: un trazo en U cuyos dos extremos tocan la incisión se une por el que
  * esté más cerca, no por el primero que se mire. El punto donde se unen no se repite.
  */
-export function alargarIncision(base: TrazoDeIncision, nuevo: TrazoDeIncision, umbral: number): TrazoDeIncision | null {
+export function alargarIncision(
+  base: TrazoDeIncision,
+  nuevo: TrazoDeIncision,
+  umbral: number,
+  /** Qué puntas de `base` se pueden alargar: la que da a otra incisión de la misma no tiene punta (D-420). */
+  libres: PuntasLibres = AMBAS_LIBRES,
+): TrazoDeIncision | null {
   if (base.puntos.length < 2 || nuevo.puntos.length < 2) return null
   const a0 = base.puntos[0]
   const a1 = base.puntos[base.puntos.length - 1]
   const b0 = nuevo.puntos[0]
   const b1 = nuevo.puntos[nuevo.puntos.length - 1]
   const opciones = [
-    { d: distancia(a1, b0), orden: 'base-nuevo' as const },
-    { d: distancia(a1, b1), orden: 'base-nuevoAlReves' as const },
-    { d: distancia(a0, b1), orden: 'nuevo-base' as const },
-    { d: distancia(a0, b0), orden: 'nuevoAlReves-base' as const },
+    { d: libres.final ? distancia(a1, b0) : Infinity, orden: 'base-nuevo' as const },
+    { d: libres.final ? distancia(a1, b1) : Infinity, orden: 'base-nuevoAlReves' as const },
+    { d: libres.inicio ? distancia(a0, b1) : Infinity, orden: 'nuevo-base' as const },
+    { d: libres.inicio ? distancia(a0, b0) : Infinity, orden: 'nuevoAlReves-base' as const },
   ].sort((x, y) => x.d - y.d)
   const mejor = opciones[0]
-  if (mejor.d > umbral) return null
+  if (!(mejor.d <= umbral)) return null
 
   switch (mejor.orden) {
     case 'base-nuevo':
@@ -67,10 +73,20 @@ export function alargarIncision(base: TrazoDeIncision, nuevo: TrazoDeIncision, u
   }
 }
 
+/** Qué puntas de una incisión son puntas de verdad: la que da a otra de la misma, no (D-420). */
+export interface PuntasLibres {
+  inicio: boolean
+  final: boolean
+}
+
+const AMBAS_LIBRES: PuntasLibres = { inicio: true, final: true }
+
 /** Una incisión de las que hay en una capa, para decidir contra cuál se mide un trazo. */
 export interface IncisionExistente extends TrazoDeIncision {
   id: number
   capa: string
+  /** Qué puntas suyas se pueden alargar o acortar en un cruce (D-420). Sin él, las dos. */
+  libres?: PuntasLibres
 }
 
 /**
@@ -86,13 +102,17 @@ export function incisionQueAlarga(
   let mejor: { id: number; unida: TrazoDeIncision; d: number } | null = null
   for (const e of existentes) {
     if (e.capa !== capa) continue
-    const unida = alargarIncision(e, nuevo, umbral)
+    const libres = e.libres ?? AMBAS_LIBRES
+    const unida = alargarIncision(e, nuevo, umbral, libres)
     if (!unida) continue
     const a0 = e.puntos[0]
     const a1 = e.puntos[e.puntos.length - 1]
     const b0 = nuevo.puntos[0]
     const b1 = nuevo.puntos[nuevo.puntos.length - 1]
-    const d = Math.min(distancia(a0, b0), distancia(a0, b1), distancia(a1, b0), distancia(a1, b1))
+    const d = Math.min(
+      libres.inicio ? Math.min(distancia(a0, b0), distancia(a0, b1)) : Infinity,
+      libres.final ? Math.min(distancia(a1, b0), distancia(a1, b1)) : Infinity,
+    )
     if (!mejor || d < mejor.d) mejor = { id: e.id, unida, d }
   }
   return mejor ? { id: mejor.id, unida: mejor.unida } : null
@@ -125,26 +145,45 @@ export function incisionQueAlarga(
 export type DecisionDelTrazo =
   /**
    * Otra incisión: el trazo entero, o lo que queda de él fuera de la que repasa o cruza. `ramas` son los otros pedazos del
-   * mismo trazo que salen de ella, cada uno su incisión, que nace en el borde de la que se cruzó (D-415).
+   * mismo trazo que salen de ella. Cada pedazo que da a una incisión de antes nace en ella (`nace`), y con ella es una
+   * sola incisión en T o en cruz (D-420).
    */
-  | { tipo: 'nueva'; trazo: TrazoDeIncision; ramas?: TrazoDeIncision[] }
+  | { tipo: 'nueva'; trazo: PedazoDeIncision; ramas?: PedazoDeIncision[] }
   /**
    * Alarga la incisión `id`, o la cambia por `unida`; `repasado` es lo que fue por encima de ella, en las unidades de los
-   * puntos (0 si nada). `enElCruce`: el trazo la cruzó cerca de una punta, y `unida` es ella acortada hasta el cruce; el
-   * trazo nuevo es la primera de `ramas`, que pasa por su nueva punta (D-415). `tramo` es lo que queda de ella, en
-   * fracciones de lo que medía: con eso se recoloca lo que estaba puesto a lo largo de ella.
+   * puntos (0 si nada). `enElCruce`: el trazo la cruzó cerca de una punta, y `unida` es ella acortada hasta el cruce, que
+   * nace en la `barra`: el trazo nuevo, que pasa por su nueva punta y se corta antes que ella (D-415, D-420). `tramo` es
+   * lo que queda de ella, en fracciones de lo que medía: con eso se recoloca lo que estaba puesto a lo largo de ella.
+   * `codo`: el trazo salió de una punta en ángulo (D-420). `unida` es ella pasada un poco de frente por esa punta
+   * (`PASADO_DEL_CODO_MM`) y el trazo es una de las `ramas`, que nace donde estaba la punta: una incisión en L.
    */
   | {
       tipo: 'alarga'
       id: number
-      unida: TrazoDeIncision
+      unida: PedazoDeIncision
       repasado: number
       enElCruce?: boolean
       tramo?: readonly [number, number]
-      ramas?: TrazoDeIncision[]
+      barra?: PedazoDeIncision
+      ramas?: PedazoDeIncision[]
+      codo?: boolean
     }
   /** Va entero por encima de la incisión `id`: no corta nada. */
   | { tipo: 'repaso'; id: number; repasado: number }
+
+/**
+ * Dónde nace un pedazo de incisión en otra (D-420): en cuál —el `id` de una de antes, o `'barra'`, el trazo nuevo que en
+ * la T junto a una punta se corta antes que él— y el punto de su línea en que la toca, que es una punta del pedazo.
+ */
+export interface Nacimiento {
+  en: number | 'barra'
+  punto: Punto
+}
+
+/** Un pedazo de incisión: su trazo y, si da a otras incisiones, dónde nace en cada una (D-420). */
+export interface PedazoDeIncision extends TrazoDeIncision {
+  nace?: Nacimiento[]
+}
 
 /**
  * Lo que tiene que ir por encima de una incisión para que cuente como repasarla, en milímetros: lo mismo que se deja
@@ -293,31 +332,16 @@ function sobreLaIncision(e: TrazoDeIncision, l: Linea, s: number): { p: Punto; n
 }
 
 /**
- * Lo que un pedazo que nace en una incisión empieza **al lado** de su línea, hacia el suyo, en milímetros (D-415).
+ * Lo que un pedazo que nace en una incisión **pasa** de su línea al cortarse, en milímetros (D-420; `cruzarLaLinea`).
  *
- * Sobre la línea misma, la malla tiene los vértices de los dos labios repetidos en el mismo sitio, y el corte que
- * empezaba ahí partía también el borde del labio de enfrente: su pared quedaba colgada de un labio al otro. Recién hecha
- * no se notaba, una raya oscura en el cruce; abierta con los Farabeuf a 35 mm, era una franja de piel tendida de lado a
- * lado sobre la herida. Un milímetro es menos que la arista de la malla junto al corte (`ARISTA_JUNTO_AL_CORTE_MM`, 3), y
- * la punta de un corte no se abre: no queda a la vista.
+ * D-415 lo dejaba a 1 mm **antes** de la línea, de su lado: sobre la línea, la malla tiene los dos labios repetidos en el
+ * mismo sitio, y el corte que empezaba ahí partía también el de enfrente, que quedaba como una franja de piel tendida
+ * sobre la herida abierta. Pero ese milímetro sin cortar era lo que hacía de la T dos incisiones que se tocan: la punta
+ * del brazo quedaba cerrada contra el labio de la otra, y la esquina no se abría. Ahora el brazo pasa la línea, para que
+ * su grieta llegue al labio de la otra y se abra ahí, y lo de enfrente no se corta porque se deja aparte
+ * (`ParametrosDeCorte.naceDe`, en `heridas.ts`).
  */
-export const APARTE_DE_LA_LINEA_MM = 1
-
-/** El trazo con la primera punta (`alInicio`) o la última (`alFinal`) corrida `d` hacia la de al lado, si hay sitio. */
-function despegado(t: TrazoDeIncision, alInicio: boolean, alFinal: boolean, d: number): TrazoDeIncision {
-  const puntos = [...t.puntos]
-  const correr = (i: number, hacia: number) => {
-    const a = puntos[i]
-    const b = puntos[hacia]
-    if (!a || !b) return
-    const l = distancia(a, b)
-    if (l <= 2 * d) return
-    puntos[i] = [a[0] + ((b[0] - a[0]) * d) / l, a[1] + ((b[1] - a[1]) * d) / l, a[2] + ((b[2] - a[2]) * d) / l]
-  }
-  if (alInicio) correr(0, 1)
-  if (alFinal) correr(puntos.length - 1, puntos.length - 2)
-  return { puntos, normales: t.normales }
-}
+export const PASADO_DE_LA_LINEA_MM = 1
 
 /** El trazo con un punto más delante (`antes`) o detrás (`despues`): donde nace en la incisión que cruzó. */
 function anclado(t: TrazoDeIncision, antes?: { p: Punto; n: Punto }, despues?: { p: Punto; n: Punto }): TrazoDeIncision {
@@ -325,6 +349,131 @@ function anclado(t: TrazoDeIncision, antes?: { p: Punto; n: Punto }, despues?: {
     puntos: [...(antes ? [antes.p] : []), ...t.puntos, ...(despues ? [despues.p] : [])],
     normales: [...(antes ? [antes.n] : []), ...t.normales, ...(despues ? [despues.n] : [])],
   }
+}
+
+/**
+ * El pedazo con cada punta que da a otra incisión prolongada `d` más allá de su línea, en la dirección en que llega
+ * (`PASADO_DE_LA_LINEA_MM`, D-420). El corte tiene que cruzar las aristas del labio de la otra, que caen sobre la línea:
+ * acabado justo en ella, la grieta se quedaba a medio triángulo del labio, con su punta cerrada.
+ *
+ * Se hace con el pedazo ya en reposo (D-416): la línea de la otra está guardada así, y la dirección en que llega el
+ * trazo a ella, medida sobre la herida abierta, cruzaba el hueco y no la piel.
+ */
+export function cruzarLaLinea(pedazo: PedazoDeIncision, d: number): PedazoDeIncision {
+  const n = pedazo.puntos.length
+  if (!pedazo.nace?.length || n < 2 || !(d > 0)) return pedazo
+  const cerca = (p: Punto) => pedazo.nace!.some((x) => distancia(x.punto, p) <= d / 2)
+  const mas = (a: Punto, b: Punto): Punto | null => {
+    const l = distancia(a, b)
+    return l > 0 ? [a[0] + ((a[0] - b[0]) * d) / l, a[1] + ((a[1] - b[1]) * d) / l, a[2] + ((a[2] - b[2]) * d) / l] : null
+  }
+  const puntos = [...pedazo.puntos]
+  const normales = [...pedazo.normales]
+  const alInicio = cerca(pedazo.puntos[0]) ? mas(pedazo.puntos[0], pedazo.puntos[1]) : null
+  const alFinal = cerca(pedazo.puntos[n - 1]) ? mas(pedazo.puntos[n - 1], pedazo.puntos[n - 2]) : null
+  if (alInicio) {
+    puntos.unshift(alInicio)
+    normales.unshift(normales[0])
+  }
+  if (alFinal) {
+    puntos.push(alFinal)
+    normales.push(normales[normales.length - 1])
+  }
+  return { ...pedazo, puntos, normales }
+}
+
+/**
+ * Desde cuánto giro un trazo que sale de una punta deja de alargar la incisión y nace en ella, en L, en grados (D-420).
+ *
+ * Alargar une los dos en una sola línea quebrada, y la malla no sabe abrir una esquina: cada labio se aparta en
+ * perpendicular a la línea, y en el codo las dos perpendiculares tiran del mismo tejido hacia sitios distintos. En una
+ * lámina plana, 92 mm y 40 más desde la punta, con un Farabeuf a cada lado de la esquina: 0 triángulos doblados con el
+ * trazo recto, 47 girando 45°, 63 a 90° y 68 a 135° (la L de D-415 dio 168 en la pierna). El valor es el que se midió en la
+ * pierna del caso 3 (ver D-420): por debajo, alargar dobla tan poco como la incisión recta.
+ */
+export const ANGULO_DEL_CODO_GRADOS = 30
+
+/** Sobre cuánto de cada lado se mide hacia dónde va, en milímetros: el pulso no cuenta como giro. */
+const LARGO_PARA_LA_DIRECCION_MM = 5
+
+/**
+ * Lo que la incisión sigue de frente más allá del codo de una L, en milímetros (D-420).
+ *
+ * La pierna nueva tiene que nacer **dentro** de la grieta de la otra, como el brazo de una T: su punta pasa la línea y
+ * cruza los labios, y ahí queda abierta. En la punta misma no hay grieta que cruzar —la grieta acaba en la última arista
+ * que el trazo partió, hasta 3 mm antes de él (`ARISTA_JUNTO_AL_CORTE_MM`)—, y nacida ahí, la pierna empezaba en piel
+ * sana: las dos puntas cerradas, la de cada una con su huso, y entre las dos un puente de piel en la esquina. Probado en la
+ * pierna del caso 3. Por eso la incisión se alarga esto de frente y la pierna nace donde estaba su punta. Menos que
+ * `EXTREMO_QUE_DA_A_LA_OTRA_MM` (4), para que su nueva punta siga contando como la de la esquina y no se pueda alargar.
+ */
+export const PASADO_DEL_CODO_MM = 3.5
+
+/** Un trazo que sale en ángulo de una punta (`codoEnLaPunta`): la pierna, de qué punta sale y hacia dónde apuntaba ella. */
+export interface CodoEnLaPunta {
+  pedazo: PedazoDeIncision
+  alFinal: boolean
+  /** La dirección de la incisión al salir por esa punta, unitaria. */
+  fuera: Punto
+}
+
+/**
+ * El trazo que sale de una punta libre de `e` (a menos de `alcance`) en ángulo, como pierna que nace en ella (D-420), o
+ * `null` si sigue de frente y la alarga. La pierna empieza en la punta misma: lo que el trazo tenga a menos de un
+ * milímetro de ella se quita, porque de ahí sale la dirección con que `cruzarLaLinea` pasa la esquina, y un tramo de una
+ * décima apuntaría a cualquier parte.
+ */
+export function codoEnLaPunta(e: IncisionExistente, nuevo: TrazoDeIncision, alcance: number, mm: number): CodoEnLaPunta | null {
+  if (e.puntos.length < 2 || nuevo.puntos.length < 2) return null
+  const libres = e.libres ?? AMBAS_LIBRES
+  const a0 = e.puntos[0]
+  const a1 = e.puntos[e.puntos.length - 1]
+  const b0 = nuevo.puntos[0]
+  const b1 = nuevo.puntos[nuevo.puntos.length - 1]
+  // El mismo par de extremos que uniría `alargarIncision`.
+  const opciones = [
+    { d: libres.final ? distancia(a1, b0) : Infinity, alFinal: true, alReves: false },
+    { d: libres.final ? distancia(a1, b1) : Infinity, alFinal: true, alReves: true },
+    { d: libres.inicio ? distancia(a0, b1) : Infinity, alFinal: false, alReves: true },
+    { d: libres.inicio ? distancia(a0, b0) : Infinity, alFinal: false, alReves: false },
+  ].sort((x, y) => x.d - y.d)
+  const mejor = opciones[0]
+  if (!(mejor.d <= alcance)) return null
+  const trazo = mejor.alReves ? alReves(nuevo) : nuevo
+  const deLaIncision = linea(e.puntos)
+  const delTrazo = linea(trazo.puntos)
+  const tramo = LARGO_PARA_LA_DIRECCION_MM * mm
+  if (deLaIncision.largo <= 0 || delTrazo.largo <= tramo / 2) return null
+  const punta = mejor.alFinal ? a1 : a0
+  const atras = enLaLinea(deLaIncision, mejor.alFinal ? deLaIncision.largo - tramo : tramo).p
+  const adelante = enLaLinea(delTrazo, tramo).p
+  const fuera: Punto = [punta[0] - atras[0], punta[1] - atras[1], punta[2] - atras[2]]
+  const sale: Punto = [adelante[0] - trazo.puntos[0][0], adelante[1] - trazo.puntos[0][1], adelante[2] - trazo.puntos[0][2]]
+  const largoFuera = Math.hypot(...fuera)
+  const largos = largoFuera * Math.hypot(...sale)
+  if (!(largos > 0)) return null
+  const coseno = (fuera[0] * sale[0] + fuera[1] * sale[1] + fuera[2] * sale[2]) / largos
+  if (coseno >= Math.cos((ANGULO_DEL_CODO_GRADOS * Math.PI) / 180)) return null
+  let desde = 0
+  while (desde < trazo.puntos.length - 2 && distancia(trazo.puntos[desde], punta) < mm) desde++
+  const resto = { puntos: trazo.puntos.slice(desde), normales: trazo.normales.slice(desde) }
+  const n = e.normales[mejor.alFinal ? e.normales.length - 1 : 0] ?? resto.normales[0] ?? [0, 0, 1]
+  return {
+    pedazo: { ...anclado(resto, { p: punta, n }), nace: [{ en: e.id, punto: punta }] },
+    alFinal: mejor.alFinal,
+    fuera: [fuera[0] / largoFuera, fuera[1] / largoFuera, fuera[2] / largoFuera],
+  }
+}
+
+/** La incisión pasada de frente `PASADO_DEL_CODO_MM` por la punta del codo (D-420), sin cambiar su sentido. */
+function pasarElCodo(t: TrazoDeIncision, codo: CodoEnLaPunta, mm: number): TrazoDeIncision {
+  const d = PASADO_DEL_CODO_MM * mm
+  const i = codo.alFinal ? t.puntos.length - 1 : 0
+  const p = t.puntos[i]
+  const mas: Punto = [p[0] + codo.fuera[0] * d, p[1] + codo.fuera[1] * d, p[2] + codo.fuera[2] * d]
+  const n = t.normales[i] ?? [0, 0, 1]
+  return codo.alFinal
+    ? { puntos: [...t.puntos, mas], normales: [...t.normales, n] }
+    : { puntos: [mas, ...t.puntos], normales: [n, ...t.normales] }
 }
 
 /**
@@ -416,44 +565,68 @@ export function decidirElTrazo(
   // encima de ella en ángulo (D-415), y si no la toca, otra incisión.
   if (!mejor || mejor.repasado < MINIMO_PARA_REPASAR_MM * mm) {
     const alarga = incisionQueAlarga(existentes, capa, nuevo, umbral)
-    if (alarga) return { tipo: 'alarga', id: alarga.id, unida: alarga.unida, repasado: 0 }
+    if (alarga) {
+      // La que alargaría, si el trazo sale de ella en ángulo, es la incisión en que nace la L (D-420).
+      const base = existentes.find((x) => x.id === alarga.id)
+      const codo = base ? codoEnLaPunta(base, nuevo, umbral, mm) : null
+      if (base && codo) return { tipo: 'alarga', id: base.id, unida: pasarElCodo(base, codo, mm), repasado: 0, ramas: [codo.pedazo], codo: true }
+      return { tipo: 'alarga', id: alarga.id, unida: alarga.unida, repasado: 0 }
+    }
     return cruzarLasIncisiones(huellas, nuevo, delTrazo, sDe, mm) ?? { tipo: 'nueva', trazo: nuevo }
   }
 
   const { e, deLaIncision, encima, repasado } = mejor
+  const libres = e.libres ?? AMBAS_LIBRES
   // Solo cuenta lo que sobra por delante o por detrás de lo repasado. Un hueco entre dos tramos encima —la mano que
   // tiembla, un quiebre del trazo hondo— es parte del repaso.
   const primera = encima.indexOf(true)
   const ultima = encima.lastIndexOf(true)
-  const sobrantes: { trazo: TrazoDeIncision; enLaPunta: boolean; ancla: { p: Punto; n: Punto }; alInicio: boolean }[] = []
+  const sobrantes: { trazo: TrazoDeIncision; enLaPunta: boolean; ancla: { p: Punto; n: Punto }; alInicio: boolean; codo?: boolean }[] = []
   const mirarSobrante = (desde: number, hasta: number, union: number) => {
     if (hasta - desde < minimoFuera) return
-    // Sale por una punta si donde deja la incisión está junto a uno de sus extremos.
+    // Sale por una punta si donde deja la incisión está junto a uno de sus extremos. El que da a otra incisión de la misma
+    // no es una punta (D-420): lo que sale por ahí sale de su lado, y nace en ella.
     const donde = proyectar(deLaIncision, enLaLinea(delTrazo, union).p)
-    const enLaPunta = donde.s <= umbral + paso || donde.s >= deLaIncision.largo - umbral - paso
+    const enLaPunta = (libres.inicio && donde.s <= umbral + paso) || (libres.final && donde.s >= deLaIncision.largo - umbral - paso)
     sobrantes.push({ trazo: pedazo(nuevo, delTrazo, desde, hasta), enLaPunta, ancla: sobreLaIncision(e, deLaIncision, donde.s), alInicio: union === desde })
   }
   if (primera > 0) mirarSobrante(0, sDe(primera), sDe(primera))
   if (ultima < encima.length - 1) mirarSobrante(sDe(ultima), delTrazo.largo, sDe(ultima))
 
-  // Lo que sale por un lado nace en la incisión, y es otra: desde su línea, y no desde donde el trazo dejó de pisarla, que
-  // con la herida abierta cae en el labio o en el fondo y dejaba entre las dos un puente de piel (D-415). Si sale por los
-  // dos lados, el pedazo más largo es la incisión y el otro una rama, que antes se perdía.
-  const porUnLado = sobrantes
+  // Lo que sale por un lado nace en la incisión: desde su línea, y no desde donde el trazo dejó de pisarla, que con la
+  // herida abierta cae en el labio o en el fondo y dejaba entre las dos un puente de piel (D-415). Con ella es una sola
+  // incisión en T (D-420). Si sale por los dos lados, el pedazo más largo es el principal y el otro una rama, que antes
+  // se perdía.
+  // Lo que se sale por una punta y gira (D-420) no la alarga quebrada: es la pierna de una L, como sin repaso.
+  const alcanceDelRepaso = Math.hypot(corredor(e.id), hondura) + umbral
+  const codos: CodoEnLaPunta[] = []
+  for (const x of sobrantes) {
+    if (!x.enLaPunta) continue
+    const codo = codoEnLaPunta(e, x.trazo, alcanceDelRepaso, mm)
+    if (codo) {
+      codos.push(codo)
+      x.codo = true
+    }
+  }
+  const porUnLado: PedazoDeIncision[] = sobrantes
     .filter((x) => !x.enLaPunta)
-    .map((x) =>
-      despegado(x.alInicio ? anclado(x.trazo, x.ancla) : anclado(x.trazo, undefined, x.ancla), x.alInicio, !x.alInicio, APARTE_DE_LA_LINEA_MM * mm),
+    .map(
+      (x): PedazoDeIncision => ({
+        ...(x.alInicio ? anclado(x.trazo, x.ancla) : anclado(x.trazo, undefined, x.ancla)),
+        nace: [{ en: e.id, punto: x.ancla.p }],
+      }),
     )
     .sort((a, b) => linea(b.puntos).largo - linea(a.puntos).largo)
-  const conRamas = (ramas: TrazoDeIncision[]) => (ramas.length > 0 ? { ramas } : {})
-  const porLasPuntas = sobrantes.filter((x) => x.enLaPunta)
-  if (porLasPuntas.length > 0) {
+  const conRamas = (ramas: PedazoDeIncision[]) => (ramas.length > 0 ? { ramas } : {})
+  const porLasPuntas = sobrantes.filter((x) => x.enLaPunta && !x.codo)
+  if (porLasPuntas.length > 0 || codos.length > 0) {
     // Se une por la punta más cercana, aunque el pedazo arranque a un lado de la línea o en el fondo de la herida: es lo
     // que se repasó de ella. Por eso la distancia para unir es todo el corredor, de lado y de hondo.
     let unida: TrazoDeIncision = { puntos: [...e.puntos], normales: [...e.normales] }
-    const alcance = Math.hypot(corredor(e.id), hondura) + umbral
-    for (const s of porLasPuntas) unida = alargarIncision(unida, s.trazo, alcance) ?? unida
-    return { tipo: 'alarga', id: e.id, unida, repasado, ...conRamas(porUnLado) }
+    for (const s of porLasPuntas) unida = alargarIncision(unida, s.trazo, alcanceDelRepaso, libres) ?? unida
+    for (const c of codos) unida = pasarElCodo(unida, c, mm)
+    const ramas = [...porUnLado, ...codos.map((c) => c.pedazo)]
+    return { tipo: 'alarga', id: e.id, unida, repasado, ...conRamas(ramas), ...(codos.length > 0 ? { codo: true } : {}) }
   }
   const [principal, ...ramas] = porUnLado
   if (principal) return { tipo: 'nueva', trazo: principal, ...conRamas(ramas) }
@@ -506,16 +679,18 @@ interface Brazo {
  *   triángulos vueltos sobre la piel nada más cortar y 28 al abrirla con los Farabeuf.
  *
  * Ahora el trazo no corta nada dentro del corredor de la incisión (`corredorDelRepasoMm`): la capa ya está partida ahí.
- * Cada pedazo que sale de él empieza o termina **junto a la línea** de la incisión, que es donde estaba la piel antes de
- * abrirse, y no en el labio ni en el fondo: a `APARTE_DE_LA_LINEA_MM` de ella, de su lado.
+ * Cada pedazo que sale de él empieza o termina **en la línea** de la incisión, que es donde estaba la piel antes de
+ * abrirse, y no en el labio ni en el fondo. Nace en ella (`nace`), y con ella es una sola incisión (D-420): al cortarse
+ * pasa la línea un milímetro (`cruzarLaLinea`) y se abre en el labio de la otra, como la esquina de una T. D-415 lo
+ * dejaba a un milímetro de la línea, y eran dos incisiones que se tocaban.
  *
- * - Si el cruce cae en medio, el pedazo más largo es la incisión nueva y los demás, ramas: lo mismo que una T, que nace
- *   del borde de la herida.
- * - Si cae a menos de `PUNTA_DEL_CRUCE_MM` de una punta y el trazo pasa de lado a lado, la incisión se acorta hasta el
- *   cruce: el pedacito de punta del otro lado se cierra. El trazo nuevo queda entero y recto por la nueva punta, y la
- *   incisión vieja es el pie de una T.
+ * - Si el cruce cae en medio, el pedazo más largo es el principal y los demás, ramas: una cruz, o una T que nace del
+ *   borde de la herida.
+ * - Si cae a menos de `PUNTA_DEL_CRUCE_MM` de una punta libre y el trazo pasa de lado a lado, la incisión se acorta hasta
+ *   el cruce: el pedacito de punta del otro lado se cierra. El trazo nuevo, la barra, queda entero y recto por la nueva
+ *   punta, y la incisión vieja es el pie de una T que nace en ella.
  *
- * Un trazo que llega al corredor por un solo lado, en medio o junto a una punta, es esa T: nace junto a la línea.
+ * Un trazo que llega al corredor por un solo lado, en medio o junto a una punta, es esa T: nace en la línea.
  *
  * Devuelve `null` si el trazo no pisa ninguna incisión, y la repasa si no queda fuera nada que cortar.
  */
@@ -583,48 +758,177 @@ function cruzarLasIncisiones(
   // en el cruce y sigue por el brazo más largo: una sola incisión en L. Abierta con dos Farabeuf a 14 mm, la esquina de
   // dentro recibía el empuje de los dos tramos y la piel se plegaba, con 168 triángulos vueltos junto al cruce contra los
   // 28 que dejaba el cruce de antes.
-  let enLaPunta: { antes: Brazo; despues: Brazo; cruce: Cruce } | null = null
+  let enLaPunta: { antes: Brazo; despues: Brazo; cruce: Cruce; alInicio: boolean } | null = null
   for (const antes of brazos) {
     const cruce = antes.fin
     const despues = cruce && brazos.find((b) => b.inicio === cruce)
     if (!cruce || !despues) continue
     const largo = cruce.huella.deLaIncision.largo
     const tope = Math.min(PUNTA_DEL_CRUCE_MM * mm, largo / 3)
-    if (cruce.s > tope && cruce.s < largo - tope) continue
-    if (!enLaPunta || antes.largo + despues.largo > enLaPunta.antes.largo + enLaPunta.despues.largo) enLaPunta = { antes, despues, cruce }
+    // Solo una punta de verdad: la que da a otra incisión de la misma no se acorta, que la separaría de ella (D-420).
+    const libres = cruce.huella.e.libres ?? AMBAS_LIBRES
+    const alInicio = libres.inicio && cruce.s <= tope
+    if (!alInicio && !(libres.final && cruce.s >= largo - tope)) continue
+    if (!enLaPunta || antes.largo + despues.largo > enLaPunta.antes.largo + enLaPunta.despues.largo) enLaPunta = { antes, despues, cruce, alInicio }
   }
-  const conRamas = (ramas: TrazoDeIncision[]) => (ramas.length > 0 ? { ramas } : {})
-  // Lo que nace en una incisión empieza un poco a su lado (`APARTE_DE_LA_LINEA_MM`). El trazo que pasa por la nueva punta
-  // de una acortada, no: la cruza, y tiene que tocarla.
-  const aparte = (b: Brazo) => despegado(b.trazo, b.inicio !== undefined, b.fin !== undefined, APARTE_DE_LA_LINEA_MM * mm)
+  const conRamas = (ramas: PedazoDeIncision[]) => (ramas.length > 0 ? { ramas } : {})
+  // Cada brazo nace en la línea de la incisión que deja o a la que llega (D-420): con ella es una sola. Al cortarse pasa
+  // la línea (`cruzarLaLinea`), y lo de enfrente se deja aparte.
+  const nacimientos = (inicio?: Cruce, fin?: Cruce): { nace?: Nacimiento[] } => {
+    const nace = [inicio, fin].filter((c): c is Cruce => c !== undefined).map((c) => ({ en: c.huella.e.id, punto: c.p }))
+    return nace.length > 0 ? { nace } : {}
+  }
+  const naciente = (b: Brazo): PedazoDeIncision => ({ ...b.trazo, ...nacimientos(b.inicio, b.fin) })
   if (enLaPunta) {
-    const { antes, despues, cruce } = enLaPunta
+    const { antes, despues, cruce, alInicio } = enLaPunta
     const { e, deLaIncision } = cruce.huella
     // Lo que queda de la incisión, de su punta lejana al cruce, en el sentido en que se trazó: sus separadores y sus pinzas
-    // siguen donde estaban. El pedacito del otro lado se cierra.
+    // siguen donde estaban. El pedacito del otro lado se cierra. Queda un milímetro pasado el cruce, por su propia línea:
+    // así su grieta llega al labio de la barra (D-420).
     const largo = deLaIncision.largo
-    const tramo: [number, number] = cruce.s <= largo / 2 ? [cruce.s / largo, 1] : [0, cruce.s / largo]
-    const queda = pedazo(e, deLaIncision, tramo[0] * largo, tramo[1] * largo)
-    // El trazo nuevo, recto por el cruce: sin lo que cayó sobre la herida, que en la línea es donde estaba la piel.
-    const barra = unir(antes.trazo, despues.trazo)
-    const otras = brazos.filter((b) => b !== antes && b !== despues).map(aparte)
-    return { tipo: 'alarga', id: e.id, unida: queda, repasado: 0, enElCruce: true, tramo, ramas: [barra, ...otras] }
+    const pasa = PASADO_DE_LA_LINEA_MM * mm
+    const tramo: [number, number] = alInicio ? [Math.max(0, cruce.s - pasa) / largo, 1] : [0, Math.min(largo, cruce.s + pasa) / largo]
+    const queda: PedazoDeIncision = { ...pedazo(e, deLaIncision, tramo[0] * largo, tramo[1] * largo), nace: [{ en: 'barra', punto: cruce.p }] }
+    // El trazo nuevo, recto por el cruce: sin lo que cayó sobre la herida, que en la línea es donde estaba la piel. Se
+    // corta antes que la incisión acortada, que nace en él.
+    const barra: PedazoDeIncision = { ...unir(antes.trazo, despues.trazo), ...nacimientos(antes.inicio, despues.fin) }
+    const otras = brazos.filter((b) => b !== antes && b !== despues).map(naciente)
+    return { tipo: 'alarga', id: e.id, unida: queda, repasado: 0, enElCruce: true, tramo, barra, ...conRamas(otras) }
   }
   const [principal, ...ramas] = [...brazos].sort((a, b) => b.largo - a.largo)
-  return { tipo: 'nueva', trazo: aparte(principal), ...conRamas(ramas.map(aparte)) }
+  return { tipo: 'nueva', trazo: naciente(principal), ...conRamas(ramas.map(naciente)) }
 }
 
-/** Lo que el panel «Incisiones» dice de cada una: «Incisión 2 · músculo · 30 mm». */
+// ----------------------------------------------------------------------------------------------- la unión (D-420)
+
+/**
+ * Qué incisiones son una sola (D-420): de cada una, la primera de su grupo. Un grupo son las que nacen unas en otras
+ * (`nace`), por mucho que se encadenen: la cruz que nace en una incisión y la rama que después nace en un brazo de la
+ * cruz son la misma. Una incisión que no nace en ninguna ni tiene nada que nazca en ella es su propio grupo.
+ *
+ * Se calcula de los cortes y no se guarda: cerrar uno de los pedazos —deshacer el último gesto— rompe los lazos que
+ * salían de él, y el grupo que queda es el que dicen los que siguen.
+ */
+export function unionesDe(cortes: readonly { id?: number; nace?: readonly { incision: number }[] }[]): Map<number, number> {
+  const padre = new Map<number, number>()
+  const raiz = (x: number): number => {
+    let r = x
+    while (padre.get(r) !== undefined && padre.get(r) !== r) r = padre.get(r)!
+    padre.set(x, r)
+    return r
+  }
+  const ids = new Set(cortes.map((c) => c.id).filter((id): id is number => id !== undefined))
+  for (const id of ids) padre.set(id, id)
+  for (const c of cortes) {
+    if (c.id === undefined) continue
+    for (const n of c.nace ?? []) {
+      if (!ids.has(n.incision)) continue
+      const a = raiz(c.id)
+      const b = raiz(n.incision)
+      // La primera de todas da nombre al grupo: es la que se ve en el recuadro y la que se cuenta en el paso.
+      if (a !== b) padre.set(Math.max(a, b), Math.min(a, b))
+    }
+  }
+  const salida = new Map<number, number>()
+  for (const id of ids) salida.set(id, raiz(id))
+  return salida
+}
+
+/**
+ * Las incisiones que nacen en la `id`, directa o indirectamente (D-420), en el orden de `cortes`: la rama que nace en un
+ * brazo de la cruz que nace en ella, también. Rehacer la `id` obliga a rehacerlas después, porque cada una deja aparte lo
+ * de enfrente de aquella en que nace, y eso se mira con ella ya cortada. Cada corte va después de aquellos en que nace,
+ * así que basta una pasada.
+ */
+export function lasQueNacenEn<C extends { id?: number; nace?: readonly { incision: number }[] }>(cortes: readonly C[], id: number): C[] {
+  const dentro = new Set([id])
+  const salida: C[] = []
+  for (const c of cortes) {
+    if (c.id === undefined || dentro.has(c.id)) continue
+    if (!(c.nace ?? []).some((n) => dentro.has(n.incision))) continue
+    dentro.add(c.id)
+    salida.push(c)
+  }
+  return salida
+}
+
+/**
+ * Qué puntas de cada incisión son puntas de verdad (D-420): la que da a otra incisión de la misma —porque nace en ella,
+ * o porque otra nace ahí— no lo es. Es la esquina de la T, que no se alarga ni se acorta en un cruce, y no lleva la
+ * punta amarilla de alargar. `cerca` es hasta dónde del extremo puede caer el punto en que se tocan, en las unidades
+ * de los puntos: el que el pedazo pasa la línea y algo de holgura.
+ */
+export function puntasLibresDe(
+  cortes: readonly { id?: number; puntos: readonly Punto[]; nace?: readonly { incision: number; punto: Punto }[] }[],
+  cerca: number,
+): Map<number, PuntasLibres> {
+  const salida = new Map<number, PuntasLibres>()
+  for (const c of cortes) {
+    if (c.id === undefined || c.puntos.length < 2) continue
+    const toques = [
+      ...(c.nace ?? []).map((n) => n.punto),
+      ...cortes.flatMap((o) => (o === c ? [] : (o.nace ?? []).filter((n) => n.incision === c.id).map((n) => n.punto))),
+    ]
+    const libre = (p: Punto) => toques.every((q) => distancia(p, q) > cerca)
+    salida.set(c.id, { inicio: libre(c.puntos[0]), final: libre(c.puntos[c.puntos.length - 1]) })
+  }
+  return salida
+}
+
+/**
+ * Lo que mide cada trazo de una incisión de varios pedazos (D-420), en el orden de `pedazos`. Un trazo que cruza una
+ * incisión entera la deja en dos brazos, uno a cada lado, que nacen en el mismo punto de ella: se leen juntos, «93 + 73»,
+ * porque son la raya que se hizo, y «93 + 41 + 32» contaba tres cortes donde se dieron dos. Dos pedazos van juntos si
+ * nacen en la misma incisión a menos de `cerca` (en las unidades de los puntos), y eso se encadena: el trazo que cruza
+ * dos incisiones paralelas son tres pedazos y un solo tramo. La barra de una T y el brazo que nace en ella no se juntan:
+ * uno nace en el otro, no los dos en una tercera.
+ */
+export function tramosDeLosTrazos(
+  pedazos: readonly { largoMm: number; nace?: readonly { incision: number; punto: Punto }[] }[],
+  cerca: number,
+): number[] {
+  const padre = pedazos.map((_, i) => i)
+  const raiz = (i: number): number => (padre[i] === i ? i : (padre[i] = raiz(padre[i])))
+  for (let i = 0; i < pedazos.length; i++) {
+    for (let j = i + 1; j < pedazos.length; j++) {
+      const juntos = (pedazos[i].nace ?? []).some((a) =>
+        (pedazos[j].nace ?? []).some((b) => a.incision === b.incision && distancia(a.punto, b.punto) <= cerca),
+      )
+      if (juntos) padre[raiz(j)] = raiz(i)
+    }
+  }
+  const porTrazo = new Map<number, number>()
+  pedazos.forEach((p, i) => porTrazo.set(raiz(i), (porTrazo.get(raiz(i)) ?? 0) + p.largoMm))
+  return [...porTrazo.values()]
+}
+
+/**
+ * Lo que el panel «Incisiones» dice de cada una: «Incisión 2 · músculo · 30 mm». Una incisión en T o en cruz es una
+ * sola, con lo que mide cada uno de sus pedazos (`tramosMm`, D-420): `largoMm` es la suma.
+ */
 export interface ResumenDeIncision {
   id: number
   capa: 'piel' | 'fascia' | 'musculo'
   largoMm: number
   aperturaMm: number
+  tramosMm?: number[]
+  /** Los números de sus pedazos, si tiene más de uno: `id` es el del primero. */
+  pedazos?: number[]
+}
+
+/**
+ * Lo que mide una incisión de varios pedazos, como se dice (D-420): «85 + 60 mm», el más largo primero. Con uno solo,
+ * «92 mm». Así se lee de qué está hecha, y no un total que no se ve en ninguna parte de la piel.
+ */
+export function medidaDeLaIncision(r: Pick<ResumenDeIncision, 'largoMm' | 'tramosMm'>): string {
+  const tramos = (r.tramosMm ?? []).filter((x) => x > 0)
+  if (tramos.length < 2) return `${Math.round(r.largoMm)} mm`
+  return `${[...tramos].sort((a, b) => b - a).map((x) => Math.round(x)).join(' + ')} mm`
 }
 
 /** El texto de una incisión en el panel, con su número de orden (1, 2…) y no su `id` interno. */
-export function rotuloDeLaIncision(orden: number, r: Pick<ResumenDeIncision, 'capa' | 'largoMm' | 'aperturaMm'>): string {
+export function rotuloDeLaIncision(orden: number, r: Pick<ResumenDeIncision, 'capa' | 'largoMm' | 'aperturaMm' | 'tramosMm'>): string {
   const capa = r.capa === 'piel' ? 'piel' : r.capa === 'fascia' ? 'fascia' : 'músculo'
   const abierta = r.aperturaMm >= 1 ? ` · abierta ${Math.round(r.aperturaMm)} mm` : ''
-  return `Incisión ${orden} · ${capa} · ${Math.round(r.largoMm)} mm${abierta}`
+  return `Incisión ${orden} · ${capa} · ${medidaDeLaIncision(r)}${abierta}`
 }

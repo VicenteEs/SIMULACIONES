@@ -19,6 +19,7 @@ import {
   perfilDeLaCapa,
   posicionQueAcompana,
   puntasDeLaGrieta,
+  puntasDeLosLabios,
   ladoAlColocar,
   limitarAgarre,
   limitarApertura,
@@ -174,6 +175,45 @@ describe('los separadores colocados abren donde están', () => {
     expect(puntasDeLaGrieta({ desde: 0.1, hasta: 0.85, cerradaAlInicio: true, cerradaAlFinal: true })).toEqual({ desde: 0.1, hasta: 0.85 })
     expect(puntasDeLaGrieta({ desde: 0.1, hasta: 0.85, cerradaAlInicio: false, cerradaAlFinal: true })).toEqual({ desde: 0, hasta: 0.85 })
     expect(puntasDeLaGrieta({ desde: 0.4, hasta: 0.45, cerradaAlInicio: false, cerradaAlFinal: false })).toEqual({ desde: 0, hasta: 1 })
+  })
+
+  // En el extremo que da a otra incisión, cada labio tiene sus puntas (D-420).
+  describe('las puntas de cada labio en el cruce con otra incisión', () => {
+    // La pierna de una L de 31 mm: nace en la primera, con su grieta desde que cruza la de ella, a un milímetro.
+    const grieta = { desde: 1 / 31, hasta: 0.97, cerradaAlInicio: false, cerradaAlFinal: true }
+    const cruces = (detras = 0) => ({ alInicio: { mas: { partida: 91, detras }, menos: { partida: 3, detras: 0 } } })
+    const enLaPierna = [separador({ lado: 1, posicion: 0.5, aperturaMm: 14 }), separador({ id: 2, lado: -1, posicion: 0.5, aperturaMm: 14 })]
+    const junto = grieta.desde + 0.01
+
+    it('sin cruces son las de la grieta', () => {
+      expect(puntasDeLosLabios(grieta, undefined, 10, 31)).toEqual(puntasDeLaGrieta(grieta))
+      expect(puntasDeLosLabios({ ...grieta, cerradaAlInicio: true }, cruces(), 10, 31)).toEqual(puntasDeLaGrieta({ ...grieta, cerradaAlInicio: true }))
+    })
+
+    it('el labio que da a un tramo largo de la otra llega suelto al cruce; el que da a su punta se cierra en la grieta', () => {
+      const perfil = perfilDeLaCapa('piel', enLaPierna, [], 31, puntasDeLosLabios(grieta, cruces(), 10, 31))
+      // Con las puntas de la grieta, los dos subían desde la punta del trazo con la pendiente de una punta.
+      const antes = perfilDeLaCapa('piel', enLaPierna, [], 31, puntasDeLaGrieta(grieta))
+      expect(antes(junto).mas).toBeLessThan(4)
+      expect(antes(junto).menos).toBeLessThan(4)
+      expect(perfil(junto).mas).toBeGreaterThan(13)
+      expect(perfil(junto).menos).toBeLessThan(antes(junto).menos * 0.6)
+    })
+
+    it('suelto a medias, la punta de su cuerda queda donde estaba: en la del trazo', () => {
+      // A 5 mm de la punta de la otra, con 10 de fundido, el labio está suelto a medias (`solturaDelLabio`).
+      const puntas = puntasDeLosLabios(grieta, { alInicio: { mas: { partida: 5, detras: 0 }, menos: { partida: 5, detras: 0 } } }, 10, 31)
+      expect(puntas.porLabio?.mas.desde).toBeCloseTo(0, 6)
+      expect(puntas.porLabio?.menos.desde).toBeCloseTo(0, 6)
+    })
+
+    it('el brazo en sesgo no suelta del todo el labio que deja piel detrás de su arranque', () => {
+      const deFrente = perfilDeLaCapa('piel', enLaPierna, [], 31, puntasDeLosLabios(grieta, cruces(0), 10, 31))(junto).mas
+      const enSesgo = perfilDeLaCapa('piel', enLaPierna, [], 31, puntasDeLosLabios(grieta, cruces(Math.SQRT1_2), 10, 31))(junto).mas
+      const cerrado = perfilDeLaCapa('piel', enLaPierna, [], 31, puntasDeLosLabios(grieta, cruces(), 10, 31))(junto).menos
+      expect(enSesgo).toBeLessThan(deFrente - 3)
+      expect(enSesgo).toBeGreaterThan(cerrado)
+    })
   })
 
   it('el vaso cortado de lado a lado, sin nada que lo sujete, se aparta entero aunque su grieta sea corta', () => {

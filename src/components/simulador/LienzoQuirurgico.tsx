@@ -60,6 +60,7 @@ import type { PlanoDeCorte } from '@/lib/comportamientoDelInstrumento'
 import {
   ANCHO_VISIBLE_DE_LA_INCISION_MM,
   ARISTA_JUNTO_AL_CORTE_MM,
+  EXTREMO_QUE_DA_A_LA_OTRA_MM,
   GROSOR_MAXIMO_DE_LA_PIEL_MM,
   aberturaDe,
   abrirCapa,
@@ -83,11 +84,19 @@ import { flotantesDe } from '@/atlas/canalDeLaGeometria'
 import { EL_PLANO, planDelCierre, textoDelCierre, type PlanoQueSeCierra } from '@/lib/cierreDeUnClic'
 import {
   corredorDelRepasoMm,
+  cruzarLaLinea,
   decidirElTrazo,
+  lasQueNacenEn,
+  medidaDeLaIncision,
+  PASADO_DE_LA_LINEA_MM,
+  puntasLibresDe,
+  tramosDeLosTrazos,
   UMBRAL_PARA_ALARGAR_MM,
+  unionesDe,
+  type Nacimiento,
+  type PedazoDeIncision,
   type Punto,
   type ResumenDeIncision,
-  type TrazoDeIncision,
 } from '@/lib/incisiones'
 import { juicioDeLaPotencia, type ModoDelElectrobisturi } from '@/lib/electrobisturi'
 import {
@@ -518,8 +527,11 @@ interface OpcionesDelCorte {
    * otra vez. Tampoco avisa si no corta nada: lo que se ve es lo que cortó el resto del trazo.
    */
   esRama?: boolean
-  /** La rama cuenta como la incisión del trazo: la primera, cuando lo demás alargó una que ya estaba. */
-  cuentaLaIncision?: boolean
+  /**
+   * Las incisiones en cuya línea nace este corte (D-420), como las guarda `CorteGuardado.nace`: con ellas es una sola
+   * incisión en T o en cruz. Lo traen las ramas, lo que rehace la sesión y lo que se vuelve a cortar tras otra cosa.
+   */
+  nace?: NaceGuardado[]
 }
 
 /** El fragmento leído como en la ficha (D-303): lo que devuelve `lecturaDelFragmento`. */
@@ -1067,7 +1079,10 @@ export interface InclinacionDeBroca {
 /** Lo que se sabe de las heridas abiertas en la escena. */
 export interface EstadoDeLasHeridas {
   capas: PlanoDeCorte[]
+  /** Lo que mide la incisión más larga: una en T o en cruz, la suma de sus pedazos (D-420). */
   largoMm: number
+  /** Lo que mide cada pedazo de esa incisión, si tiene más de uno (D-420). */
+  tramosMm?: number[]
   aperturaMm: number
   /** Cada incisión por separado, en el orden en que se hicieron (P-003 E4): el panel las lista con su «Cerrar». */
   incisiones: ResumenDeIncision[]
@@ -1393,8 +1408,10 @@ export function LienzoQuirurgico({
    * Se llama con el trazo completo cada vez que cambia, y con el plano que corta el instrumento que lo hizo (`null` si no
    * corta). Sin plano cuando el trazo se borra sin trazar otro —al pasar de paso, al reiniciar, con «Borrar trazo»—: la
    * consola lo distingue para que un trazo hondo no cambie lo que mide el paso de la incisión de piel (D-414).
+   * `largoMm`, cuando viene, es lo que mide la incisión entera y no el trazo: una en T o en cruz suma sus pedazos, y la
+   * guía es solo el principal (D-420).
    */
-  alTrazar?: (puntos: Punto3[], plano?: PlanoDeCorte | null) => void
+  alTrazar?: (puntos: Punto3[], plano?: PlanoDeCorte | null, largoMm?: number) => void
   /**
    * Se llama al soltar el fragmento, con su desplazamiento **respecto del
    * reposo**, en unidades del archivo y en grados.
@@ -1678,6 +1695,7 @@ export function LienzoQuirurgico({
     /** El número de la próxima incisión y el de la última que se hizo (P-003 E4). */
     siguienteIncision?: number
     ultimaIncision?: number
+    ultimoGesto?: GestoDeIncision
     /** La imagen del arco en C: el blanco de dibujo y su cámara. */
     fluoroscopia?: TallerDeFluoroscopia
     /** Cuántas veces se ha dibujado la escena: la fluoroscopia solo se rehace si cambió. */
@@ -2046,12 +2064,16 @@ export function LienzoQuirurgico({
       // al pasar de paso la consola borra el trazo (la medida vuelve a cero) y la
       // piel cortada tiene que seguir cortada en el paso siguiente.
       if (deshacerCorte) {
-        // Se deshace la última incisión que se hizo (P-003 E4): con varias en la misma capa, las demás se quedan.
-        const id = taller.current.ultimaIncision
-        if (id !== undefined) {
-          cerrarLaIncision(taller.current, id, { conSusSeparadores: false })
-          reaplicarSeparadores(taller.current, ultimas.current)
-          ultimas.current.alHerir?.(estadoDeLasHeridas(taller.current, ultimas.current.milimetrosPorUnidad))
+        // Se deshace la última incisión que se hizo (P-003 E4): con varias en la misma capa, las demás se quedan. Si el
+        // último trazo cortó varios pedazos de una misma incisión, o alargó una, se deshace el gesto entero (D-420). Tras
+        // recargar la sesión no hay gesto: se cierra la última, como antes.
+        const t = taller.current
+        const id = t.ultimaIncision
+        const deshecho = deshacerElUltimoGesto(t)
+        if (!deshecho && id !== undefined) cerrarLaIncision(t, id, { conSusSeparadores: false })
+        if (deshecho || id !== undefined) {
+          reaplicarSeparadores(t, ultimas.current)
+          ultimas.current.alHerir?.(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad))
         }
       }
       ultimas.current.alTrazar?.([])
@@ -2113,7 +2135,12 @@ export function LienzoQuirurgico({
 
     cerrarIncision: (id) => {
       const t = taller.current
-      cerrarLaIncision(t, id, { conSusSeparadores: false })
+      // Una incisión en T o en cruz se cierra entera (D-420): el panel la muestra como una, con el número del grupo. Del
+      // último pedazo al primero, para no rehacer lo que se va a cerrar.
+      const grupos = unionesDe(t.cortes ?? [])
+      const delGrupo = grupos.get(id) ?? id
+      const pedazos = (t.cortes ?? []).filter((c) => c.id !== undefined && (grupos.get(c.id) ?? c.id) === delGrupo).map((c) => c.id!)
+      for (const pedazo of (pedazos.length > 0 ? pedazos : [id]).reverse()) cerrarLaIncision(t, pedazo, { conSusSeparadores: false })
       reaplicarSeparadores(t, ultimas.current)
       avisarPellizcos(t, ultimas.current)
       ultimas.current.alHerir?.(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad))
@@ -3163,7 +3190,7 @@ export function LienzoQuirurgico({
       for (const corte of guardado.cortes ?? []) {
         t.puntosDelTrazo = corte.puntos.map(([x, y, z]) => ({ x, y, z }))
         t.normalesDelTrazo = corte.normales.map(([x, y, z]) => ({ x, y, z }))
-        aplicarElCorte(corte.plano, { desdeLaSesion: true, id: corte.id, quemado: corte.quemado })
+        aplicarElCorte(corte.plano, { desdeLaSesion: true, id: corte.id, quemado: corte.quemado, nace: corte.nace })
       }
       t.puntosDelTrazo = []
       t.normalesDelTrazo = []
@@ -3769,17 +3796,21 @@ export function LienzoQuirurgico({
       const plano = ultimas.current.instrumento?.planoDeCorte
       // El bisturí de piel alarga las de la piel; los profundos, las de debajo.
       const cortes = plano ? (taller.current.cortes ?? []).filter((c) => (c.plano === 'piel') === (plano === 'piel')) : []
-      const clave = cortes.map((c) => `${c.id}:${c.plano}:${c.puntos.length}`).join('|')
+      const clave = cortes.map((c) => `${c.id}:${c.plano}:${c.puntos.length}:${c.nace?.length ?? 0}`).join('|')
       let cambio = false
       if (clave !== claveDeLasPuntas) {
         claveDeLasPuntas = clave
         puntasDeLasIncisiones.clear()
         sitiosDeLasPuntas = []
         const radio = 1.6 / (ultimas.current.milimetrosPorUnidad || 1000)
+        // La esquina de una T no es una punta (D-420): no se alarga desde ahí, y la bola amarilla invitaría a hacerlo.
+        const libres = puntasLibresDe(taller.current.cortes ?? [], EXTREMO_QUE_DA_A_LA_OTRA_MM / (ultimas.current.milimetrosPorUnidad || 1000))
         for (const c of cortes) {
           for (const extremo of [0, 1] as const) {
             const p = c.puntos[extremo === 0 ? 0 : c.puntos.length - 1]
             if (!p) continue
+            const libre = c.id === undefined ? undefined : libres.get(c.id)
+            if (libre && !(extremo === 0 ? libre.inicio : libre.final)) continue
             const punta = new THREE.Mesh(geometriaDeLaPunta, materialDeLaPunta)
             punta.position.set(p[0], p[1], p[2])
             punta.scale.setScalar(radio)
@@ -4270,7 +4301,7 @@ export function LienzoQuirurgico({
         id: idPedido,
         reemplaza,
         esRama = false,
-        cuentaLaIncision = false,
+        nace: naceDado,
       } = opciones
       const t = taller.current
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
@@ -4337,24 +4368,32 @@ export function LienzoQuirurgico({
       // primera, o una que iba y volvía sobre sí misma, y con los separadores la piel quedaba en pedazos.
       let recortado = false
       // Un trazo que cruza una incisión (D-415): no corta encima de la herida, y lo que sale de ella a cada lado nace en su
-      // línea. Se corta primero el pedazo principal y después cada rama, como una incisión aparte. Junto a una punta, lo
-      // principal es la incisión acortada hasta el cruce, y la primera rama, el trazo nuevo entero.
-      let ramas: TrazoDeIncision[] = []
+      // línea. Se corta primero el pedazo principal y después cada rama. Junto a una punta, lo principal es la incisión
+      // acortada hasta el cruce, y antes que ella se corta la barra, el trazo nuevo entero, que es en lo que nace.
+      // Todos son una sola incisión con la que cruzaron (D-420): cada pedazo guarda en cuál nace (`nace`), al cortarse deja
+      // aparte lo de enfrente de ella y se abre en su labio, y el panel, el paso y deshacer los tratan juntos.
+      let ramas: PedazoDeIncision[] = []
       let enElCruce = false
+      // El trazo salió en ángulo de una punta: nace en ella, en L, en vez de alargarla quebrada (D-420).
+      let enCodo = false
       let tramoQueQueda: readonly [number, number] | undefined
+      let nacePrincipal: readonly Nacimiento[] | undefined
+      let barra: PedazoDeIncision | undefined
+      // Un trazo de verdad, que se decide aquí; lo demás —la sesión, rehacer, la disección, las ramas— ya sabe qué es.
+      const deUnTrazo = id === undefined && !desdeLaSesion && !esRehacer && !deDiseccion && !esRama
       // El trazo se pinchó en la malla de ahora, y se corta en la de reposo (D-416): cada punto que cae sobre algo movido
       // —una herida abierta, lo que apartan los Farabeuf— va al tejido que se tenía debajo. Se decide antes con el trazo
       // tal como se ve, que es con lo que están medidos el repaso y el cruce, y se lleva después lo que se va a cortar.
-      // Las ramas, también aquí: cuando se corten, la malla ya habrá cambiado con lo principal.
+      // Las ramas y la barra, también aquí: cuando se corten, la malla ya habrá cambiado con lo principal.
       let alReposo: ((p: Punto, n: Punto) => { p: Punto; n: Punto }) | null = null
-      if (id === undefined && !desdeLaSesion && !esRehacer && !deDiseccion && !esRama) {
+      if (deUnTrazo) {
         const conReposo = mallas.map(conSuReposo).filter((m): m is MallaConReposo => m !== null)
         if (conReposo.length > 0) {
           const llevados = llevarAlReposo(puntosDelCorte, normalesDelCorte, conReposo, 0.1 * unidadesPorMm, 0.05 * unidadesPorMm)
           if (llevados.some((l) => l !== null)) alReposo = porElTrazo(puntosDelCorte, llevados, normalesDelCorte, 1e-3 * unidadesPorMm)
         }
       }
-      if (id === undefined && !desdeLaSesion && !esRehacer && !deDiseccion && !esRama) {
+      if (deUnTrazo) {
         // Lo abierta que está una incisión: lo que más se abre, o a `s` de su inicio, de labio a labio tal como están
         // ahora (D-415). Junto a la punta casi no se abre, aunque los Farabeuf del medio la tengan a 35 mm.
         const largoDelCorte = new Map((t.cortes ?? []).map((c) => [c.id, largoDelTrazo(c.puntos.map(([x, y, z]) => ({ x, y, z })), 1)]))
@@ -4371,8 +4410,11 @@ export function LienzoQuirurgico({
           }
           return hueco < 0 ? maxima : hueco / unidadesPorMm
         }
+        // La punta que da a otra incisión de la misma no es una punta (D-420): es la esquina de la T, y ni se alarga ni se
+        // acorta en un cruce. Alargarla la separaría de la otra.
+        const libres = puntasLibresDe(t.cortes ?? [], EXTREMO_QUE_DA_A_LA_OTRA_MM * unidadesPorMm)
         const decision = decidirElTrazo(
-          (t.cortes ?? []).map((c) => ({ id: c.id ?? -1, capa: c.plano, puntos: c.puntos, normales: c.normales })),
+          (t.cortes ?? []).map((c) => ({ id: c.id ?? -1, capa: c.plano, puntos: c.puntos, normales: c.normales, libres: libres.get(c.id ?? -1) })),
           plano,
           { puntos: puntosDelCorte, normales: normalesDelCorte },
           {
@@ -4401,26 +4443,43 @@ export function LienzoQuirurgico({
           id = decision.id
           puntosDelCorte = [...decision.unida.puntos]
           normalesDelCorte = [...decision.unida.normales]
+          nacePrincipal = decision.unida.nace
           alargada = true
           enElCruce = decision.enElCruce === true
+          enCodo = decision.codo === true
           tramoQueQueda = decision.tramo
-        } else if (decision.trazo.puntos !== puntosDelCorte) {
-          // Lo que se salió por un lado de una incisión repasada: solo eso es la incisión nueva.
-          puntosDelCorte = [...decision.trazo.puntos]
-          normalesDelCorte = [...decision.trazo.normales]
-          recortado = true
+          barra = decision.barra
+        } else {
+          nacePrincipal = decision.trazo.nace
+          if (decision.trazo.puntos !== puntosDelCorte) {
+            // Lo que se salió por un lado de una incisión repasada: solo eso es la incisión nueva.
+            puntosDelCorte = [...decision.trazo.puntos]
+            normalesDelCorte = [...decision.trazo.normales]
+            recortado = true
+          }
         }
       }
       if (alReposo) {
         const llevar = alReposo
-        const aReposo = (tr: TrazoDeIncision): TrazoDeIncision => {
+        const aReposo = (tr: PedazoDeIncision): PedazoDeIncision => {
           const llevados = tr.puntos.map((p, i) => llevar(p, tr.normales[i] ?? [0, 0, 1]))
-          return { puntos: llevados.map((l) => l.p), normales: llevados.map((l) => l.n) }
+          return { ...tr, puntos: llevados.map((l) => l.p), normales: llevados.map((l) => l.n) }
         }
         const principal = aReposo({ puntos: puntosDelCorte, normales: normalesDelCorte })
         puntosDelCorte = [...principal.puntos]
         normalesDelCorte = [...principal.normales]
         ramas = ramas.map(aReposo)
+        if (barra) barra = aReposo(barra)
+      }
+      // Cada pedazo que nace en otra incisión pasa su línea un milímetro (D-420), ya en reposo: así su grieta llega al
+      // labio de la otra y la esquina se abre. Lo que viene de la sesión o se rehace ya se guardó así.
+      if (deUnTrazo) {
+        const pasa = PASADO_DE_LA_LINEA_MM * unidadesPorMm
+        const principal = cruzarLaLinea({ puntos: puntosDelCorte, normales: normalesDelCorte, nace: nacePrincipal ? [...nacePrincipal] : undefined }, pasa)
+        puntosDelCorte = [...principal.puntos]
+        normalesDelCorte = [...principal.normales]
+        ramas = ramas.map((r) => cruzarLaLinea(r, pasa))
+        if (barra) barra = cruzarLaLinea(barra, pasa)
       }
       const previo = id !== undefined ? (t.cortes ?? []).find((c) => c.id === id) : undefined
       // Lo que ya estaba cortado antes de este trazo, mirado antes de cerrar la incisión que se alarga: alargarla la
@@ -4428,6 +4487,10 @@ export function LienzoQuirurgico({
       const yaCortadas = new Set([...(t.heridas?.values() ?? [])].flat().map((h) => h.malla.name))
       if (id === undefined) id = t.siguienteIncision = (t.siguienteIncision ?? 0) + 1
       else t.siguienteIncision = Math.max(t.siguienteIncision ?? 0, id)
+      // Lo que nace en la incisión que se rehace tiene que ir después de ella en la malla (D-420): se deja aparte lo de
+      // enfrente de ella, y eso solo se sabe con ella cortada. Se cierra antes, y se vuelve a cortar al final.
+      const descendientes = previo ? lasQueNacenEn(t.cortes ?? [], id) : []
+      for (const d of [...descendientes].reverse()) if (d.id !== undefined) cerrarLaIncision(t, d.id, { conSusSeparadores: true })
       // La incisión de antes que se alarga o se reemplaza se cierra para hacerla de nuevo: sus separadores y sus
       // pinzas se quedan, son suyos.
       if (previo) cerrarLaIncision(t, id, { conSusSeparadores: true })
@@ -4435,15 +4498,34 @@ export function LienzoQuirurgico({
       // fracción del largo, y sin esto un Farabeuf a un cuarto de la incisión saltaba 5 mm hacia la punta que se cerró.
       if (tramoQueQueda) {
         const [desde, hasta] = tramoQueQueda
-        const reubicar = (p: number) => Math.min(1, Math.max(0, (p - desde) / Math.max(1e-9, hasta - desde)))
-        for (const s of t.separadores ?? []) {
-          if (s.datos.incision !== id) continue
-          s.datos.posicion = reubicar(s.datos.posicion)
-          const guardado = s.sitios[plano]
-          if (guardado) guardado.posicion = reubicar(guardado.posicion)
-        }
-        for (const q of t.pellizcos ?? []) if (q.datos.incision === id) q.datos.posicion = reubicar(q.datos.posicion)
+        reubicarLoPuesto(t, plano, id, (p) => Math.min(1, Math.max(0, (p - desde) / Math.max(1e-9, hasta - desde))))
       }
+      // Las incisiones de antes en que nace un pedazo, por su número: la barra todavía no lo tiene, y la que se cerró ya no
+      // está (un trazo que cruza dos veces la misma incisión, junto a su punta).
+      const naceGuardado = (nace: readonly Nacimiento[] | undefined, idDeLaBarra?: number): NaceGuardado[] => {
+        const hay = new Set((t.cortes ?? []).map((c) => c.id))
+        return (nace ?? []).flatMap((n) => {
+          const incision = n.en === 'barra' ? idDeLaBarra : n.en
+          return incision !== undefined && hay.has(incision) ? [{ incision, punto: [n.punto[0], n.punto[1], n.punto[2]] as P3 }] : []
+        })
+      }
+      // Otro pedazo del mismo gesto, con su propio trazo: la barra o una rama.
+      const cortarPedazo = (pedazo: PedazoDeIncision, idDeLaBarra?: number): number | undefined => {
+        const guia = { puntos: t.puntosDelTrazo, normales: t.normalesDelTrazo }
+        t.puntosDelTrazo = pedazo.puntos.map(([x, y, z]) => ({ x, y, z }))
+        t.normalesDelTrazo = pedazo.normales.map(([x, y, z]) => ({ x, y, z }))
+        const nace = naceGuardado(pedazo.nace, idDeLaBarra)
+        const hecho = aplicarElCorte(plano, { quemado, esRama: true, ...(nace.length > 0 ? { nace } : {}) })
+        t.puntosDelTrazo = guia.puntos
+        t.normalesDelTrazo = guia.normales
+        return hecho
+      }
+      // La barra de la T junto a una punta va antes que la incisión acortada, que nace en ella: se corta ya, con la
+      // incisión de antes cerrada. Cortada con ella abierta, pasaría por encima de su herida.
+      const idDeLaBarra = barra ? cortarPedazo(barra) : undefined
+      const naceDelCorte: NaceGuardado[] = deUnTrazo
+        ? [...naceGuardado((previo?.nace ?? []).map((n) => ({ en: n.incision, punto: n.punto }))), ...naceGuardado(nacePrincipal, idDeLaBarra)]
+        : naceGuardado((naceDado ?? previo?.nace ?? []).map((n) => ({ en: n.incision, punto: n.punto })))
 
       const puntos = puntosDelCorte.map((p) => new THREE.Vector3(p[0], p[1], p[2]))
       const normales = normalesDelCorte.map((n) => new THREE.Vector3(n[0], n[1], n[2]))
@@ -4456,6 +4538,12 @@ export function LienzoQuirurgico({
       // por encima de ella al abrirse.
       const pieles = plano === 'piel' ? [] : (t.heridas?.get('piel') ?? [])
       const normalesDeEncima = pieles.length > 0 ? puntos.map((p) => normalDeLaPielEncima(pieles, p, unidadesPorMm)) : undefined
+      // De qué lado de cada incisión en que nace está el pedazo (D-420): su punto del medio, lejos de las dos puntas. Una
+      // punta está en la línea de la otra, o la pasa un milímetro, y no dice de qué lado queda.
+      const naceDe =
+        naceDelCorte.length > 0
+          ? naceDelCorte.map((n) => ({ incision: n.incision, punto: deP3(n.punto), lado: puntoDelMedio(puntos) }))
+          : undefined
       const parametrosDe = (malla: THREE.Mesh) => ({
         // La piel es fina; la fascia y los planos profundos empiezan bajo ella y bajo la grasa.
         profundidad: (plano === 'piel' ? 14 : 50) * unidadesPorMm,
@@ -4474,6 +4562,7 @@ export function LienzoQuirurgico({
         normalesDeEncima,
         // Lo de debajo de la piel no deja líneas rojas en el fondo de la herida (D-411).
         hondo: plano !== 'piel',
+        naceDe,
       })
       const hechas: HeridaEnCapa[] = []
       for (const malla of mallas) {
@@ -4486,11 +4575,18 @@ export function LienzoQuirurgico({
         // Si se reemplazaba una incisión y el trazo nuevo no cortó nada, se rehace la que había: la incisión buena
         // no se pierde por un clic de más.
         if (previo && !esRehacer) {
+          if (tramoQueQueda) {
+            const [desde, hasta] = tramoQueQueda
+            reubicarLoPuesto(t, plano, id, (p) => desde + p * (hasta - desde))
+          }
           t.puntosDelTrazo = previo.puntos.map(([x, y, z]) => ({ x, y, z }))
           t.normalesDelTrazo = previo.normales.map(([x, y, z]) => ({ x, y, z }))
-          aplicarElCorte(plano, { desdeLaSesion: true, esRehacer: true, deDiseccion, id, quemado: previo.quemado })
+          aplicarElCorte(plano, { desdeLaSesion: true, esRehacer: true, deDiseccion, id, quemado: previo.quemado, ...(previo.nace ? { nace: previo.nace } : {}) })
         }
-        if (!esRama) aviso('El trazo no atraviesa ninguna malla de esa capa.')
+        // Y lo que nacía en ella vuelve a nacer en ella (D-420).
+        volverACortar(t, descendientes)
+        // Lo que se rehace calla: quien lo pidió ya dijo lo suyo.
+        if (!esRama && !esRehacer) aviso('El trazo no atraviesa ninguna malla de esa capa.')
         return undefined
       }
       // Un músculo retraído que se corta conserva el sitio en que se lo veía (P-004 E5): la malla nueva parte de esas
@@ -4515,31 +4611,12 @@ export function LienzoQuirurgico({
       // que rehace la sesión o una incisión ya se contó cuando pasó.
       if (!desdeLaSesion && !esRehacer && !deDiseccion) {
         // Antes que las lesiones: si la incisión es de más, el registro lo dice antes que lo que partió.
-        // Las ramas de un trazo que cruzó (D-415) son el mismo gesto: cuenta una sola, y solo si lo demás no alargó otra.
-        if (!previo && (!esRama || cuentaLaIncision)) ultimas.current.alIncidir?.({ id, capa: plano })
-        // Alargar una incisión (P-013, pedido 15: «necesito poder extender incisiones que me hayan quedado cortas»): lo
-        // que mide el paso es la incisión entera, y no el pedazo que se acaba de añadir. Antes el trazo nuevo, solo, salía
-        // «corta» y se castigaba justo lo que había que hacer. La consola recibe la unida como si fuera el trazo.
-        // Lo mismo con lo que queda de un trazo que repasó una incisión y se salió por un lado (D-410): mide lo que se cortó.
-        if (alargada || recortado) {
-          t.puntosDelTrazo = puntosDelCorte.map(([x, y, z]) => ({ x, y, z }))
-          t.normalesDelTrazo = normalesDelCorte.map(([x, y, z]) => ({ x, y, z }))
-          dibujarTrazo(t)
-          ultimas.current.alTrazar?.([...t.puntosDelTrazo], plano)
-        }
-        const mideMm = () => Math.round(largoDelTrazo(t.puntosDelTrazo, ultimas.current.milimetrosPorUnidad || 1000))
-        if (enElCruce) {
-          ultimas.current.alGesto?.(
-            `El trazo cruzó la incisión cerca de su punta: el pedacito de punta del otro lado se cerró, y las dos quedan unidas en T. La incisión mide ahora ${mideMm()} mm.`,
-            'bien',
-          )
-        } else if (alargada) {
-          ultimas.current.alGesto?.(`Incisión alargada: ahora mide ${mideMm()} mm de punta a punta.`, 'bien')
-        } else if (ramas.length > 0) {
-          ultimas.current.alGesto?.(
-            'El trazo cruza una incisión: encima de la herida no corta nada, y lo que sale a cada lado nace de su borde.',
-            'bien',
-          )
+        // Un trazo que cruza una incisión o nace en ella es la misma incisión (D-420): se cuenta con el número del grupo, que
+        // es el de la primera, y no es una incisión de más. D-415 contaba la primera rama de la T junto a una punta como
+        // otra, y la T de un solo gesto salía «incisión de más». Las ramas y la barra son el mismo gesto: no cuentan aparte.
+        if (deUnTrazo && (!previo || enElCruce)) {
+          const delGrupo = unionesDe([...(t.cortes ?? []), { id, nace: naceDelCorte }]).get(id) ?? id
+          ultimas.current.alIncidir?.({ id: delGrupo, capa: plano })
         }
         for (const herida of hechas) {
           if (yaCortadas.has(herida.malla.name)) continue
@@ -4560,7 +4637,14 @@ export function LienzoQuirurgico({
       }
       t.cortes = [
         ...(t.cortes ?? []),
-        { id, plano, puntos: puntosDelCorte.map((p) => [p[0], p[1], p[2]]), normales: normalesDelCorte.map((n) => [n[0], n[1], n[2]]), quemado },
+        {
+          id,
+          plano,
+          puntos: puntosDelCorte.map((p) => [p[0], p[1], p[2]]),
+          normales: normalesDelCorte.map((n) => [n[0], n[1], n[2]]),
+          quemado,
+          ...(naceDelCorte.length > 0 ? { nace: naceDelCorte } : {}),
+        },
       ]
       // Las pinzas puestas antes de que hubiera herida (donde «irá la incisión») son de la primera de la piel.
       if (plano === 'piel') for (const q of t.pellizcos ?? []) if (q.datos.incision === undefined) q.datos.incision = id
@@ -4583,21 +4667,67 @@ export function LienzoQuirurgico({
       // «Acompañar el bisturí» (P-003 E3): la pareja de pinzas y la de separadores más cercanas a la punta se corren
       // tras ella. Solo con un corte hecho por el residente: ni al recargar la sesión ni al rehacer ni la disección.
       if (ultimas.current.acompanarAlBisturi && !desdeLaSesion && !esRehacer && !deDiseccion && !esRama) acompanarAlCorte(t, ultimas.current, plano, id)
-      // Las ramas del cruce (D-415), cada una su incisión: así se guardan en la sesión y se recargan una por una, como
-      // cualquier otra. La guía vuelve después a ser lo principal, que es lo que mide el paso.
-      if (ramas.length > 0) {
-        const guia = { puntos: t.puntosDelTrazo, normales: t.normalesDelTrazo }
-        ramas.forEach((rama, i) => {
-          t.puntosDelTrazo = rama.puntos.map(([x, y, z]) => ({ x, y, z }))
-          t.normalesDelTrazo = rama.normales.map(([x, y, z]) => ({ x, y, z }))
-          aplicarElCorte(plano, { quemado, esRama: true, cuentaLaIncision: alargada && i === 0 })
-        })
-        t.puntosDelTrazo = guia.puntos
-        t.normalesDelTrazo = guia.normales
+      // Las ramas del cruce (D-415), cada una con su trazo: así se guardan en la sesión y se recargan una por una, en orden,
+      // después de aquello en que nacen. Con ello son una sola incisión (D-420).
+      const idsDeLasRamas = ramas.map((rama) => cortarPedazo(rama, idDeLaBarra)).filter((x): x is number => x !== undefined)
+      // Lo que nacía en la incisión que se rehízo vuelve a nacer en la de ahora.
+      volverACortar(t, descendientes)
+      if (!esRama) t.ultimaIncision = id
+      const estado = estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad)
+      if (deUnTrazo) {
+        const delGrupo = unionesDe(t.cortes ?? []).get(id) ?? id
+        const fila = estado?.incisiones.find((r) => r.id === delGrupo)
+        const enPedazos = (fila?.tramosMm?.length ?? 0) > 1
+        const medida = fila ? medidaDeLaIncision(fila) : ''
+        // Alargar una incisión (P-013, pedido 15: «necesito poder extender incisiones que me hayan quedado cortas»): lo
+        // que mide el paso es la incisión entera, y no el pedazo que se acaba de añadir. Antes el trazo nuevo, solo, salía
+        // «corta» y se castigaba justo lo que había que hacer. La consola recibe la unida como si fuera el trazo.
+        // Lo mismo con lo que queda de un trazo que repasó una incisión y se salió por un lado (D-410): mide lo que se cortó.
+        // Y con una T o una cruz (D-420), lo que mide la incisión entera, que es la suma de sus pedazos: la guía es lo
+        // principal, pero lo que se mide va aparte, porque no hay una raya que mida eso.
+        if (alargada || recortado || enPedazos) {
+          t.puntosDelTrazo = puntosDelCorte.map(([x, y, z]) => ({ x, y, z }))
+          t.normalesDelTrazo = normalesDelCorte.map(([x, y, z]) => ({ x, y, z }))
+          dibujarTrazo(t)
+          ultimas.current.alTrazar?.([...t.puntosDelTrazo], plano, fila?.largoMm)
+        }
+        if (enElCruce) {
+          ultimas.current.alGesto?.(
+            `El trazo cruzó la incisión cerca de su punta: el pedacito de punta del otro lado se cerró, y las dos quedan unidas en una sola incisión en T, de ${medida}.`,
+            'bien',
+          )
+        } else if (enCodo) {
+          ultimas.current.alGesto?.(
+            `El trazo sale en ángulo de la punta de la incisión: no la alarga quebrada, nace en ella. Es una sola incisión, en L, de ${medida}.`,
+            'bien',
+          )
+        } else if (alargada) {
+          ultimas.current.alGesto?.(
+            enPedazos ? `Incisión alargada: ahora mide ${medida}, con lo que nace en ella.` : `Incisión alargada: ahora mide ${medida} de punta a punta.`,
+            'bien',
+          )
+        } else if (ramas.length > 0) {
+          ultimas.current.alGesto?.(
+            `El trazo cruza una incisión: encima de la herida no corta nada, y lo que sale a cada lado nace en ella. Es una sola incisión, de ${medida}.`,
+            'bien',
+          )
+        } else if (enPedazos) {
+          ultimas.current.alGesto?.(`El trazo nace en una incisión: con ella es una sola, de ${medida}.`, 'bien')
+        }
+        // Deshacer deshace el gesto entero (D-420): todos sus pedazos y, si alargó o acortó una incisión, la deja como
+        // estaba. D-415 deshacía solo la última rama.
+        t.ultimoGesto = {
+          piezas: [idDeLaBarra, id, ...idsDeLasRamas].filter((x): x is number => x !== undefined),
+          ...(previo ? { antes: previo } : {}),
+          ...(tramoQueQueda ? { tramo: tramoQueQueda } : {}),
+        }
+      } else if (!esRama && !desdeLaSesion && !esRehacer) {
+        // La herida de una disección: deshacer la cierra, como siempre.
+        t.ultimoGesto = undefined
       }
       // La línea roja era la guía; con la herida abierta flotaría en el aire.
       if (t.trazo) t.trazo.visible = false
-      ultimas.current.alHerir?.(estadoDeLasHeridas(t, ultimas.current.milimetrosPorUnidad))
+      ultimas.current.alHerir?.(estado)
       pedirDibujo()
       return id
     }
@@ -9164,6 +9294,8 @@ export type Taller = {
   }
   siguienteIncision?: number
   ultimaIncision?: number
+  /** El último trazo, para deshacerlo entero (D-420). */
+  ultimoGesto?: GestoDeIncision
   separadores?: SeparadorEnEscena[]
   separadorActivo?: number | null
   siguienteSeparador?: number
@@ -10033,21 +10165,40 @@ export function estadoDeLasHeridas(taller: Taller, milimetrosPorUnidad: number):
   const todas = todasLasHeridas(taller)
   if (todas.length === 0) return null
   const unidadesPorMm = 1 / (milimetrosPorUnidad || 1000)
-  const incisiones: ResumenDeIncision[] = []
+  // Una incisión en T o en cruz es una sola (D-420): una fila, con el número del grupo, lo que mide cada trazo y la
+  // suma. Cada pedazo mide lo que se ve de él: el milímetro que pasa la línea de la otra está dentro de su herida. Los
+  // dos brazos de un trazo que cruzó otra se juntan en su tramo (`tramosDeLosTrazos`).
+  const grupos = unionesDe(taller.cortes ?? [])
+  const porGrupo = new Map<number, ResumenDeIncision & { pedazos: number[]; trozos: { largoMm: number; nace?: NaceGuardado[] }[] }>()
   for (const c of taller.cortes ?? []) {
     const suyas = todas.filter((h) => h.incision === c.id)
     if (suyas.length === 0 || c.id === undefined) continue
-    incisiones.push({
-      id: c.id,
-      capa: c.plano,
-      largoMm: Math.max(...suyas.map((h) => h.largo)) / unidadesPorMm,
-      // El hueco entero: lo que la apartan y lo que se abre sola (P-015). El panel dice lo que se ve.
-      aperturaMm: Math.max(...suyas.map(aberturaDe)) / unidadesPorMm,
-    })
+    const juntas = Math.max(...suyas.map((h) => (h.unida?.alInicio ? 1 : 0) + (h.unida?.alFinal ? 1 : 0)))
+    const largoMm = Math.max(0, Math.max(...suyas.map((h) => h.largo)) / unidadesPorMm - juntas * PASADO_DE_LA_LINEA_MM)
+    // El hueco entero: lo que la apartan y lo que se abre sola (P-015). El panel dice lo que se ve.
+    const aperturaMm = Math.max(...suyas.map(aberturaDe)) / unidadesPorMm
+    const delGrupo = grupos.get(c.id) ?? c.id
+    const fila = porGrupo.get(delGrupo)
+    if (fila) {
+      fila.largoMm += largoMm
+      fila.trozos.push({ largoMm, nace: c.nace })
+      fila.pedazos.push(c.id)
+      fila.aperturaMm = Math.max(fila.aperturaMm, aperturaMm)
+    } else
+      porGrupo.set(delGrupo, { id: delGrupo, capa: c.plano, largoMm, aperturaMm, pedazos: [c.id], trozos: [{ largoMm, nace: c.nace }] })
   }
+  const cerca = EXTREMO_QUE_DA_A_LA_OTRA_MM * unidadesPorMm
+  const incisiones: ResumenDeIncision[] = [...porGrupo.values()].map(({ pedazos, trozos, ...r }) => {
+    if (pedazos.length < 2) return r
+    const tramosMm = tramosDeLosTrazos(trozos, cerca)
+    return tramosMm.length > 1 ? { ...r, tramosMm, pedazos } : { ...r, pedazos }
+  })
+  // La herida, en la cabecera del panel: la incisión más larga, con sus pedazos.
+  const mayor = incisiones.reduce<ResumenDeIncision | undefined>((a, r) => (!a || r.largoMm > a.largoMm ? r : a), undefined)
   return {
     capas: [...(taller.heridas?.keys() ?? [])],
-    largoMm: Math.max(...todas.map((h) => h.largo)) / unidadesPorMm,
+    largoMm: mayor?.largoMm ?? Math.max(...todas.map((h) => h.largo)) / unidadesPorMm,
+    ...(mayor?.tramosMm ? { tramosMm: mayor.tramosMm } : {}),
     aperturaMm: Math.max(...todas.map(aberturaDe)) / unidadesPorMm,
     incisiones,
   }
@@ -10169,7 +10320,7 @@ type LoUltimo = {
   alPellizcar?: (estado: EstadoDeLosPellizcos) => void
   alHerir?: (estado: EstadoDeLasHeridas | null) => void
   alCoser?: (estado: EstadoDeLaSutura | null) => void
-  alTrazar?: (puntos: Punto3[], plano?: PlanoDeCorte | null) => void
+  alTrazar?: (puntos: Punto3[], plano?: PlanoDeCorte | null, largoMm?: number) => void
   alGesto?: (texto: string, tono: 'bien' | 'atencion' | 'grave') => void
   alDisecar?: (estado: EstadoDeLaDiseccion | null) => void
   alReducir?: (estado: EstadoDeLaReduccion) => void
@@ -10794,6 +10945,8 @@ function cerrarLaIncision(t: Taller, id: number, opciones: { conSusSeparadores: 
     else heridas.set(capa, quedan)
   }
   t.cortes = (t.cortes ?? []).filter((c) => c.id !== id)
+  // Cerrada de verdad —no para rehacerla—, el último gesto ya no se puede deshacer entero (D-420): faltan pedazos.
+  if (!opciones.conSusSeparadores && (t.ultimoGesto?.piezas.includes(id) || t.ultimoGesto?.antes?.id === id)) t.ultimoGesto = undefined
   if (t.ultimaIncision === id) {
     t.ultimaIncision = t.cortes[t.cortes.length - 1]?.id
     t.ultimaHerida = t.cortes[t.cortes.length - 1]?.plano
@@ -10878,11 +11031,109 @@ export interface CorteGuardado {
   id?: number
   /** El borde quedó quemado por el electrobisturí. */
   quemado?: boolean
+  /**
+   * Las incisiones en cuya línea nace, y el punto de cada una en que la toca (D-420): el brazo de una T o de una cruz.
+   * Van siempre antes que él en la lista, así que la sesión los rehace en orden. Las sesiones de antes no lo traen: sus
+   * brazos se rehacen como se cortaron, a un milímetro de la otra.
+   */
+  nace?: NaceGuardado[]
+}
+
+/** Dónde nace un corte en otra incisión, tal como se guarda (`CorteGuardado.nace`). */
+export interface NaceGuardado {
+  incision: number
+  punto: [number, number, number]
+}
+
+/**
+ * Lo que hizo el último trazo, para deshacerlo entero (D-420): los cortes que añadió o cambió y, si acortó una incisión
+ * en un cruce, cómo era antes y qué tramo de ella quedó.
+ */
+interface GestoDeIncision {
+  piezas: number[]
+  antes?: CorteGuardado
+  tramo?: readonly [number, number]
 }
 
 type P3 = [number, number, number]
 const aP3 = (v: THREE.Vector3): P3 => [v.x, v.y, v.z]
 const deP3 = (p: P3) => new THREE.Vector3(p[0], p[1], p[2])
+
+/** El punto de un trazo a mitad de su largo. */
+function puntoDelMedio(puntos: readonly THREE.Vector3[]): THREE.Vector3 {
+  let largo = 0
+  for (let i = 1; i < puntos.length; i++) largo += puntos[i].distanceTo(puntos[i - 1])
+  let falta = largo / 2
+  for (let i = 1; i < puntos.length; i++) {
+    const tramo = puntos[i].distanceTo(puntos[i - 1])
+    if (tramo >= falta && tramo > 0) return puntos[i - 1].clone().lerp(puntos[i], falta / tramo)
+    falta -= tramo
+  }
+  return puntos[puntos.length - 1]?.clone() ?? new THREE.Vector3()
+}
+
+/**
+ * Corre lo puesto a lo largo de la incisión `id` —sus separadores y sus pinzas— a la posición que da `cambio`: su posición
+ * es una fracción del largo, y una incisión que se acorta o vuelve a su largo la cambia (D-415, D-420).
+ */
+function reubicarLoPuesto(t: Taller, plano: PlanoDeCorte, id: number, cambio: (p: number) => number) {
+  for (const s of t.separadores ?? []) {
+    if (s.datos.incision !== id) continue
+    s.datos.posicion = cambio(s.datos.posicion)
+    const guardado = s.sitios[plano]
+    if (guardado) guardado.posicion = cambio(guardado.posicion)
+  }
+  for (const q of t.pellizcos ?? []) if (q.datos.incision === id) q.datos.posicion = cambio(q.datos.posicion)
+}
+
+/**
+ * Vuelve a cortar, en orden y como estaban, cortes que se cerraron para rehacer aquello en que nacen (D-420). Cada uno
+ * nace en lo que de eso sigue abierto: si se deshizo, se corta entero.
+ */
+function volverACortar(t: Taller, cortes: readonly CorteGuardado[]) {
+  if (cortes.length === 0) return
+  const guia = { puntos: t.puntosDelTrazo, normales: t.normalesDelTrazo }
+  for (const c of cortes) {
+    const hay = new Set((t.cortes ?? []).map((x) => x.id))
+    const nace = (c.nace ?? []).filter((n) => hay.has(n.incision))
+    t.puntosDelTrazo = c.puntos.map(([x, y, z]) => ({ x, y, z }))
+    t.normalesDelTrazo = c.normales.map(([x, y, z]) => ({ x, y, z }))
+    t.aplicarElCorte?.(c.plano, { desdeLaSesion: true, esRehacer: true, id: c.id, quemado: c.quemado, ...(nace.length > 0 ? { nace } : {}) })
+  }
+  t.puntosDelTrazo = guia.puntos
+  t.normalesDelTrazo = guia.normales
+}
+
+/**
+ * Deshace el último trazo entero (D-420): cierra todos los pedazos que cortó y, si alargó o acortó una incisión, la vuelve
+ * a dejar como estaba, con lo puesto en ella en su sitio. Lo que nacía en ella y se volvió a cortar al final del gesto se
+ * cierra antes y se corta otra vez después. Devuelve `false` si no hay gesto que deshacer.
+ */
+function deshacerElUltimoGesto(t: Taller): boolean {
+  const gesto = t.ultimoGesto
+  t.ultimoGesto = undefined
+  if (!gesto) return false
+  const cortes = t.cortes ?? []
+  const piezas = new Set(gesto.piezas)
+  const antes = gesto.antes
+  const despues = cortes.filter(
+    (c) => c.id !== undefined && !piezas.has(c.id) && gesto.piezas.some((p) => lasQueNacenEn(cortes, p).includes(c)),
+  )
+  for (const c of [...cortes].reverse()) {
+    if (c.id === undefined) continue
+    if (despues.includes(c)) cerrarLaIncision(t, c.id, { conSusSeparadores: true })
+    else if (piezas.has(c.id)) cerrarLaIncision(t, c.id, { conSusSeparadores: antes?.id === c.id })
+  }
+  if (antes?.id !== undefined) {
+    if (gesto.tramo) {
+      const [desde, hasta] = gesto.tramo
+      reubicarLoPuesto(t, antes.plano, antes.id, (p) => desde + p * (hasta - desde))
+    }
+    volverACortar(t, [antes])
+  }
+  volverACortar(t, despues)
+  return true
+}
 
 interface SeparadorGuardado {
   datos: SeparadorColocado
@@ -10958,7 +11209,7 @@ interface SesionGuardada {
       /** La puso el cierre de un clic. */
       asistida?: boolean
       /** `herida` es el lugar de la herida en la lista y no su `uuid`, que cambia al recargar. */
-      ref?: { herida: number; dir: [number, number, number]; lado: 1 | -1; peso: number; t?: number; mas0: number; menos0: number }
+      ref?: { herida: number; incision?: number; dir: [number, number, number]; lado: 1 | -1; peso: number; t?: number; mas0: number; menos0: number }
     }[]
   } | null
 }
@@ -11048,6 +11299,7 @@ export function serializarSesion(taller: Taller): string {
                 q.ref && indice.has(q.ref.malla)
                   ? {
                       herida: indice.get(q.ref.malla) as number,
+                      ...(q.ref.incision !== undefined ? { incision: q.ref.incision } : {}),
                       dir: q.ref.dir as [number, number, number],
                       lado: q.ref.lado,
                       peso: q.ref.peso,
@@ -11205,6 +11457,7 @@ function seguirAlLabio(taller: Taller, golpe: THREE.Intersection, unidadesPorMm:
   const aqui = aperturaAqui(mejor.h, mejor.info.t)
   return {
     malla: mejor.h.malla.uuid,
+    incision: mejor.h.incision,
     dir: [d.x, d.y, d.z],
     lado: mejor.info.lado,
     peso,
@@ -11220,7 +11473,7 @@ export interface PlanoCerradoDeUnClic {
   hilo: HiloDeSutura
   /** Las puntadas que se pusieron; en los corchetes, sus dos puntas. */
   puntadas: number
-  /** Cuántas heridas de ese plano se cerraron. */
+  /** Cuántas incisiones de ese plano se cerraron: una en T o en cruz cuenta una (D-420). */
   heridas: number
   texto: string
 }
@@ -11316,6 +11569,7 @@ function puntadaSobreElLabio(
     lado,
     ref: {
       malla: h.malla.uuid,
+      incision: h.incision,
       dir: [haciaMas.x, haciaMas.y, haciaMas.z],
       lado,
       peso: 1 - x * x * (3 - 2 * x),
@@ -11364,6 +11618,9 @@ function cerrarElPlanoDeUnClic(
     }
   }
   if (nuevos.length === 0) return null
+  // Lo que se dice son incisiones, no pedazos (D-420): la T cerrada es una.
+  const grupos = unionesDe(taller.cortes ?? [])
+  const incisiones = new Set(heridas.map((h) => grupos.get(h.incision) ?? h.incision)).size
   if (!taller.sutura) taller.sutura = crearSutura(taller.escena, hilo)
   const s = taller.sutura
   s.puntos = porPlanos ? s.puntos.filter((p) => (p.plano ?? 'piel') !== plano) : []
@@ -11375,7 +11632,30 @@ function cerrarElPlanoDeUnClic(
     s.planoActivo = plano
     s.tensiones[plano] = TENSION_DE_CIERRE
   }
-  return { puntadas: nuevos.length, heridas: heridas.length }
+  return { puntadas: nuevos.length, heridas: incisiones }
+}
+
+/**
+ * Lo que mide la herida que se cierra, en milímetros: la incisión más larga de esas heridas. Una en T o en cruz mide lo que
+ * sus pedazos juntos (D-420), y cerrarla pide puntadas para todo eso: medida por su pedazo más largo, coser solo la barra
+ * de la T la daba por cerrada con el brazo abierto. Cada pedazo, por la herida más larga que dejó, sin el milímetro que
+ * pasa la línea de la otra; dos incisiones que no se tocan siguen midiéndose cada una por su cuenta, como antes.
+ */
+function largoQueSeCierraMm(taller: Taller, heridas: readonly HeridaEnCapa[], unidadesPorMm: number): number {
+  if (heridas.length === 0) return 0
+  const grupos = unionesDe(taller.cortes ?? [])
+  const porPedazo = new Map<number, number>()
+  for (const h of heridas) {
+    const juntas = (h.unida?.alInicio ? 1 : 0) + (h.unida?.alFinal ? 1 : 0)
+    const mm = Math.max(0, h.largo / unidadesPorMm - juntas * PASADO_DE_LA_LINEA_MM)
+    porPedazo.set(h.incision, Math.max(porPedazo.get(h.incision) ?? 0, mm))
+  }
+  const porGrupo = new Map<number, number>()
+  for (const [incision, mm] of porPedazo) {
+    const grupo = grupos.get(incision) ?? incision
+    porGrupo.set(grupo, (porGrupo.get(grupo) ?? 0) + mm)
+  }
+  return Math.max(...porGrupo.values())
 }
 
 /**
@@ -11404,7 +11684,7 @@ export function refrescarSutura(
   // puntadas se acercan, y medirlas así las daría por «muy juntas».
   const puntosMedidos = sutura.puntos.map((p) => ({ ...p, punto: p.base ?? p.punto }))
   const medida = medirLaSutura(puntosMedidos, milimetrosPorUnidad)
-  const largoMm = heridas.length > 0 ? Math.max(...heridas.map((h) => h.largo)) / unidadesPorMm : 0
+  const largoMm = largoQueSeCierraMm(taller, heridas, unidadesPorMm)
 
   // Con fascia en el caso, cada plano se mide y se cierra por su cuenta (P-006, E11): la sutura de la fascia cierra la herida
   // de la fascia, la de la piel la de la piel, y la herida entera está cerrada cuando lo están las dos. Sin fascia, como
@@ -11413,7 +11693,7 @@ export function refrescarSutura(
   const planoActivo: PlanoBlando = sutura.planoActivo ?? 'piel'
   const planosConHerida = porPlanos ? PLANOS_BLANDOS.filter((p) => (taller.heridas?.get(p)?.length ?? 0) > 0) : []
   const largosMm: Partial<Record<PlanoBlando, number>> = {}
-  for (const p of planosConHerida) largosMm[p] = Math.max(...(taller.heridas?.get(p) ?? []).map((h) => h.largo)) / unidadesPorMm
+  for (const p of planosConHerida) largosMm[p] = largoQueSeCierraMm(taller, taller.heridas?.get(p) ?? [], unidadesPorMm)
   const porPlano = porPlanos ? medirPorPlanos(puntosMedidos, milimetrosPorUnidad) : {}
   const cierres = porPlanos ? cierresPorPlano(porPlano, largosMm, sutura.tensiones) : {}
   const cierreDeCada = porPlanos ? cierreDeCadaHerida(cierres, planosConHerida) : {}
@@ -11464,7 +11744,10 @@ export function refrescarSutura(
   for (const p of sutura.puntos) {
     if (!p.base || !p.ref) continue
     const ref = p.ref
-    const h = heridas.find((x) => x.malla.uuid === ref.malla)
+    // La de su incisión (D-420): en una malla con varias, la primera es la de otra.
+    const h =
+      heridas.find((x) => x.malla.uuid === ref.malla && (ref.incision === undefined || x.incision === ref.incision)) ??
+      heridas.find((x) => x.malla.uuid === ref.malla)
     if (!h) {
       p.punto = [...p.base]
       continue
@@ -11555,6 +11838,7 @@ function cerrarTodasLasHeridas(taller: Taller) {
   taller.cortes = []
   taller.ultimaHerida = undefined
   taller.ultimaIncision = undefined
+  taller.ultimoGesto = undefined
   if (taller.trazo) taller.trazo.visible = true
 }
 

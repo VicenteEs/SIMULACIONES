@@ -124,9 +124,9 @@ describe('el lienzo lo dice y la consola lo cobra, solo en evaluación', () => {
   it('el lienzo avisa de la incisión nueva solo con un trazo de verdad, y no de la que alarga otra', () => {
     const corte = lienzo.slice(lienzo.indexOf('const aplicarElCorte = '), lienzo.indexOf('const terminarPerforacion = '))
     const guarda = corte.indexOf('if (!desdeLaSesion && !esRehacer && !deDiseccion) {')
-    // Las ramas de un cruce (D-415) se cortan como incisiones, pero el trazo es uno: avisa solo la principal, o la primera
-    // rama cuando la principal es la incisión acortada en el cruce.
-    const aviso = corte.indexOf('if (!previo && (!esRama || cuentaLaIncision)) ultimas.current.alIncidir?.({ id, capa: plano })')
+    // Los pedazos de un cruce (D-415) se cortan cada uno con su trazo, pero el trazo es uno, y con la que cruzó son una sola
+    // incisión (D-420): avisa solo el gesto, una vez, con el número del grupo.
+    const aviso = corte.indexOf('if (deUnTrazo && (!previo || enElCruce)) {')
     expect(guarda).toBeGreaterThan(0)
     expect(aviso).toBeGreaterThan(guarda)
     expect(lienzo.match(/alIncidir\?\.\(/g)).toHaveLength(1)
