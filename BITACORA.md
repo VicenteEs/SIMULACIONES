@@ -13361,6 +13361,8 @@ Antes de subir, en un worktree con `src` pasado a LF (con CRLF fallan siempre la
 - (−) Los 5 mm de lectura, las 4 pasadas de las direcciones, las 12 de la tienda y la campana de 1,5 mm se midieron en un caso, la tibia distal del 3.
 - (−) Alisar la tienda cuesta doce vueltas por las aristas de lo que se abulta cada vez que el bulto se rehace.
 
+Desplegado en ved y Contabo el 2026-11-20 en `9419542`, junto con D-423 (los detalles, allí).
+
 ### D-422 · 2026-11-20 · vigente · pedido del dueño · amplía P-015, D-420 y D-421 · superada en parte por D-423 (la punta del colgajo, que ahora va en arco)
 **La piel se abre según cruce sus líneas de tensión: en un miembro, la incisión transversal se retrae el doble que la que va a lo largo. Y en la esquina de una L la punta del colgajo se retrae por sus dos bordes: la esquina se abre en vez de quedar en dos ojales que se tocan.**
 
@@ -13449,6 +13451,8 @@ Triángulos vueltos de la piel / aristas dobladas:
 - (−) Las aristas dobladas suben entre un 7 y un 35 % con la piel más abierta, sin ningún triángulo vuelto.
 - (−) El doble sale de juntar estudios en perro, cerdo y personas, ninguno en la pierna de frente. Es un número razonable, no una medida de esta piel.
 
+Desplegado en ved y Contabo el 2026-11-20 en `9419542`, junto con D-423 (los detalles, allí).
+
 ### D-423 · 2026-11-20 · vigente · pedido del dueño · amplía D-413, D-421 y D-422 · supera en parte a P-008 E2 (la recta entre dos hojas) y a D-422 (la punta en ángulo recto)
 **La piel cortada se porta más como una lámina elástica: la punta del colgajo se redondea, el borde se comba entre dos ganchos y la piel que aprieta un separador se arruga. Y el mango del Farabeuf ya no se mete en la piel que alza un hueso.**
 
@@ -13527,6 +13531,10 @@ Las cuatro pruebas, dos Farabeuf por brazo abiertos a 14 mm (tanda `d423b`, cont
 - (−) Los números —la onda de 20 mm, el `ℓ` de 30, el radio de 1,5 veces la retracción, el largo de la comba de 20— son razonables y coherentes con lo que se mide en piel, no medidas de esta piel.
 - (−) Una cruz no se redondea: sus cuatro puntas no tienen `ColgajoDelBrazo` (D-422 solo los hace donde un brazo nace por un extremo).
 - (−) `verticeEnReposo` no cuenta el arco de la punta ni la arruga: un separador puesto justo en la esquina mide su apertura desde donde estaría el labio sin ellos.
+
+Desplegado el 2026-11-20 en `9419542`, con D-421 y D-422 en el mismo commit, a pedido del dueño («quiero que hagas comint y actualices contavo y luego ved»):
+- Contabo terminó a las 18:14 (Chile). Antes se hizo un respaldo verificado, `base-`/`medios-20261120-180631`, y el de su propio despliegue fue `base-20261120-181019`. El override era igual a la plantilla. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre; 4 procesos, salud 200 en `https://traumahub.cl`, la huella `estiradaPrevia` en `/app/.next/static`, y `sala.glb` sin sesión da 403 con `no-store`.
+- ved terminó a las 18:17, con respaldo `base-20261120-181529`, en claro como manda D-384. El mismo ensayo, 4 procesos, salud 200 por fuera, la misma huella y `sala.glb` sin sesión en 403.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
