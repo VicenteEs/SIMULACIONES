@@ -310,6 +310,49 @@ export function ejePrincipal(posiciones: ArrayLike<number>): Vec3 {
 }
 
 /**
+ * Cuántas veces más larga que ancha es una malla a lo largo de `eje` (el de `ejePrincipal`): lo que se aparta de su
+ * centro a lo largo de él, en desviación típica, sobre lo más que se aparta en una dirección que lo cruce. Un tubo largo
+ * da mucho; una esfera o un trozo casi plano, cerca de 1.
+ *
+ * Lo pide la tensión de la piel (D-422): en un miembro sus líneas van a lo largo de él, y en lo que no es un miembro no
+ * se sabe hacia dónde van (`cuantoCruzaLaTension`).
+ */
+export function alargamiento(posiciones: ArrayLike<number>, eje: Vec3): number {
+  const n = Math.floor(posiciones.length / 3)
+  if (n < 3) return 1
+  const paso = Math.max(1, Math.floor(n / 4000))
+  const media: Vec3 = [0, 0, 0]
+  let cuenta = 0
+  for (let i = 0; i < n; i += paso) {
+    for (let k = 0; k < 3; k++) media[k] += posiciones[i * 3 + k]
+    cuenta++
+  }
+  for (let k = 0; k < 3; k++) media[k] /= cuenta
+  // Lo de a lo largo, y lo de través en su plano: la matriz de 2×2 de lo que queda al quitarle el eje, en dos
+  // direcciones cualesquiera que lo crucen. Su mayor valor propio es lo más ancho, se mire de donde se mire.
+  // eje × x, o eje × y si el eje va casi por x.
+  const u = unitario(Math.abs(eje[0]) < 0.9 ? [0, eje[2], -eje[1]] : [-eje[2], 0, eje[0]])
+  const w: Vec3 = [eje[1] * u[2] - eje[2] * u[1], eje[2] * u[0] - eje[0] * u[2], eje[0] * u[1] - eje[1] * u[0]]
+  let largo = 0
+  let uu = 0
+  let uw = 0
+  let ww = 0
+  for (let i = 0; i < n; i += paso) {
+    const x = posiciones[i * 3] - media[0], y = posiciones[i * 3 + 1] - media[1], z = posiciones[i * 3 + 2] - media[2]
+    const a = x * eje[0] + y * eje[1] + z * eje[2]
+    const b = x * u[0] + y * u[1] + z * u[2]
+    const c = x * w[0] + y * w[1] + z * w[2]
+    largo += a * a
+    uu += b * b
+    uw += b * c
+    ww += c * c
+  }
+  const ancho = (uu + ww) / 2 + Math.sqrt(((uu - ww) / 2) ** 2 + uw * uw)
+  if (!(ancho > 0)) return largo > 0 ? Infinity : 1
+  return Math.sqrt(largo / ancho)
+}
+
+/**
  * Qué triángulos son de una cáscara vuelta hacia dentro: la cara de dentro de la piel del atlas (D-224), que mira al
  * cuerpo. Se separan por conectividad y se mira el volumen con signo de cada parte, medido desde el centro de la
  * malla: el de la cáscara de fuera sale positivo y el de la de dentro, negativo. Al vello le hace falta: en la cara

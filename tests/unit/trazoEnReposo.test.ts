@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import * as THREE from 'three'
 import type { Punto } from '@/lib/incisiones'
-import { llevarAlReposo, porElTrazo, type MallaConReposo } from '@/components/simulador/trazoEnReposo'
+import { bajoLoQueLaTapa, llevarAlReposo, porElRayoHastaLaCapa, porElTrazo, type MallaConReposo } from '@/components/simulador/trazoEnReposo'
 
 /**
  * El trazo llevado a la piel en reposo antes de cortar (D-416): se pincha en la malla de ahora, abierta y apartada, y se
@@ -122,15 +122,115 @@ describe('el lienzo lleva al reposo lo que va a cortar (D-416)', () => {
   it('mide el trazo en la malla de ahora antes de decidir y de cerrar nada', () => {
     const mide = corte.indexOf('llevarAlReposo(puntosDelCorte, normalesDelCorte, conReposo')
     expect(mide).toBeGreaterThan(0)
-    expect(mide).toBeLessThan(corte.indexOf('const decision = decidirElTrazo('))
+    expect(mide).toBeLessThan(corte.indexOf('const decision = decidirEnSuCapa('))
     // Solo con un trazo de verdad: lo que rehace la sesión ya está en reposo.
     expect(corte.slice(0, mide)).toContain('if (deUnTrazo) {\n        const conReposo')
   })
 
   it('lleva lo principal y las ramas antes de cerrar la incisión que se alarga y antes de cortar', () => {
     const lleva = corte.indexOf('ramas = ramas.map(aReposo)')
-    expect(lleva).toBeGreaterThan(corte.indexOf('const decision = decidirElTrazo('))
+    expect(lleva).toBeGreaterThan(corte.indexOf('const decision = decidirEnSuCapa('))
     expect(lleva).toBeLessThan(corte.indexOf('if (previo) cerrarLaIncision(t, id, { conSusSeparadores: true })'))
     expect(lleva).toBeLessThan(corte.indexOf('cortarCapa(malla, puntos, normales, parametrosDe(malla))'))
+  })
+
+  it('baja el trazo del bulto de la piel antes de medirlo contra las incisiones de antes (D-421)', () => {
+    // Al revés, el trazo pinchado sobre el bulto queda a milímetros del reposo de la incisión de antes y no la encuentra:
+    // la T o la L salen como dos incisiones sueltas, o como un corte corto que no llega.
+    const baja = corte.indexOf('bajarDelBulto(mallas, puntosDelCorte, normalesDelCorte)')
+    expect(baja).toBeGreaterThan(0)
+    expect(baja).toBeLessThan(corte.indexOf('llevarAlReposo(puntosDelCorte, normalesDelCorte, conReposo'))
+  })
+
+  it('el del bisturí profundo va además a la fascia por su rayo, salvo con un músculo elegido', () => {
+    // Pinchado sobre el trozo de tibia que asoma por la fascia abierta, el repaso de la vertical quedaba 6 a 10 mm por
+    // encima de su línea y cortaba la fascia otra vez (la T del caso 86). Con un músculo elegido se pinchó en él.
+    const lleva = corte.indexOf('enLaFascia(mallas, puntosDelCorte, normalesDelCorte)')
+    expect(lleva).toBeGreaterThan(0)
+    expect(lleva).toBeLessThan(corte.indexOf('llevarAlReposo(puntosDelCorte, normalesDelCorte, conReposo'))
+    expect(corte).toMatch(/plano === 'piel'\s+\? enLaPiel\([^)]*\)\s+: conMusculoElegido\s+\? bajarDelBulto\(/)
+    // Y lo que no da en la fascia, bajado del bulto como el de la piel.
+    const enLaFascia = lienzo.slice(lienzo.indexOf('const enLaFascia = '), lienzo.indexOf('const decidirEnSuCapa = '))
+    expect(enLaFascia).toContain('const bajados = bajarDelBulto(mallas, puntos, normales)')
+    expect(enLaFascia).toContain('porElRayoHastaLaCapa(puntos, [ojo.x, ojo.y, ojo.z], fascias, PROFUNDIDAD_DEL_CORTE_HONDO_MM * unidadesPorMm)')
+  })
+
+  it('el de la piel, pinchado en lo que asoma por ella, va a la piel que lo tapa y después baja del bulto (D-421)', () => {
+    // La barra de una T dibujada a través del trozo de tibia del caso 3 se pinchaba en el hueso y no cortaba esa mitad.
+    const lleva = corte.indexOf('enLaPiel(mallas, puntosDelCorte, normalesDelCorte)')
+    expect(lleva).toBeGreaterThan(0)
+    expect(lleva).toBeLessThan(corte.indexOf('llevarAlReposo(puntosDelCorte, normalesDelCorte, conReposo'))
+    const enLaPiel = lienzo.slice(lienzo.indexOf('const enLaPiel = '), lienzo.indexOf('const enLaFascia = '))
+    expect(enLaPiel).toContain('bajoLoQueLaTapa(puntos, [ojo.x, ojo.y, ojo.z], pieles, PIEL_BAJO_LO_QUE_ASOMA_MM * unidadesPorMm')
+    expect(enLaPiel).toContain('return bajarDelBulto(mallas, puntos, normales)')
+  })
+
+  it('baja del bulto de la piel aunque corte la fascia, que no se abulta', () => {
+    // Si bajara solo de las mallas que corta, el trazo profundo pinchado en las puntas de la incisión de piel quedaría
+    // sobre el tobillo 20 mm por encima de la fascia: la vertical de la fascia salía de 45 mm bajo una de piel de 80.
+    const baja = lienzo.slice(lienzo.indexOf('const bajarDelBulto = '), lienzo.indexOf('const decidirEnSuCapa = '))
+    expect(baja).toContain("const pieles = mallasConRol(t, ultimas.current.piezas, ['piel'])")
+    expect(baja).toContain('[...new Set([...mallas, ...pieles])].map(conSuBulto)')
+  })
+})
+
+describe('la fascia se abre en L y en T como la piel (D-421)', () => {
+  const lienzo = readFileSync(join(process.cwd(), 'src/components/simulador/LienzoQuirurgico.tsx'), 'utf8')
+  const gesto = lienzo.slice(lienzo.indexOf('const fasciaAbierta = '), lienzo.indexOf('const { plano: planoQueSeCorta, redirigido }'))
+
+  it('pregunta a la fascia si el trazo profundo la repasa, con la misma decisión que la piel', () => {
+    // Si `planoQueCorta` solo supiera que la fascia está abierta, el brazo de la L iría al músculo por debajo de fascia
+    // entera: el músculo se abriría sin que la fascia de encima tuviera herida por donde verlo.
+    expect(gesto).toContain("return decidirEnSuCapa('fascia', puntos, normales).tipo === 'repaso'")
+    // Y con el trazo en la fascia, como lo medirá el corte (`enLaFascia`, que antes lo baja del bulto).
+    expect(gesto).toContain('= enLaFascia(')
+    expect(lienzo).toMatch(/planoQueCorta\(plano, \{[^}]*repasaLaFascia,\s*\}\)/)
+  })
+})
+
+describe('el trazo del bisturí profundo, por el rayo de la cámara hasta la fascia (D-421)', () => {
+  // La fascia es la lámina, vista desde 20 por encima de su centro.
+  const ojo: Punto = [5, 5, 20]
+
+  it('lo pinchado en el hueso que asoma, 6 por encima, va a la fascia que hay debajo en ese mismo píxel', () => {
+    // En el rayo del ojo, que baja 3 en y por cada 14 en z: da en la fascia a 0,71 de su borde, no en la vertical del punto.
+    const [l] = porElRayoHastaLaCapa([[5, 2, 6]], ojo, [lamina()], 50)
+    cerca(l!.punto, [5, 5 - (3 * 20) / 14, 0])
+    cerca(l!.normal, [0, 0, 1])
+  })
+
+  it('lo primero desde el ojo, aunque la otra hoja venga antes en la lista: el tabique está detrás', () => {
+    const tabique = lamina(new THREE.Matrix4().makeTranslation(0, 0, -10))
+    const [l] = porElRayoHastaLaCapa([[5, 5, 3]], ojo, [tabique, lamina()], 50)
+    cerca(l!.punto, [5, 5, 0])
+  })
+
+  it('más allá del alcance, o con el rayo fuera de la fascia, nada: ese punto se queda como estaba', () => {
+    const [lejos] = porElRayoHastaLaCapa([[5, 5, 3]], ojo, [lamina()], 2)
+    expect(lejos).toBeNull()
+    const [alLado] = porElRayoHastaLaCapa([[30, 5, 3]], ojo, [lamina()], 50)
+    expect(alLado).toBeNull()
+    expect(porElRayoHastaLaCapa([], ojo, [lamina()], 50)).toEqual([])
+  })
+})
+
+describe('lo pinchado sobre lo que asoma por la piel, a la piel que lo tapa (D-421)', () => {
+  // La piel es la lámina, vista desde 20 por encima de su centro; lo que asoma, un hueso por encima de ella.
+  const ojo: Punto = [5, 5, 20]
+
+  it('lo pinchado 6 por encima, en el hueso, va a la piel que hay detrás en ese mismo píxel', () => {
+    const [l] = bajoLoQueLaTapa([[5, 2, 6]], ojo, [lamina()], 30, 0.5)
+    cerca(l!.punto, [5, 5 - (3 * 20) / 14, 0])
+  })
+
+  it('lo que ya está en la piel se queda: no hay nada que la tape', () => {
+    expect(bajoLoQueLaTapa([[5, 2, 0.2]], ojo, [lamina()], 30, 0.5)).toEqual([null])
+  })
+
+  it('lo visto por el hueco de una herida, con la piel delante, no se sube a ella', () => {
+    // El fondo de la herida está 3 por debajo de la piel: el rayo cruza la lámina antes de llegar a él, y detrás no hay más.
+    expect(bajoLoQueLaTapa([[5, 5, -3]], ojo, [lamina()], 30, 0.5)).toEqual([null])
+    // Sin mirar solo detrás, el mismo rayo lo habría subido a la piel de delante.
+    expect(porElRayoHastaLaCapa([[5, 5, -3]], ojo, [lamina()], 30)[0]).not.toBeNull()
   })
 })

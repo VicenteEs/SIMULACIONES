@@ -396,8 +396,9 @@ interface Apoyo {
  * puntas: un Farabeuf a un cuarto del largo, abierto 12 mm, abría 6 en su sitio, y la hoja no estaba donde estaba el
  * borde. Lo que hace el labio de verdad es otra cosa: el tramo que apoya en la hoja se aparta entero —la hoja es
  * rígida—, y de ahí a cada punta la piel va tensa, en arco (`arcoDelLabio`, P-015; hasta entonces, en recta). Con dos
- * hojas en el mismo labio, entre ellas va en recta: no se hunde, porque las dos tiran de él. Es la envolvente de arriba
- * de los apoyos y de las dos puntas, combada en sus dos extremos.
+ * hojas en el mismo labio, entre ellas se comba hacia la herida (`combaEntreDosHojas`, D-423); hasta D-423 iba en
+ * recta, «porque las dos tiran de él», y el borde quedaba como una regla tendida entre los dos ganchos. Es la
+ * envolvente de arriba de los apoyos y de las dos puntas, combada en sus dos extremos y entre cada dos hojas.
  *
  * Cerca de una punta, lo que se aparta tiene tope (`PENDIENTE_MAXIMA_DEL_LABIO`): la punta no se abre. El tope es
  * el del borde de la hoja más cercano a la punta, y vale para toda la hoja: es rígida, no abre más por un lado que
@@ -412,30 +413,39 @@ function cuerdaDelLabio(
 ): (posicion: number) => number {
   const { desde: inicio, hasta: final } = puntas
   if (apoyos.length === 0 || !(final > inicio)) return () => 0
-  const puntos: [number, number][] = [
-    [inicio, 0],
-    [final, 0],
+  // Cada punto lleva de qué hoja es (−1, las puntas): entre dos de la misma, la hoja; entre dos de hojas distintas, la
+  // piel suelta, que se comba (D-423).
+  const puntos: [number, number, number][] = [
+    [inicio, 0, -1],
+    [final, 0, -1],
   ]
   const tope = (x: number) => PENDIENTE_MAXIMA_DEL_LABIO * Math.max(0, hastaLaPunta(x, puntas)) * largoMm
   const margen = Math.min((final - inicio) / 2, PUNTA_QUE_SE_CIERRA_MM / largoMm)
   const dentro = (x: number) => Math.min(final - margen, Math.max(inicio + margen, x))
-  for (const a of apoyos) {
+  apoyos.forEach((a, k) => {
     // Una hoja entera fuera de la herida de esta malla no sostiene su labio (P-015): se acotaba a la punta y la abría
     // igual, y un Farabeuf del caso 4 en 0,64 del trazo abría 4 mm el sóleo, partido solo de 0,06 a 0,20.
-    if (!(a.hasta > inicio && a.desde < final)) continue
+    if (!(a.hasta > inicio && a.desde < final)) return
     const desde = dentro(a.desde)
     const hasta = dentro(a.hasta)
     const mm = Math.min(a.mm, tope(desde), tope(hasta))
-    puntos.push([desde, mm], [hasta, mm])
-  }
-  // La envolvente de arriba (cadena monótona): se quita todo punto que quede por debajo de la recta entre sus vecinos.
+    puntos.push([desde, mm, k], [hasta, mm, k])
+  })
+  const kappa = largoMm / LARGO_DE_LA_COMBA_MM
+  const entreDosHojas = (o: readonly number[], p: readonly number[]) => o[2] >= 0 && p[2] >= 0 && o[2] !== p[2]
+  // La envolvente de arriba (cadena monótona): se quita todo punto que quede por debajo de lo que va entre sus vecinos,
+  // que entre dos hojas es la comba. Una hoja más baja entre dos altas, que con la recta quedaba debajo, puede quedar
+  // por encima de la comba: ahí sostiene el labio, y se queda.
   puntos.sort((p, q) => p[0] - q[0] || p[1] - q[1])
-  const cuerda: [number, number][] = []
+  const cuerda: [number, number, number][] = []
   for (const p of puntos) {
     while (cuerda.length >= 2) {
       const o = cuerda[cuerda.length - 2]
       const a = cuerda[cuerda.length - 1]
-      if ((a[0] - o[0]) * (p[1] - o[1]) - (a[1] - o[1]) * (p[0] - o[0]) >= 0) cuerda.pop()
+      const debajo = entreDosHojas(o, p)
+        ? a[1] <= combaEntreDosHojas(a[0], o[0], o[1], p[0], p[1], kappa) + 1e-12
+        : (a[0] - o[0]) * (p[1] - o[1]) - (a[1] - o[1]) * (p[0] - o[0]) >= 0
+      if (debajo) cuerda.pop()
       else break
     }
     cuerda.push(p)
@@ -453,10 +463,40 @@ function cuerdaDelLabio(
       // De una punta a la primera hoja, y de la última a la otra punta, el labio va en arco (P-015).
       if (i === 0 && y0 === 0) return y1 * arcoDelLabio(u, y1, (x1 - x0) * largoMm)
       if (i + 2 === cuerda.length && y1 === 0) return y0 * arcoDelLabio(1 - u, y0, (x1 - x0) * largoMm)
+      if (entreDosHojas(cuerda[i], cuerda[i + 1])) return combaEntreDosHojas(x, x0, y0, x1, y1, kappa)
       return y0 + (y1 - y0) * u
     }
     return 0
   }
+}
+
+/**
+ * En qué largo, en milímetros, la piel suelta del labio deja de seguir a la hoja que tira de ella (D-423): la escala de
+ * la comba entre dos hojas (`combaEntreDosHojas`).
+ *
+ * Es del orden de la franja que se arrastra al abrir, unos 45 mm (`alcanceDelArrastre`): una tira de piel anclada a
+ * esa distancia y tirada por su borde deja de seguir al gancho en un tercio o la mitad de ella. Con 20, dos Farabeuf a
+ * 4 cm, con 28 mm de piel suelta entre sus hojas, dejan el borde del medio un 20 % más cerca de la herida que bajo las
+ * hojas; a 2 cm, un 3 %, que ya no se ve: es lo que se ve en pabellón, donde dos ganchos juntos sostienen el labio
+ * como uno ancho y separados lo dejan colgar entre ellos.
+ */
+const LARGO_DE_LA_COMBA_MM = 20
+
+/**
+ * Lo que se aparta el labio en `x`, entre el borde de una hoja en `x0`, que lo aparta `y0`, y el de otra en `x1`, que lo
+ * aparta `y1`: en fracción del trazo y milímetros, con `kappa` el largo del trazo entre `LARGO_DE_LA_COMBA_MM` (D-423).
+ *
+ * Hasta D-423 iba en recta: «no se hunde, porque las dos tiran de él». Pero tiran de él en las hojas, y entre ellas el
+ * borde es piel suelta, que la dermis de detrás retiene: tirada de dos puntos, una lámina elástica se comba entre ellos
+ * hacia donde estaba. Es la solución de `u'' = κ² u` con `u` lo que se aparta —el borde sigue a cada hoja y se le
+ * escapa con la distancia, en `1/κ`—, que entre dos alturas iguales `y` baja en el medio a `y / cosh(κD/2)`, con `D` lo
+ * que las separa. Sale de cada hoja sin tope, con la pendiente que pide la comba; muy juntas, `κD → 0`, es la recta.
+ */
+function combaEntreDosHojas(x: number, x0: number, y0: number, x1: number, y1: number, kappa: number): number {
+  const d = (x1 - x0) * kappa
+  if (!(d > 1e-6)) return y0 + (y1 - y0) * (x1 > x0 ? (x - x0) / (x1 - x0) : 0)
+  const s = (x - x0) * kappa
+  return (y0 * Math.sinh(d - s) + y1 * Math.sinh(s)) / Math.sinh(d)
 }
 
 /**

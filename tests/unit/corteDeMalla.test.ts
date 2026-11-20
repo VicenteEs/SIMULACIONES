@@ -5,6 +5,7 @@ import {
   cerrarLasPuntasConTejidoEntero,
   componerCortes,
   cortarMalla,
+  enderezarPosiciones,
   proyectar,
   prepararIncision,
   type IncisionSobreLaMalla,
@@ -430,6 +431,23 @@ describe('una punta que llega al borde de la malla con la malla entera más all�
     cerrarLasPuntasConTejidoEntero(g, [0, 1, 2], lado, arrastrados, Float32Array.from([0.19, 0.21, 0.2, 0]))
     expect(g.cerradaAlFinal).toBe(false)
   })
+
+  it('no cierra el extremo que nace en otra incisión: esa punta la deciden los cruces de cada labio (D-421)', () => {
+    // La pierna de una L, con el arranque en la punta de la otra: más allá queda lo que sigue entero tras esa punta.
+    // Cerrado, el labio del colgajo arrancaba de 0 en la esquina y se plegaba.
+    const g = { desde: 0.06, hasta: 0.2, cerradaAlInicio: false, cerradaAlFinal: false }
+    const antes = Float32Array.from([0.01, 0.02, 0.03, 0])
+    cerrarLasPuntasConTejidoEntero(g, [0, 1, 2], lado, arrastrados, antes, undefined, { alInicio: true, alFinal: false })
+    expect(g.cerradaAlInicio).toBe(false)
+    // El otro extremo, que no nace en ninguna, se sigue cerrando como siempre.
+    cerrarLasPuntasConTejidoEntero(g, [0, 1, 2], lado, arrastrados, Float32Array.from([0.45, 0.46, 0.47, 0]), undefined, { alInicio: true, alFinal: false })
+    expect(g.cerradaAlFinal).toBe(true)
+    expect(g.cerradaAlInicio).toBe(false)
+    // Sin decir que nace en otra, el mismo tejido la cierra (P-015).
+    const sinUnir = { desde: 0.06, hasta: 0.2, cerradaAlInicio: false, cerradaAlFinal: false }
+    cerrarLasPuntasConTejidoEntero(sinUnir, [0, 1, 2], lado, arrastrados, antes)
+    expect(sinUnir.cerradaAlInicio).toBe(true)
+  })
 })
 
 describe('los saltos del cursor en las puntas del trazo (P-015)', () => {
@@ -499,31 +517,31 @@ describe('lo que se arrastra en hondo no salta de un vértice al vecino (P-015)'
   })
 })
 
-describe('un tubo cerrado, como una pierna', () => {
-  /** Un cilindro de radio 10 y 40 de largo; la incisión va por arriba (y = +radio). */
-  function tubo(): MallaPlana {
-    const segmentosAngulo = 48
-    const segmentosLargo = 40
-    const posiciones: number[] = []
-    for (let j = 0; j <= segmentosLargo; j++) {
-      for (let i = 0; i < segmentosAngulo; i++) {
-        const a = (i / segmentosAngulo) * Math.PI * 2
-        posiciones.push((j * 40) / segmentosLargo, 10 * Math.sin(a), 10 * Math.cos(a))
-      }
+/** Un cilindro de radio 10 y 40 de largo; la incisión va por arriba (y = +radio). */
+function tubo(): MallaPlana {
+  const segmentosAngulo = 48
+  const segmentosLargo = 40
+  const posiciones: number[] = []
+  for (let j = 0; j <= segmentosLargo; j++) {
+    for (let i = 0; i < segmentosAngulo; i++) {
+      const a = (i / segmentosAngulo) * Math.PI * 2
+      posiciones.push((j * 40) / segmentosLargo, 10 * Math.sin(a), 10 * Math.cos(a))
     }
-    const indices: number[] = []
-    for (let j = 0; j < segmentosLargo; j++) {
-      for (let i = 0; i < segmentosAngulo; i++) {
-        const a = j * segmentosAngulo + i
-        const b = j * segmentosAngulo + ((i + 1) % segmentosAngulo)
-        const c = a + segmentosAngulo
-        const d = b + segmentosAngulo
-        indices.push(a, c, b, b, c, d)
-      }
-    }
-    return { posiciones: Float32Array.from(posiciones), indices: Uint32Array.from(indices) }
   }
+  const indices: number[] = []
+  for (let j = 0; j < segmentosLargo; j++) {
+    for (let i = 0; i < segmentosAngulo; i++) {
+      const a = j * segmentosAngulo + i
+      const b = j * segmentosAngulo + ((i + 1) % segmentosAngulo)
+      const c = a + segmentosAngulo
+      const d = b + segmentosAngulo
+      indices.push(a, c, b, b, c, d)
+    }
+  }
+  return { posiciones: Float32Array.from(posiciones), indices: Uint32Array.from(indices) }
+}
 
+describe('un tubo cerrado, como una pierna', () => {
   it('el corte de arriba no abre la piel de abajo', () => {
     const malla = tubo()
     // Incisión sobre z = +10 (la generatriz de arriba), de x = 10 a x = 30, con la normal hacia fuera (+z).
@@ -659,5 +677,127 @@ describe('componerCortes: una malla cortada varias veces (P-003 E4)', () => {
 
   it('sin cortes no hay nada que componer', () => {
     expect(componerCortes([]).length).toBe(0)
+  })
+})
+
+describe('lo que la suma de los arrastres da vuelta se endereza (D-421)', () => {
+  // Abierta 4,5 mm por labio con 6 de alcance, la caída del arrastre aprieta el tejido de al lado 1,1 veces lo que mide:
+  // es lo que pasaba con un Farabeuf, 17 a 20 mm por labio con 30 de alcance.
+  const corte = cortarMalla(rejilla(41, 40), incisionRecta(10, 30, 20.3), { profundidad: 4, alcance: 6, holgura: 6 })!
+  /** Los triángulos que miran a −z: la malla plana mira a +z. */
+  const vueltos = (p: ArrayLike<number>) => {
+    let n = 0
+    for (let t = 0; t < corte.indices.length; t += 3) {
+      const [a, b, c] = [corte.indices[t], corte.indices[t + 1], corte.indices[t + 2]]
+      const giro = (q: ArrayLike<number>) => (q[3 * b] - q[3 * a]) * (q[3 * c + 1] - q[3 * a + 1]) - (q[3 * b + 1] - q[3 * a + 1]) * (q[3 * c] - q[3 * a])
+      if (giro(corte.posiciones) > 1e-9 && giro(p) < 0) n++
+    }
+    return n
+  }
+
+  it('abrirHerida, que no endereza, los da vuelta; componerCortes no deja ninguno', () => {
+    expect(vueltos(abrirHerida(corte, 4.5, 4.5))).toBeGreaterThan(0)
+    const juntas = componerCortes([{ corte, apertura: { mas: 4.5, menos: 4.5 } }])
+    expect(juntas.every(Number.isFinite)).toBe(true)
+    expect(vueltos(juntas)).toBe(0)
+  })
+
+  it('lo que no se dio vuelta ni toca a lo vuelto queda tal como lo abre la herida', () => {
+    const abierta = abrirHerida(corte, 4.5, 4.5)
+    const juntas = componerCortes([{ corte, apertura: { mas: 4.5, menos: 4.5 } }])
+    let lejos = 0
+    for (let i = 0; i < corte.lado.length; i++) {
+      // A más del alcance y de dos aristas de él, nada se movió ni hay nada que enderezar.
+      if (Math.abs(corte.posiciones[3 * i + 1] - 20.3) < 8) continue
+      lejos++
+      for (let k = 0; k < 3; k++) expect(juntas[3 * i + k]).toBe(abierta[3 * i + k])
+    }
+    expect(lejos).toBeGreaterThan(0)
+  })
+
+  it('enderezarPosiciones endereza lo que se suma después de las heridas, y sin nada vuelto no toca nada', () => {
+    const abierta = abrirHerida(corte, 4.5, 4.5)
+    expect(enderezarPosiciones([corte], abierta)).toBe(true)
+    expect(vueltos(abierta)).toBe(0)
+    const poco = abrirHerida(corte, 1, 1)
+    const antes = [...poco]
+    expect(enderezarPosiciones([corte], poco)).toBe(false)
+    expect([...poco]).toEqual(antes)
+  })
+
+  it('un labio se desliza de lado, pero se aparta lo mismo que lo abre la herida: es lo que sujeta la hoja', () => {
+    // Como junto a la hoja de un Farabeuf: 6 mm en los 4 del medio, y 1 en el resto.
+    const perfil = (t: number) => (Math.abs(t - 0.5) < 0.1 ? { mas: 6, menos: 6 } : { mas: 1, menos: 1 })
+    const abierta = abrirHerida(corte, 6, 6, perfil)
+    const juntas = componerCortes([{ corte, apertura: { mas: 6, menos: 6, perfil } }])
+    const aparta = (q: ArrayLike<number>, v: number) => Math.hypot(...[0, 1, 2].map((k) => q[3 * v + k] - corte.posiciones[3 * v + k]))
+    let deslizados = 0
+    for (const v of [...corte.labios.mas, ...corte.labios.menos]) {
+      expect(aparta(juntas, v)).toBeCloseTo(aparta(abierta, v), 4)
+      if (Math.hypot(...[0, 1, 2].map((k) => juntas[3 * v + k] - abierta[3 * v + k])) > 1e-3) deslizados++
+    }
+    expect(deslizados).toBeGreaterThan(0)
+  })
+
+  it('un vértice que atravesó a sus vecinos vuelve entre ellos', () => {
+    // Lejos del corte, uno empujado seis aristas por encima de los de al lado. Las pasadas solas lo dejaban con 3
+    // triángulos vueltos: enderezar uno lo devuelve dentro del otro.
+    const p = Float32Array.from(corte.posiciones)
+    const v = 5 * 41 + 20
+    p[3 * v] += 6
+    p[3 * v + 1] += 0.5
+    expect(vueltos(p)).toBeGreaterThan(1)
+    expect(enderezarPosiciones([corte], p)).toBe(true)
+    expect(vueltos(p)).toBe(0)
+  })
+})
+
+describe('la piel se arrastra por su superficie (D-421)', () => {
+  // La incisión por arriba del tubo, de x = 10 a x = 30, y un arrastre que llega a 14: más allá de un cuarto de vuelta,
+  // donde la tangente del trazo ya es la normal de la piel.
+  const puntos: Vec3[] = []
+  const normales: Vec3[] = []
+  for (let x = 10; x <= 30; x += 1) {
+    puntos.push([x, 0.37, 9.993])
+    normales.push([0, 0.037, 1])
+  }
+  const cortar = (porLaSuperficie: boolean) =>
+    cortarMalla(tubo(), { puntos, normales }, { profundidad: 3, alcance: 8, holgura: 14, arrastre: 14, porLaSuperficie })!
+  /** De los vértices a 45°–75° de la generatriz de arriba, lo más que su arrastre sale de la piel, en fracción de él. */
+  const loQueSale = (porLaSuperficie: boolean) => {
+    const corte = cortar(porLaSuperficie)
+    const abierta = abrirHerida(corte, 3, 3)
+    let peor = 0
+    let mirados = 0
+    for (let i = 0; i < corte.lado.length; i++) {
+      const [x, y, z] = [corte.posiciones[3 * i], corte.posiciones[3 * i + 1], corte.posiciones[3 * i + 2]]
+      const giro = (Math.abs(Math.atan2(y, z)) * 180) / Math.PI
+      if (x < 15 || x > 25 || giro < 45 || giro > 75) continue
+      const d = [0, 1, 2].map((k) => abierta[3 * i + k] - corte.posiciones[3 * i + k])
+      const largo = Math.hypot(...d)
+      if (largo < 1e-3) continue
+      mirados++
+      peor = Math.max(peor, Math.abs(d[1] * y + d[2] * z) / Math.hypot(y, z) / largo)
+    }
+    expect(mirados).toBeGreaterThan(0)
+    return peor
+  }
+
+  it('a media vuelta, lo que se aparta va por la tangente de su sitio, no por la del trazo', () => {
+    // Por la del trazo, a 60° la mayor parte del arrastre sale de la pierna.
+    expect(loQueSale(false)).toBeGreaterThan(0.6)
+    expect(loQueSale(true)).toBeLessThan(0.05)
+  })
+
+  it('lo de detrás del tubo no se mueve, aunque ya no lo corte en seco la profundidad', () => {
+    const corte = cortar(true)
+    const abierta = abrirHerida(corte, 3, 3)
+    let detras = 0
+    for (let i = 0; i < corte.lado.length; i++) {
+      if (corte.posiciones[3 * i + 2] > -5) continue
+      detras++
+      for (let k = 0; k < 3; k++) expect(abierta[3 * i + k]).toBe(corte.posiciones[3 * i + k])
+    }
+    expect(detras).toBeGreaterThan(0)
   })
 })

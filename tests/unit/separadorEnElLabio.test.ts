@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { cortarCapa, sitioEnLaHerida, type HeridaEnCapa } from '@/components/simulador/heridas'
+import { prepararHerramienta } from '@/instrumental/herramienta3d'
 import {
   aplicarSeparadoresALasHeridas,
   labioDelSeparador,
@@ -433,5 +434,220 @@ describe('el Hohmann apoyado en el hueso', () => {
     const grados = (mango.angleTo(mango0) * 180) / Math.PI
     expect(grados).toBeCloseTo(35, 0)
     expect(mango.dot(s.direccion)).toBeGreaterThan(0)
+  })
+})
+
+describe('el mango de la hoja no se mete en la piel que alza un hueso (D-423)', () => {
+  // En la L de la pierna del taller, el Farabeuf del colgajo quedó sobre el trozo de tibia, que alza la piel uno a tres
+  // milímetros bajo ella: el mango, tendido a 15° del plano en el labio, enseñaba la punta cortada por el borde de la piel.
+  const grados = (a: THREE.Vector3, b: THREE.Vector3) => (a.angleTo(b) * 180) / Math.PI
+
+  /** Un Farabeuf de mentira: un mango de 100 × 14 mm a lo largo de +Y y una pala de 25 mm hacia −Z, con su caja. */
+  function conModelo(s: SeparadorEnEscena) {
+    const raiz = new THREE.Group()
+    const mango = new THREE.Mesh(new THREE.BoxGeometry(14, 100, 1).translate(0, 50, 0))
+    const pala = new THREE.Mesh(new THREE.BoxGeometry(14, 1, 25).translate(0, 0, -12.5))
+    raiz.add(mango, pala)
+    s.instrumento.grupo.add(raiz)
+    s.instrumento.herramienta = prepararHerramienta(raiz)
+    return s
+  }
+
+  /**
+   * Alza la piel por fuera del labio abierto con un bulto de `alto` mm centrado a `lejos` mm de él, como el hueso de
+   * debajo. Se mide desde el labio de ahora: desde el sitio del clic, el bulto alzaba también el labio apartado.
+   */
+  function bulto(piel: HeridaEnCapa, s: SeparadorEnEscena, heridas: Map<CapaDeLaHerida, HeridaEnCapa[]>, alto: number, lejos: number) {
+    const borde = labioDelSeparador(s, heridas)!.ahora
+    const posiciones = piel.malla.geometry.getAttribute('position') as THREE.BufferAttribute
+    const p = new THREE.Vector3()
+    for (let i = 0; i < posiciones.count; i++) {
+      p.fromBufferAttribute(posiciones, i)
+      const fuera = p.clone().sub(borde).dot(s.direccion)
+      if (fuera < 2) continue
+      posiciones.setZ(i, p.z + alto * Math.exp(-(((fuera - lejos) / 8) ** 2)))
+    }
+    posiciones.needsUpdate = true
+  }
+
+  /** Lo que queda cada vértice de la piel bajo el mango por debajo de él, en mm: el menor. */
+  function holguraBajoElMango(piel: HeridaEnCapa, s: SeparadorEnEscena) {
+    const giro = s.instrumento.grupo.quaternion
+    const codo = s.instrumento.grupo.position
+    const m = new THREE.Vector3(0, 1, 0).applyQuaternion(giro)
+    const u = new THREE.Vector3(0, 0, 1).applyQuaternion(giro)
+    const l = new THREE.Vector3(1, 0, 0).applyQuaternion(giro)
+    const posiciones = piel.malla.geometry.getAttribute('position') as THREE.BufferAttribute
+    let menor = Infinity
+    for (let i = 0; i < posiciones.count; i++) {
+      const rel = new THREE.Vector3().fromBufferAttribute(posiciones, i).applyMatrix4(piel.malla.matrixWorld).sub(codo)
+      const a = rel.dot(m)
+      if (a <= 2 || a > 100 || Math.abs(rel.dot(l)) > 7) continue
+      menor = Math.min(menor, -rel.dot(u))
+    }
+    return menor
+  }
+
+  it('sobre la piel plana, el mango sigue tendido a 15° de ella', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = conModelo(enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel))
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    posarSeparador(s, 1, heridas)
+    const mango = new THREE.Vector3(0, 1, 0).applyQuaternion(s.instrumento.grupo.quaternion)
+    expect(90 - grados(mango, s.normal)).toBeCloseTo(15, 3)
+  })
+
+  it('con la piel alzada 12 mm a 15 mm del labio, el mango sube lo justo para pasar un milímetro por encima', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = conModelo(enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel))
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    // El bulto se pone después de abrir, como el del lienzo (`abultamiento.alDia`): componer la piel lo borraría.
+    bulto(piel, s, heridas, 12, 15)
+    // Tendido a 15°, el mango pasaría por debajo de la cima del bulto.
+    const antes = enLaEscena(s.datos, piel)
+    antes.punto = s.punto
+    posarSeparador(antes, 1, heridas)
+    expect(holguraBajoElMango(piel, conModelo(antes))).toBeLessThan(0)
+
+    posarSeparador(s, 1, heridas)
+    const giro = s.instrumento.grupo.quaternion
+    const mango = new THREE.Vector3(0, 1, 0).applyQuaternion(giro)
+    const pala = new THREE.Vector3(0, 0, -1).applyQuaternion(giro)
+    expect(90 - grados(mango, s.normal)).toBeGreaterThan(20)
+    expect(holguraBajoElMango(piel, s)).toBeGreaterThan(1 - 1e-6)
+    // Lo justo: medio milímetro más de giro y ya no le haría falta.
+    expect(holguraBajoElMango(piel, s)).toBeLessThan(1.3)
+    // Es una sola pieza: la pala sigue en ángulo recto con el mango, y el codo, en su sitio.
+    expect(Math.abs(pala.dot(mango))).toBeLessThan(1e-9)
+    const borde = labioDelSeparador(s, heridas)!
+    const codo = borde.ahora.clone().addScaledVector(s.normal, 1).addScaledVector(s.direccion, -4)
+    expect(s.instrumento.grupo.position.distanceTo(codo)).toBeLessThan(1e-6)
+  })
+
+  it('lo que pide el labio junto al codo no lo levanta: es el que la hoja sostiene', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = conModelo(enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel))
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    posarSeparador(s, 1, heridas)
+    // Un vértice de la piel a milímetro y medio del codo, medio milímetro por encima del mango: girando, pedía 60°.
+    const giro = s.instrumento.grupo.quaternion
+    const codo = s.instrumento.grupo.position.clone()
+    const alli = codo
+      .clone()
+      .addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(giro), 1.5)
+      .addScaledVector(new THREE.Vector3(0, 0, 1).applyQuaternion(giro), 0.5)
+    const posiciones = piel.malla.geometry.getAttribute('position') as THREE.BufferAttribute
+    const cadena = new Set([...piel.corte.labios.mas, ...piel.corte.labios.menos])
+    let cerca = -1
+    for (let i = 0; i < posiciones.count; i++) {
+      if (cadena.has(i)) continue
+      if (cerca < 0 || new THREE.Vector3().fromBufferAttribute(posiciones, i).distanceTo(alli) < new THREE.Vector3().fromBufferAttribute(posiciones, cerca).distanceTo(alli)) cerca = i
+    }
+    posiciones.setXYZ(cerca, alli.x, alli.y, alli.z)
+    posarSeparador(s, 1, heridas)
+    const mango = new THREE.Vector3(0, 1, 0).applyQuaternion(s.instrumento.grupo.quaternion)
+    expect(90 - grados(mango, s.normal)).toBeCloseTo(15, 3)
+  })
+
+  it('sobre un bulto que pide más de 55° de más, el mango se queda en ese tope y no se pone de pie', () => {
+    const { piel, heridas } = pielYFascia()
+    const s = conModelo(enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel))
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    bulto(piel, s, heridas, 200, 10)
+    posarSeparador(s, 1, heridas)
+    const mango = new THREE.Vector3(0, 1, 0).applyQuaternion(s.instrumento.grupo.quaternion)
+    expect(90 - grados(mango, s.normal)).toBeCloseTo(15 + 55, 3)
+  })
+})
+
+describe('la hoja de la piel engancha el labio que se ve (D-423)', () => {
+  // En la L del caso 3 el Farabeuf del labio de abajo enganchaba la fascia superficial, cortada con el mismo trazo cuatro
+  // milímetros y medio por debajo, y no la subía el bulto del trozo de tibia: el mango salía bajo la piel que se veía.
+
+  it('de la piel y la fascia superficial cortadas con el mismo trazo, la de fuera, aunque el clic quede más cerca de la otra', () => {
+    const escena = new THREE.Scene()
+    const fascia = capaCortada('Fascia_superficial', -4.5, 20, 1, escena)
+    const piel = capaCortada('Piel', 0, 20, 1, escena)
+    const heridas = new Map<CapaDeLaHerida, HeridaEnCapa[]>([['piel', [fascia, piel]]])
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), fascia)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    const labio = labioDelSeparador(s, heridas)!
+    expect(labio.herida).toBe(piel)
+    posarSeparador(s, 1, heridas)
+    const codo = labio.ahora.clone().addScaledVector(s.normal, 1).addScaledVector(s.direccion, -4)
+    expect(s.instrumento.grupo.position.distanceTo(codo)).toBeLessThan(1e-6)
+  })
+
+  it('una herida más alta que no está apilada sobre su labio —la otra rama de una L— no cuenta', () => {
+    const escena = new THREE.Scene()
+    const piel = capaCortada('Piel', 0, 20, 1, escena)
+    const otra = capaCortada('Piel', 3, 20, 1, escena)
+    otra.malla.position.y = 20
+    escena.updateMatrixWorld(true)
+    const heridas = new Map<CapaDeLaHerida, HeridaEnCapa[]>([['piel', [piel, otra]]])
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    expect(labioDelSeparador(s, heridas)!.herida).toBe(piel)
+  })
+
+  /** Una losa de piel de 80 mm con sus dos caras, 4 mm de grosor, cortada a lo largo de x con su pared. */
+  function losaCortada() {
+    const cara = (z: number, alReves: boolean) => {
+      const n = 41
+      const posiciones: number[] = []
+      for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) posiciones.push(-40 + 2 * i, -40 + 2 * j, z)
+      const indices: number[] = []
+      const v = (i: number, j: number) => j * n + i
+      for (let j = 0; j < n - 1; j++)
+        for (let i = 0; i < n - 1; i++) {
+          const t =
+            (i + j) % 2 === 0
+              ? [v(i, j), v(i + 1, j), v(i + 1, j + 1), v(i, j), v(i + 1, j + 1), v(i, j + 1)]
+              : [v(i, j), v(i + 1, j), v(i, j + 1), v(i + 1, j), v(i + 1, j + 1), v(i, j + 1)]
+          if (alReves) for (let k = 0; k < t.length; k += 3) indices.push(t[k], t[k + 2], t[k + 1])
+          else indices.push(...t)
+        }
+      return { posiciones, indices }
+    }
+    const a = cara(0, false)
+    const b = cara(-4, true)
+    const desde = a.posiciones.length / 3
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(Float32Array.from([...a.posiciones, ...b.posiciones]), 3))
+    g.setIndex([...a.indices, ...b.indices.map((i) => i + desde)])
+    const malla = new THREE.Mesh(g, new THREE.MeshStandardMaterial())
+    malla.name = 'Piel'
+    malla.updateMatrixWorld(true)
+    const puntos: THREE.Vector3[] = []
+    const normales: THREE.Vector3[] = []
+    for (let x = -25; x <= 25; x++) {
+      puntos.push(new THREE.Vector3(x, 0.37, 0))
+      normales.push(new THREE.Vector3(0, 0, 1))
+    }
+    const piel = cortarCapa(malla, puntos, normales, { profundidad: 14, alcance: 30, unidadesPorMm: 1, incision: 1, pared: 6 })!
+    return { piel, heridas: new Map<CapaDeLaHerida, HeridaEnCapa[]>([['piel', [piel]]]) }
+  }
+
+  it('con el borde alzado sobre la cadena del labio —el bulto del hueso sube la piel y no la cadena—, lo engancha arriba', () => {
+    const { piel, heridas } = losaCortada()
+    const s = enLaEscena(farabeuf({ plano: 'piel', incision: 1, aperturaMm: 12 }), piel)
+    aplicarSeparadoresALasHeridas(heridas, [s.datos], [], 1)
+    const cadena = labioDelSeparador(s, heridas)!.ahora.clone()
+    // Plano, el borde que se ve es la cadena: el codo, un milímetro sobre ella, como siempre.
+    posarSeparador(s, 1, heridas)
+    const comoSiempre = cadena.clone().addScaledVector(s.normal, 1).addScaledVector(s.direccion, -4)
+    expect(s.instrumento.grupo.position.distanceTo(comoSiempre)).toBeLessThan(1e-6)
+    // Todo lo de ese lado sube seis milímetros, salvo la cadena.
+    const enLaCadena = new Set(piel.corte.labios.mas)
+    const posiciones = piel.malla.geometry.getAttribute('position') as THREE.BufferAttribute
+    const p = new THREE.Vector3()
+    for (let i = 0; i < posiciones.count; i++) {
+      if (enLaCadena.has(i)) continue
+      p.fromBufferAttribute(posiciones, i)
+      if (p.clone().sub(cadena).dot(s.direccion) > -0.5) posiciones.setZ(i, p.z + 6)
+    }
+    posarSeparador(s, 1, heridas)
+    const arriba = cadena.clone().addScaledVector(s.normal, 6 + 1).addScaledVector(s.direccion, -4)
+    expect(s.instrumento.grupo.position.distanceTo(arriba)).toBeLessThan(0.05)
   })
 })

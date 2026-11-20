@@ -10,9 +10,11 @@ import {
   RADIO_DEL_ABULTAMIENTO_MM,
   abultamientoMm,
   muestrasDeLaSuperficie,
+  alisarLaTienda,
   tenderLaPiel,
   verticesDeLaCaraDeDentro,
 } from '@/lib/abultamientoDeLaPiel'
+import { enderezarPosiciones } from '@/lib/corteDeMalla'
 import { ATRIBUTO_DE_LA_PARED, cadenaDeLaMalla } from './heridas'
 
 /**
@@ -93,6 +95,23 @@ export function quitarElAbultamiento(malla: THREE.Mesh) {
   }
   malla.geometry.boundingBox = previa.cajaDeLaBase.clone()
   malla.geometry.boundingSphere = previa.esferaDeLaBase.clone()
+}
+
+/**
+ * La piel sin el bulto, si ahora lo lleva: lo que `quitarElAbultamiento` le devolvería, sin devolvérselo. `null` si no está
+ * abultada o si alguien reescribió sus posiciones después (entonces lo de ahora ya no tiene bulto que quitar).
+ *
+ * La pide el trazo antes de cortar (D-421): se pincha en la piel que se ve, abultada sobre el trozo desplazado, y se corta
+ * la de debajo. Sobre la tibia del caso 3 el bulto sube hasta 30 mm, más que la hondura del corte de la piel: el trazo
+ * quedaba en el aire, la incisión salía corta o no salía («El trazo no atraviesa ninguna malla»), y lo que cortaba era el
+ * tejido de al lado, plegado nada más abrirse.
+ */
+export function pielSinAbultar(malla: THREE.Mesh): Float32Array | null {
+  const previa = ABULTADAS.get(malla)
+  if (!previa) return null
+  const atributo = malla.geometry.getAttribute('position') as THREE.BufferAttribute | undefined
+  if (atributo !== previa.atributo || atributo.version !== previa.version) return null
+  return previa.base
 }
 
 /**
@@ -218,6 +237,9 @@ export interface CuentaDeLaPiel {
   puntos: number
   candidatos: number
   subidos: number
+  /** Los vértices de la pared de una herida que se miraron, y los que subieron con la piel de al lado (D-421). */
+  pared: number
+  deLaPared: number
 }
 
 /**
@@ -256,7 +278,7 @@ export function crearAbultamientoDeLaPiel(): AbultamientoDeLaPiel {
       const inicio = performance.now()
       let cambio = false
       const puntos = puntosQueEmpujan(empujan, mmPorUnidad)
-      const cuenta: CuentaDeLaPiel = { ms: 0, msDeLaCuenta: 0, puntos: puntos.length / 3, candidatos: 0, subidos: 0 }
+      const cuenta: CuentaDeLaPiel = { ms: 0, msDeLaCuenta: 0, puntos: puntos.length / 3, candidatos: 0, subidos: 0, pared: 0, deLaPared: 0 }
       for (const piel of pieles) if (abultarUnaPiel(piel, puntos, mmPorUnidad, cuenta)) cambio = true
       let caja: THREE.Box3 | null = null
       for (const piel of pieles) {
@@ -306,6 +328,288 @@ function puntosQueEmpujan(empujan: readonly THREE.Mesh[], mmPorUnidad: number): 
   return Float32Array.from(lista)
 }
 
+/**
+ * La piel en reposo, cerrada y sin bulto (D-421): la de una piel cortada es la base de su último corte, con todas sus
+ * heridas cerradas; la de una sin cortar, ella misma sin el bulto.
+ */
+function reposoDeLaPiel(malla: THREE.Mesh, base: Float32Array, vertices: number): Float32Array {
+  const delCorte = cadenaDeLaMalla(malla).at(-1)?.corte.posiciones
+  return delCorte && delCorte.length === vertices * 3 ? delCorte : base
+}
+
+/**
+ * Cuántas veces se promedia la dirección en que sube cada vértice con la de sus vecinos. Cada pasada la reparte una
+ * arista más allá: con aristas de 2 a 4 mm, cuatro pasadas son un centímetro, del orden del radio del bulto.
+ */
+const PASADAS_DE_LA_SABANA = 4
+/** Lo que mide de lado cada celda con que se busca, en reposo, el vértice de la otra cara que queda más cerca. */
+const CELDA_DE_LA_SABANA_MM = 3
+/**
+ * Hasta dónde, de lado, reparte la cara de fuera lo que sube entre los vértices de la de dentro que tiene debajo: la mitad
+ * de una arista. Con el más cercano a secas, en la falda del bulto, donde la piel sube un milímetro por cada uno que se
+ * aparta, tomar el vecino de al lado era subir 3 mm de más o de menos: lo bastante para asomar por la de fuera.
+ */
+const SIGMA_DE_LA_CARA_DE_DENTRO_MM = 1.5
+/** A menos de esto, en reposo, dos vértices de la misma cara son el mismo punto partido por una herida. */
+const GEMELOS_A_MENOS_DE_MM = 0.01
+/**
+ * Lo que la cara de dentro queda, como poco, por debajo de la de fuera cuando el bulto la aprieta: la dermis, que no se
+ * aplasta. Es la diferencia de las dos holguras, la misma que deja el bulto sobre el hueso.
+ */
+const DERMIS_DE_LA_SABANA_MM = HOLGURA_DE_LA_CARA_DE_FUERA_MM - HOLGURA_DE_LA_CARA_DE_DENTRO_MM
+/**
+ * Lo que tiene que haberse apartado un vértice de su reposo para que lo que sube se lea en la sábana del sitio al que se
+ * fue y no se tome lo suyo. Por debajo, la diferencia no se ve, y leer la sábana cuesta: solo se hace en la franja que
+ * mueve una herida.
+ */
+const MOVIDO_PARA_LEER_LA_SABANA_MM = 0.05
+/**
+ * Hasta cuánto de lo que se apartó un vértice de su reposo se lee la sábana donde está; de ahí en adelante el bulto va
+ * pegado a él. Lo que un labio se retrae solo al cortar es de 3 a 4 mm, y ahí leer donde está arregló la esquina de la L
+ * (de 58 triángulos vueltos a 3). Un Farabeuf lo aparta 17 mm, y leída tan lejos, en la falda del bulto, la piel
+ * retraída se arrugaba: 1019 aristas quebradas contra 485 llevándolo pegado.
+ */
+const LO_QUE_SE_LEE_DONDE_ESTA_MM = 5
+
+/**
+ * Cómo se abulta una piel como una sábana (D-421), una vez por geometría y reposo: hacia dónde sube cada vértice y cuál
+ * de la cara de fuera tiene encima cada uno de la cara de dentro o de la pared.
+ *
+ * Antes cada vértice subía por su propia normal, tal como estaba la piel en ese momento. Sobre el trozo desplazado del
+ * caso 3 la piel sube hasta 30 mm, y a esa distancia lo que se tuerce una normal se ve:
+ * - Con la herida abierta, junto a los labios la piel está rizada por la retracción y sus normales miran de lado: el
+ *   labio subía 23 mm de media hacia la herida o hacia fuera, y los triángulos de alrededor se daban la vuelta. Eran el
+ *   «vidrio» del tobillo: 250 triángulos vueltos y 711 aristas quebradas en una incisión vertical recién hecha, y ninguno
+ *   con el bulto apagado.
+ * - Las dos caras de la piel subían cada una por su normal, que en una piel curva no son paralelas: la de dentro asomaba
+ *   por la de fuera, en manchas grises, antes de cortar nada.
+ * - La pared de la herida no subía: va de lado, y por su normal se metía en el hueco.
+ *
+ * Ahora la dirección sale de la cara de fuera **en reposo**, sin la pared, y promediada con la de sus vecinos
+ * (`PASADAS_DE_LA_SABANA`) y con la de su gemelo del otro labio (`gemelos`). La cara de dentro cuelga de la de fuera
+ * (`colgado`), con la dermis entre las dos como poco; la pared va con la piel que tiene al lado, y lo que sube cada
+ * vértice se lee en el sitio al que lo llevó la herida (`encimaDe`). Abrir la herida, o apartarla con un Farabeuf, ya no
+ * cambia hacia dónde se hincha la piel.
+ */
+interface SabanaDeLaPiel {
+  reposo: Float32Array
+  /** Hacia fuera en la cara de fuera (hacia dentro en la de dentro), unitaria y en coordenadas de la malla. */
+  direccion: Float32Array
+  /** El vértice de la cara de fuera más cercano en reposo, sin contar la pared; −1 si no hay. */
+  cercano: (i: number) => number
+  /**
+   * De qué vértices de la cara de fuera cuelga uno de la de dentro, y con qué peso: los que tiene encima, por la recta de
+   * la sábana, y el grosor de la piel entre las dos caras ahí, en mm. `null` si no hay ninguno de fuera a su alcance.
+   */
+  colgado: (i: number) => { de: Int32Array; pesos: Float32Array; grosor: number } | null
+  /**
+   * Los vértices de la misma cara que están, en reposo, donde él (él incluido), o ninguno: los de los dos labios de una
+   * herida. La piel se tiende por sus aristas, y una herida las corta: sin unirlos, lo que sube un labio llegaba al otro
+   * dando la vuelta por la punta, y en la esquina de una L junto al trozo desplazado los dos labios quedaban a alturas
+   * distintas, con un escalón que los Farabeuf rompían en astillas. Se tienden juntos, como la piel sin cortar.
+   */
+  gemelos: (i: number) => readonly number[]
+  /**
+   * Lo que tiene encima, en reposo, el vértice `i` tal como está ahora en `punto` (las posiciones de la malla): los de la
+   * cara de fuera alrededor de la recta de la sábana que pasa por él, con su peso. Con la herida abierta, un labio está
+   * lejos de su reposo, y lo que sube es lo que pide la piel del sitio al que se fue.
+   */
+  encimaDe: (x: number, y: number, z: number, i: number) => { de: Int32Array; pesos: Float32Array; alto: number } | null
+}
+const SABANAS = new WeakMap<THREE.BufferGeometry, SabanaDeLaPiel>()
+
+function sabanaDe(
+  g: THREE.BufferGeometry,
+  reposo: Float32Array,
+  pared: THREE.BufferAttribute | undefined,
+  dentro: THREE.BufferAttribute,
+  mmPorLocal: number,
+): SabanaDeLaPiel {
+  const guardada = SABANAS.get(g)
+  if (guardada && guardada.reposo === reposo) return guardada
+  const n = Math.floor(reposo.length / 3)
+  const indices = g.getIndex()?.array ?? null
+  const nt = indices ? Math.floor(indices.length / 3) : Math.floor(n / 3)
+  const vertice = (t: number, k: number) => (indices ? indices[t * 3 + k] : t * 3 + k)
+  const esPared = (i: number) => pared !== undefined && pared.getX(i) > 0
+  const esDentro = (i: number) => dentro.getX(i) > 0.5
+
+  // La normal en reposo, pesada por el área, sin los triángulos de la pared.
+  const direccion = new Float32Array(n * 3)
+  for (let t = 0; t < nt; t++) {
+    const a = vertice(t, 0), b = vertice(t, 1), c = vertice(t, 2)
+    if (esPared(a) && esPared(b) && esPared(c)) continue
+    const ux = reposo[b * 3] - reposo[a * 3], uy = reposo[b * 3 + 1] - reposo[a * 3 + 1], uz = reposo[b * 3 + 2] - reposo[a * 3 + 2]
+    const wx = reposo[c * 3] - reposo[a * 3], wy = reposo[c * 3 + 1] - reposo[a * 3 + 1], wz = reposo[c * 3 + 2] - reposo[a * 3 + 2]
+    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx
+    for (const v of [a, b, c]) {
+      direccion[v * 3] += nx
+      direccion[v * 3 + 1] += ny
+      direccion[v * 3 + 2] += nz
+    }
+  }
+  const normalizar = (d: Float32Array) => {
+    for (let i = 0; i < n; i++) {
+      const l = Math.hypot(d[i * 3], d[i * 3 + 1], d[i * 3 + 2])
+      if (l > 0) {
+        d[i * 3] /= l
+        d[i * 3 + 1] /= l
+        d[i * 3 + 2] /= l
+      }
+    }
+  }
+  normalizar(direccion)
+  // Los gemelos: los vértices de la misma cara que una herida separó y en reposo están en el mismo sitio, los de un labio
+  // y los del otro. Para la sábana son uno solo (ver `gemelos`).
+  const juntos = new Map<string, number[]>()
+  const q = GEMELOS_A_MENOS_DE_MM / mmPorLocal
+  for (let i = 0; i < n; i++) {
+    if (esPared(i)) continue
+    const k = `${esDentro(i) ? 1 : 0}:${Math.round(reposo[i * 3] / q)}:${Math.round(reposo[i * 3 + 1] / q)}:${Math.round(reposo[i * 3 + 2] / q)}`
+    const lista = juntos.get(k)
+    if (lista) lista.push(i)
+    else juntos.set(k, [i])
+  }
+  const grupos: number[][] = []
+  const grupoDe = new Map<number, number[]>()
+  for (const lista of juntos.values()) {
+    if (lista.length < 2) continue
+    grupos.push(lista)
+    for (const i of lista) grupoDe.set(i, lista)
+  }
+  // Promediada con los vecinos de la misma cara, fuera de la pared, y con los gemelos.
+  for (let pasada = 0; pasada < PASADAS_DE_LA_SABANA; pasada++) {
+    const suma = direccion.slice()
+    for (let t = 0; t < nt; t++) {
+      const tri = [vertice(t, 0), vertice(t, 1), vertice(t, 2)]
+      if (tri.some(esPared)) continue
+      for (const u of tri) {
+        for (const w of tri) {
+          if (u === w || esDentro(u) !== esDentro(w)) continue
+          suma[u * 3] += direccion[w * 3]
+          suma[u * 3 + 1] += direccion[w * 3 + 1]
+          suma[u * 3 + 2] += direccion[w * 3 + 2]
+        }
+      }
+    }
+    for (const grupo of grupos) {
+      let x = 0, y = 0, z = 0
+      for (const i of grupo) {
+        x += suma[i * 3]
+        y += suma[i * 3 + 1]
+        z += suma[i * 3 + 2]
+      }
+      for (const i of grupo) suma.set([x, y, z], i * 3)
+    }
+    normalizar(suma)
+    for (let i = 0; i < n; i++) if (!esPared(i)) direccion.set(suma.subarray(i * 3, i * 3 + 3), i * 3)
+  }
+
+  // Los vértices fuera de la pared, por celdas, para buscar los de fuera que tiene encima uno de dentro o un punto.
+  const lado = CELDA_DE_LA_SABANA_MM / mmPorLocal
+  const clave = (x: number, y: number, z: number) => x + 4096 * (y + 4096 * z)
+  const celdas = new Map<number, number[]>()
+  for (let i = 0; i < n; i++) {
+    if (esPared(i)) continue
+    const k = clave(Math.floor(reposo[i * 3] / lado), Math.floor(reposo[i * 3 + 1] / lado), Math.floor(reposo[i * 3 + 2] / lado))
+    const lista = celdas.get(k)
+    if (lista) lista.push(i)
+    else celdas.set(k, [i])
+  }
+  const memoria = new Int32Array(n).fill(-2)
+  const cercano = (i: number): number => {
+    if (memoria[i] !== -2) return memoria[i]
+    const cx = Math.floor(reposo[i * 3] / lado), cy = Math.floor(reposo[i * 3 + 1] / lado), cz = Math.floor(reposo[i * 3 + 2] / lado)
+    let mejor = -1
+    let mejorD = Infinity
+    // Dos celdas a cada lado: hasta 6 mm, el grosor máximo de la piel (`GROSOR_MAXIMO_DE_LA_PIEL_MM`).
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          for (const j of celdas.get(clave(cx + dx, cy + dy, cz + dz)) ?? []) {
+            if (j === i || esDentro(j)) continue
+            const d = Math.hypot(reposo[j * 3] - reposo[i * 3], reposo[j * 3 + 1] - reposo[i * 3 + 1], reposo[j * 3 + 2] - reposo[i * 3 + 2])
+            if (d < mejorD) {
+              mejorD = d
+              mejor = j
+            }
+          }
+        }
+      }
+    }
+    memoria[i] = mejor
+    return mejor
+  }
+  const sigma = SIGMA_DE_LA_CARA_DE_DENTRO_MM / mmPorLocal
+  /**
+   * Los vértices de la cara de fuera en reposo alrededor de la recta que pasa por (px, py, pz) con dirección (ex, ey, ez),
+   * con su peso por lo que se separan de ella de lado, y lo que quedan por encima del punto a lo largo de ella, pesado.
+   * `null` si no hay ninguno a su alcance.
+   */
+  const alrededorDe = (px: number, py: number, pz: number, ex: number, ey: number, ez: number) => {
+    const cx = Math.floor(px / lado), cy = Math.floor(py / lado), cz = Math.floor(pz / lado)
+    const de: number[] = []
+    const pesos: number[] = []
+    let total = 0
+    let alto = 0
+    for (let dx = -2; dx <= 2; dx++) {
+      for (let dy = -2; dy <= 2; dy++) {
+        for (let dz = -2; dz <= 2; dz++) {
+          for (const j of celdas.get(clave(cx + dx, cy + dy, cz + dz)) ?? []) {
+            if (esDentro(j)) continue
+            const rx = reposo[j * 3] - px, ry = reposo[j * 3 + 1] - py, rz = reposo[j * 3 + 2] - pz
+            const sobre = rx * ex + ry * ey + rz * ez
+            // De lado, lo que se separa de esa recta: es lo que cuenta para repartir, no la distancia en el aire, que a 3 mm
+            // de grosor es casi la misma para el de encima y para sus vecinos.
+            const lado2 = rx * rx + ry * ry + rz * rz - sobre * sobre
+            if (lado2 > 9 * sigma * sigma) continue
+            const peso = Math.exp(-lado2 / (sigma * sigma))
+            de.push(j)
+            pesos.push(peso)
+            total += peso
+            alto += peso * sobre
+          }
+        }
+      }
+    }
+    if (total <= 0) return null
+    return { de: Int32Array.from(de), pesos: Float32Array.from(pesos, (p) => p / total), alto: (alto / total) * mmPorLocal }
+  }
+  const colgados = new Map<number, { de: Int32Array; pesos: Float32Array; grosor: number } | null>()
+  const colgado = (i: number) => {
+    if (colgados.has(i)) return colgados.get(i) ?? null
+    const arriba = cercano(i)
+    if (arriba < 0) {
+      colgados.set(i, null)
+      return null
+    }
+    // La recta que sube desde el vértice: la de la sábana en el de fuera que tiene más cerca.
+    const ex = direccion[arriba * 3], ey = direccion[arriba * 3 + 1], ez = direccion[arriba * 3 + 2]
+    const reparto = alrededorDe(reposo[i * 3], reposo[i * 3 + 1], reposo[i * 3 + 2], ex, ey, ez)
+    const salida = reparto
+      ? { de: reparto.de, pesos: reparto.pesos, grosor: reparto.alto }
+      : {
+          de: Int32Array.of(arriba),
+          pesos: Float32Array.of(1),
+          grosor:
+            ((reposo[arriba * 3] - reposo[i * 3]) * ex + (reposo[arriba * 3 + 1] - reposo[i * 3 + 1]) * ey + (reposo[arriba * 3 + 2] - reposo[i * 3 + 2]) * ez) *
+            mmPorLocal,
+        }
+    colgados.set(i, salida)
+    return salida
+  }
+  const encimaDe = (x: number, y: number, z: number, i: number) => {
+    const arriba = esDentro(i) || esPared(i) ? cercano(i) : i
+    if (arriba < 0) return null
+    return alrededorDe(x, y, z, direccion[arriba * 3], direccion[arriba * 3 + 1], direccion[arriba * 3 + 2])
+  }
+  const sinGemelos: readonly number[] = []
+  const gemelos = (i: number): readonly number[] => grupoDe.get(i) ?? sinGemelos
+  const sabana = { reposo, direccion, cercano, colgado, gemelos, encimaDe }
+  SABANAS.set(g, sabana)
+  return sabana
+}
+
 /** Abulta una piel con esos puntos, o la devuelve a su base si ya no hace falta. Devuelve si cambió. */
 function abultarUnaPiel(malla: THREE.Mesh, puntos: Float32Array, mmPorUnidad: number, cuenta?: CuentaDeLaPiel): boolean {
   const g = malla.geometry
@@ -341,12 +645,21 @@ function abultarUnaPiel(malla: THREE.Mesh, puntos: Float32Array, mmPorUnidad: nu
   caja.applyMatrix4(aLocal)
 
   const pared = g.getAttribute(ATRIBUTO_DE_LA_PARED) as THREE.BufferAttribute | undefined
+  // La piel se abulta como una sábana, desde su reposo (D-421): la cuenta se hace con la piel cerrada y sin bulto, y lo que
+  // sube cada vértice se suma a donde esté ahora, con la herida abierta o apartada. Ver `sabanaDe`.
+  const reposo = reposoDeLaPiel(malla, base, atributo.count)
+  const sabana = sabanaDe(g, reposo, pared, dentro, escala)
   const candidatos: number[] = []
+  const deLaPared: number[] = []
   for (let i = 0; i < atributo.count; i++) {
-    const x = base[i * 3], y = base[i * 3 + 1], z = base[i * 3 + 2]
+    const x = reposo[i * 3], y = reposo[i * 3 + 1], z = reposo[i * 3 + 2]
     if (x < caja.min.x || x > caja.max.x || y < caja.min.y || y > caja.max.y || z < caja.min.z || z > caja.max.z) continue
-    // La pared de una herida abierta mira de lado, a la herida: subirla la metería en el hueco.
-    if (pared && pared.getX(i) > 0) continue
+    // La pared de una herida mira de lado, a la herida: subirla por su normal la metería en el hueco. Va con la piel que
+    // tiene encima o debajo, la de su labio.
+    if (pared && pared.getX(i) > 0) {
+      deLaPared.push(i)
+      continue
+    }
     candidatos.push(i)
   }
 
@@ -356,17 +669,25 @@ function abultarUnaPiel(malla: THREE.Mesh, puntos: Float32Array, mmPorUnidad: nu
     const n = candidatos.length
     const posiciones = new Float32Array(n * 3)
     const haciaFuera = new Float32Array(n * 3)
+    const direcciones = new Float32Array(n * 3)
     const holguras = new Float32Array(n)
     const v = new THREE.Vector3()
     const d = new THREE.Vector3()
     candidatos.forEach((i, k) => {
-      v.set(base[i * 3], base[i * 3 + 1], base[i * 3 + 2]).applyMatrix4(malla.matrixWorld).multiplyScalar(mmPorUnidad)
+      v.set(reposo[i * 3], reposo[i * 3 + 1], reposo[i * 3 + 2]).applyMatrix4(malla.matrixWorld).multiplyScalar(mmPorUnidad)
       posiciones[k * 3] = v.x
       posiciones[k * 3 + 1] = v.y
       posiciones[k * 3 + 2] = v.z
       const deDentro = dentro.getX(i) > 0.5
-      d.set(normalesBase[i * 3], normalesBase[i * 3 + 1], normalesBase[i * 3 + 2]).transformDirection(malla.matrixWorld)
-      if (deDentro) d.negate()
+      // La cara de dentro sube como la de fuera que tiene encima: por su propia normal, en una piel curva, las dos caras
+      // no iban paralelas y la de dentro asomaba por la de fuera en manchas grises.
+      const deFuera = deDentro ? sabana.cercano(i) : i
+      if (deFuera >= 0) d.fromArray(sabana.direccion, deFuera * 3)
+      else d.fromArray(sabana.direccion, i * 3).multiplyScalar(deDentro ? -1 : 1)
+      direcciones[k * 3] = d.x
+      direcciones[k * 3 + 1] = d.y
+      direcciones[k * 3 + 2] = d.z
+      d.transformDirection(malla.matrixWorld)
       haciaFuera[k * 3] = d.x
       haciaFuera[k * 3 + 1] = d.y
       haciaFuera[k * 3 + 2] = d.z
@@ -374,12 +695,19 @@ function abultarUnaPiel(malla: THREE.Mesh, puntos: Float32Array, mmPorUnidad: nu
     })
     const antes = performance.now()
     const sube = abultamientoMm({ posiciones, haciaFuera, holguras }, puntos, { maximoMm: ABULTAMIENTO_MAXIMO_MM })
-    // Y se tiende alrededor, por las aristas de la piel: de un vértice a sus vecinos que también se miraron.
     const vecindad = vecindadDe(g, atributo.count)
     const candidatoDe = candidatoDeCadaVertice(g, atributo.count)
     candidatos.forEach((i, k) => (candidatoDe[i] = k))
+    const colgadoDe: ({ de: Int32Array; pesos: Float32Array; grosor: number } | null)[] = []
+    const deLaCaraDeDentro: number[] = []
+    candidatos.forEach((i, k) => {
+      if (dentro.getX(i) <= 0.5) return
+      deLaCaraDeDentro.push(k)
+      colgadoDe.push(sabana.colgado(i))
+    })
+    // Y se tiende alrededor, por las aristas de la piel: de un vértice a sus vecinos que también se miraron.
     const verticeDe = (t: number, e: number) => (vecindad.indices ? vecindad.indices[t * 3 + e] : t * 3 + e)
-    tenderLaPiel(sube, posiciones, (k, visitar) => {
+    const vecinosDe = (k: number, visitar: (j: number) => void) => {
       const i = candidatos[k]
       for (let j = vecindad.inicio[i]; j < vecindad.inicio[i + 1]; j++) {
         const t = vecindad.triangulos[j]
@@ -388,6 +716,85 @@ function abultarUnaPiel(malla: THREE.Mesh, puntos: Float32Array, mmPorUnidad: nu
           if (otro >= 0 && otro !== k) visitar(otro)
         }
       }
+      // Y a través de las heridas, como si no estuvieran: de un labio a su gemelo del otro (D-421).
+      for (const j of sabana.gemelos(i)) {
+        const otro = candidatoDe[j]
+        if (otro >= 0 && otro !== k) visitar(otro)
+      }
+    }
+    // Tendida, alisada y vuelta a tender (D-421): ver `alisarLaTienda`.
+    const pide = Float32Array.from(sube)
+    tenderLaPiel(sube, posiciones, vecinosDe)
+    alisarLaTienda(sube, pide, vecinosDe)
+    tenderLaPiel(sube, posiciones, vecinosDe)
+    // Lo que sube cada vértice sale del sitio donde está ahora y no de donde estaba en reposo (D-421): con la herida
+    // abierta, un labio está lejos de su reposo, y lo que sube es lo que pide la piel de ese sitio, leída en la sábana
+    // ya tendida (`encimaDe`). Llevado pegado a cada vértice desde su reposo, la retracción de la esquina de una L junto
+    // al trozo desplazado juntaba vértices que subían 25 mm con otros que subían 10: 58 triángulos vueltos en la L del
+    // tobillo, 3 leyéndolo donde está. Solo los primeros milímetros (`LO_QUE_SE_LEE_DONDE_ESTA_MM`): lo que un Farabeuf
+    // aparta más allá va pegado. Lo que no se movió de su reposo sube lo suyo.
+    const ahora = base
+    const movidoMinimo = MOVIDO_PARA_LEER_LA_SABANA_MM / escala
+    const desplazamientos3 = new Float32Array(n * 3)
+    const subeEn = (r: { de: Int32Array; pesos: Float32Array }): [number, number, number] => {
+      let x = 0, y = 0, z = 0
+      for (let e = 0; e < r.de.length; e++) {
+        const j = r.de[e]
+        const kj = candidatoDe[j]
+        if (kj < 0) continue
+        const largo = r.pesos[e] * sube[kj]
+        x += sabana.direccion[j * 3] * largo
+        y += sabana.direccion[j * 3 + 1] * largo
+        z += sabana.direccion[j * 3 + 2] * largo
+      }
+      return [x, y, z]
+    }
+    const seMovio = (i: number) =>
+      Math.hypot(ahora[i * 3] - reposo[i * 3], ahora[i * 3 + 1] - reposo[i * 3 + 1], ahora[i * 3 + 2] - reposo[i * 3 + 2]) > movidoMinimo
+    const hastaDondeSeLee = LO_QUE_SE_LEE_DONDE_ESTA_MM / escala
+    /** Dónde se lee la sábana para el vértice `i`: donde está, o a `LO_QUE_SE_LEE_DONDE_ESTA_MM` de su reposo hacia allí. */
+    const leerEn = (i: number) => {
+      const dx = ahora[i * 3] - reposo[i * 3], dy = ahora[i * 3 + 1] - reposo[i * 3 + 1], dz = ahora[i * 3 + 2] - reposo[i * 3 + 2]
+      const largo = Math.hypot(dx, dy, dz)
+      const k = largo > hastaDondeSeLee ? hastaDondeSeLee / largo : 1
+      return sabana.encimaDe(reposo[i * 3] + dx * k, reposo[i * 3 + 1] + dy * k, reposo[i * 3 + 2] + dz * k, i)
+    }
+    // Primero la cara de fuera, que es la que manda; se guarda aparte para que la de dentro lea la de fuera sin mezclar.
+    const finalDe = new Float32Array(n)
+    candidatos.forEach((i, k) => {
+      if (dentro.getX(i) > 0.5) return
+      let v: [number, number, number] = [direcciones[k * 3] * sube[k], direcciones[k * 3 + 1] * sube[k], direcciones[k * 3 + 2] * sube[k]]
+      if (seMovio(i)) {
+        const r = leerEn(i)
+        if (r) v = subeEn(r)
+      }
+      desplazamientos3.set([v[0] / escala, v[1] / escala, v[2] / escala], k * 3)
+      finalDe[k] = Math.hypot(v[0], v[1], v[2])
+    })
+    // La cara de dentro, con techo: sube lo suyo —más que la de fuera sobre el hueso, porque está más cerca de él y la
+    // grasa se aplasta (D-331)— o lo de la de fuera que tiene encima, lo que sea más, pero nunca tanto que quede a menos
+    // de la dermis de ella. Cada cara se tiende por su lado, y en la falda del bulto la de dentro, que parte de una cima
+    // más alta, se tendía más ancha; bajo una incisión recién hecha, que corta distinto los caminos de cada cara, quedaba
+    // 4 mm por encima de la de fuera: una mancha gris de dos dedos, el «vidrio» que se veía a un lado del corte. Se probó
+    // a pedirle a la de fuera lo que necesitaba la de dentro y tender las dos juntas: la de fuera se llenó de bultos de un
+    // centímetro, uno por cada racimo de vértices que se subía de golpe.
+    deLaCaraDeDentro.forEach((k, m) => {
+      const c = colgadoDe[m]
+      const i = candidatos[k]
+      if (!c) {
+        desplazamientos3.set([direcciones[k * 3] * (sube[k] / escala), direcciones[k * 3 + 1] * (sube[k] / escala), direcciones[k * 3 + 2] * (sube[k] / escala)], k * 3)
+        finalDe[k] = sube[k]
+        return
+      }
+      const r = seMovio(i) ? (leerEn(i) ?? c) : c
+      const [x, y, z] = subeEn(r)
+      const encima = Math.hypot(x, y, z)
+      const techo = encima + c.grosor - DERMIS_DE_LA_SABANA_MM
+      const final = Math.max(0, Math.min(Math.max(sube[k], encima), techo))
+      // Hacia donde sube la de fuera que tiene encima; si esa no sube, por la suya, que es la misma de la sábana.
+      if (encima > 1e-6) desplazamientos3.set([(x / encima) * (final / escala), (y / encima) * (final / escala), (z / encima) * (final / escala)], k * 3)
+      else desplazamientos3.set([direcciones[k * 3] * (final / escala), direcciones[k * 3 + 1] * (final / escala), direcciones[k * 3 + 2] * (final / escala)], k * 3)
+      finalDe[k] = final
     })
     for (const i of candidatos) candidatoDe[i] = -1
     if (cuenta) {
@@ -397,15 +804,81 @@ function abultarUnaPiel(malla: THREE.Mesh, puntos: Float32Array, mmPorUnidad: nu
     const lista: number[] = []
     candidatos.forEach((i, k) => {
       // Menos de una décima de milímetro no se ve, y cada vértice de más es una normal que rehacer.
-      if (sube[k] < 0.1) return
-      const signo = dentro.getX(i) > 0.5 ? -1 : 1
-      const largo = (sube[k] / escala) * signo
+      if (finalDe[k] < 0.1) return
       vertices.push(i)
-      lista.push(normalesBase[i * 3] * largo, normalesBase[i * 3 + 1] * largo, normalesBase[i * 3 + 2] * largo)
+      lista.push(desplazamientos3[k * 3], desplazamientos3[k * 3 + 1], desplazamientos3[k * 3 + 2])
     })
+    // La pared, con su labio: lo que sube el vértice de la piel que tiene al lado **ahora**, que es el de su labio de arriba
+    // o el de abajo. Antes se quedaba quieta mientras la piel de al lado subía hasta 30 mm. Y no el más cercano en reposo:
+    // ahí los dos labios están en el mismo sitio, y con la herida abierta la mitad de la pared tomaba lo que sube el labio
+    // de enfrente, a 35 mm, y cruzaba la herida como un hilo.
+    let deLaParedSubidos = 0
+    if (deLaPared.length > 0) {
+      const ladoAhora = CELDA_DE_LA_SABANA_MM / escala
+      const claveAhora = (x: number, y: number, z: number) => x + 4096 * (y + 4096 * z)
+      const celdasAhora = new Map<number, number[]>()
+      candidatos.forEach((i, k) => {
+        const c = claveAhora(Math.floor(ahora[i * 3] / ladoAhora), Math.floor(ahora[i * 3 + 1] / ladoAhora), Math.floor(ahora[i * 3 + 2] / ladoAhora))
+        const lista = celdasAhora.get(c)
+        if (lista) lista.push(k)
+        else celdasAhora.set(c, [k])
+      })
+      for (const i of deLaPared) {
+        const cx = Math.floor(ahora[i * 3] / ladoAhora), cy = Math.floor(ahora[i * 3 + 1] / ladoAhora), cz = Math.floor(ahora[i * 3 + 2] / ladoAhora)
+        let mejor = -1
+        let mejorD = Infinity
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            for (let dz = -1; dz <= 1; dz++) {
+              for (const k of celdasAhora.get(claveAhora(cx + dx, cy + dy, cz + dz)) ?? []) {
+                const j = candidatos[k]
+                const d = Math.hypot(ahora[j * 3] - ahora[i * 3], ahora[j * 3 + 1] - ahora[i * 3 + 1], ahora[j * 3 + 2] - ahora[i * 3 + 2])
+                if (d < mejorD) {
+                  mejorD = d
+                  mejor = k
+                }
+              }
+            }
+          }
+        }
+        if (mejor < 0 || finalDe[mejor] < 0.1) continue
+        vertices.push(i)
+        lista.push(desplazamientos3[mejor * 3], desplazamientos3[mejor * 3 + 1], desplazamientos3[mejor * 3 + 2])
+        deLaParedSubidos++
+      }
+    }
+    if (cuenta) {
+      cuenta.pared += deLaPared.length
+      cuenta.deLaPared += deLaParedSubidos
+    }
     desplazamientos = Float32Array.from(lista)
   }
 
+  // Lo que el bulto da vuelta junto a una herida abierta se endereza como lo que dan vuelta los arrastres (D-421): sube
+  // cada vértice por la dirección de la sábana, la de reposo, y junto a un labio apartado eso cruzaba los triángulos.
+  const cortes = cadenaDeLaMalla(malla).map((h) => h.corte)
+  const corte = cortes.at(-1)
+  if (corte && vertices.length > 0 && corte.posiciones.length === base.length) {
+    const conBulto = Float32Array.from(base)
+    vertices.forEach((i, k) => {
+      conBulto[i * 3] += desplazamientos[k * 3]
+      conBulto[i * 3 + 1] += desplazamientos[k * 3 + 1]
+      conBulto[i * 3 + 2] += desplazamientos[k * 3 + 2]
+    })
+    if (enderezarPosiciones(cortes, conBulto)) {
+      vertices.length = 0
+      const lista: number[] = []
+      for (let i = 0; i < base.length / 3; i++) {
+        const dx = conBulto[i * 3] - base[i * 3]
+        const dy = conBulto[i * 3 + 1] - base[i * 3 + 1]
+        const dz = conBulto[i * 3 + 2] - base[i * 3 + 2]
+        if (dx === 0 && dy === 0 && dz === 0) continue
+        vertices.push(i)
+        lista.push(dx, dy, dz)
+      }
+      desplazamientos = Float32Array.from(lista)
+    }
+  }
   if (cuenta) cuenta.subidos += vertices.length
   if (vertices.length === 0) {
     if (!sigue) return false

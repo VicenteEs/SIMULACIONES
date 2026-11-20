@@ -41,6 +41,11 @@ export const ABULTAMIENTO_MAXIMO_MM = 30
  */
 export const PENDIENTE_DE_LA_PIEL = 1
 /**
+ * Las pasadas con que se alisa la tienda (`alisarLaTienda`, D-421). Con 4 se iban casi todos los grumos de junto a la
+ * incisión del tobillo; con 12, también los de la falda. Cada una es una vuelta por las aristas de lo que se abulta.
+ */
+export const PASADAS_DE_LA_TIENDA = 12
+/**
  * Hasta dónde, hacia fuera, se mira lo que empuja. Pasado el máximo, la piel suelta el trozo poco a poco a lo largo de un
  * radio más, y aquí ya no lo ve: está fuera del cuerpo, y una tienda de 30 mm apuntando a un hueso que flota a ocho
  * centímetros no tapa nada. Se suelta sin saltos porque el trozo se arrastra: un salto se vería en cada cuadro.
@@ -329,6 +334,51 @@ export function tenderLaPiel(
       }
     })
   }
+  return sube
+}
+
+/**
+ * Alisa la piel ya tendida sin bajarla nunca de lo que `pide` (lo que pedía cada vértice antes de tenderla): cada pasada
+ * pone cada vértice en la media de él y sus vecinos. Hay que volver a tenderla después, porque junto a un vértice que
+ * pide mucho la media de sus vecinos puede quedar más empinada que `PENDIENTE_DE_LA_PIEL`.
+ *
+ * `tenderLaPiel` va de arista en arista, y la distancia por las aristas solo se parece a la del aire en una malla pareja.
+ * Un corte deja junto a la incisión una franja afinada, de triángulos finos y de tamaños muy distintos: ahí la falda salía
+ * con dientes, y la piel alrededor de la vertical del tobillo, con grumos que la luz del pabellón sacaba a relucir. En la
+ * malla del atlas, sin cortar, no se notaban.
+ */
+export function alisarLaTienda(
+  sube: Float32Array,
+  pide: Float32Array,
+  vecinos: (k: number, visitar: (j: number) => void) => void,
+  pasadas = PASADAS_DE_LA_TIENDA,
+): Float32Array {
+  const n = sube.length
+  // Los vecinos, una vez cada uno: `vecinos` da dos veces el que comparten dos triángulos, y pesaría el doble.
+  const inicio = new Int32Array(n + 1)
+  const lista: number[] = []
+  const visto = new Int32Array(n).fill(-1)
+  for (let k = 0; k < n; k++) {
+    inicio[k] = lista.length
+    vecinos(k, (j) => {
+      if (visto[j] === k) return
+      visto[j] = k
+      lista.push(j)
+    })
+  }
+  inicio[n] = lista.length
+  const de = Int32Array.from(lista)
+  let antes = Float32Array.from(sube)
+  let ahora = new Float32Array(n)
+  for (let p = 0; p < pasadas; p++) {
+    for (let k = 0; k < n; k++) {
+      let suma = antes[k]
+      for (let e = inicio[k]; e < inicio[k + 1]; e++) suma += antes[de[e]]
+      ahora[k] = Math.max(pide[k], suma / (inicio[k + 1] - inicio[k] + 1))
+    }
+    ;[antes, ahora] = [ahora, antes]
+  }
+  sube.set(antes)
   return sube
 }
 

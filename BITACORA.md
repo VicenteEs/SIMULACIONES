@@ -13196,6 +13196,338 @@ Desplegado el 2026-11-19 en `24cc1c6` (hora de Chile; la entrada lleva la fecha 
 - ved terminó a las 23:01 (Chile), con respaldo `base-20261119-225912`, en claro como manda D-384. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre. Salud 200 por fuera, la huella `puntasDeLosLabios` en `/app/.next/static`, y `sala.glb` sin sesión sigue en 403.
 - Contabo terminó a las 23:08. Antes se hizo un respaldo verificado, `base-`/`medios-20261119-225934`, y el de su propio despliegue fue `base-20261119-230353`. El override era igual a la plantilla. El mismo ensayo, 4 procesos, salud 200 en `https://traumahub.cl`, la misma huella, y `sala.glb` sin sesión da 403 con `no-store`.
 
+### D-421 · 2026-11-20 · vigente · pedido del dueño · amplía P-013, D-331, D-416 y D-420
+**La piel abultada sobre el trozo desplazado se corta donde se ve, y se abulta como una sábana. El trazo baja del bulto antes de cortar. Las dos caras de la piel suben juntas, y los dos labios de una incisión suben lo mismo. La fascia se abre en L y en T como la piel. Con los Farabeuf, la piel se arrastra más lejos y por su superficie, y lo que aún se da vuelta se endereza.**
+
+*Qué pasó.* «quiero que sigas mejorando para que se vea mucho mas natural., recueda que la fascia se debe comportar de la misma manera […] intentes hacer un corte vertical y en el borde de abajo hacer una trasversal, para operar una tibia desde el tobillo, ahí es donde presento problemas de los cortes que parecen vidrio, creo que puede ser que haga muchos cortes por ende muchos triangulos quizas?»
+
+En la tibia distal del caso 3, el trozo desplazado levanta la piel hasta 30 mm (P-013). El «vidrio» tenía tres causas, y ninguna era el número de triángulos:
+- **El trazo y el bulto no coincidían.** Se pincha en la piel que se ve, abultada, y se corta la de debajo (`quitarElAbultamiento` antes de `cortarCapa`). Sobre el bulto, el trazo quedaba hasta 30 mm por encima de la hondura del corte de la piel. En `main`, la vertical de la prueba no corta nada en ninguno de los seis sitios probados, de la mitad del trozo distal al tobillo, de frente y de lado: «El trazo no atraviesa ninguna malla». Y una transversal no se reconocía unida a la vertical, que estaba guardada 30 mm más abajo.
+- **Cada vértice subía por su propia normal.** En la pierna, que es curva, y en los labios y la pared de una herida, las normales de dos vecinos no van paralelas. Al subir 20 mm por ellas, se cruzan y el triángulo se da vuelta: las esquirlas de vidrio. La pared de la herida mira de lado, y subida por su normal se metía en el hueco.
+- **La cara de dentro asomaba por la de fuera.** Cada cara se tendía por su lado. La de dentro, con menos vuelta en un miembro redondo y con caminos que la incisión no le cortaba, subía más ancha. A un lado del corte quedaba hasta 4 mm por encima de la de fuera: una mancha gris de dos dedos.
+
+El vidrio estaba antes de cortar: en `main`, la piel abultada del tobillo ya enseña las manchas grises y las esquirlas negras de los triángulos vueltos.
+
+Lo de «muchos cortes, muchos triángulos»: lejos del bulto, la piel cortada tiene astillas de sobra (triángulos muy finos) y ningún triángulo vuelto ni arista doblada. Lo que dobla un triángulo es que sus vértices se muevan en direcciones distintas, no que sea fino ni que haya muchos.
+
+*Lo que cambia.*
+
+**1. El trazo baja del bulto** (`pielSinAbultar`, `conSuBulto`). Es el primer paso de `aplicarElCorte`, antes de llevar el trazo al reposo de la herida (D-416). Cada punto del trazo se lleva a donde estaba ese tejido sin el bulto, con la misma función que D-416 usa para la herida abierta (`llevarAlReposo`). Así el repaso, el cruce de D-420 y alargar se miden contra las incisiones guardadas, que están sin bulto.
+
+Baja del bulto de la piel aunque se corte la fascia, que no se abulta (`bajarDelBulto`). El trazo profundo de punta a punta de la incisión se pincha en la piel cerrada de las puntas, y sobre el tobillo quedaba 20 mm por encima de la fascia. Sin bajarlo, la vertical de la fascia salía de 45 mm bajo una incisión de piel de 80, y la transversal ya no le llegaba a la punta para hacer la L.
+
+**2. La sábana** (`sabanaDe`, en `abultamientoEnLaEscena.ts`). La cuenta se hace sobre la piel en reposo (`reposoDeLaPiel`: la del último corte, cerrada y sin bulto), y lo que sube cada vértice se suma a donde esté ahora:
+- **Hacia dónde sube.** Por la normal de la cara de fuera en reposo, sin la pared, pesada por el área y promediada cuatro veces con las vecinas (`PASADAS_DE_LA_SABANA`). Así, vecinos que suben lo mismo suben paralelos.
+- **Los gemelos.** Los dos labios de una incisión están en el mismo sitio en reposo (`GEMELOS_A_MENOS_DE_MM`). Se atan al promediar y al tender el bulto (`tenderLaPiel`): el bulto pasa por la incisión como si no estuviera. Sin atarlos, el labio del lado del trozo subía y el otro se quedaba: un escalón a lo largo de la incisión, con la pared a la vista.
+- **La cara de dentro cuelga de la de fuera** (`colgado`). Sube lo suyo, o lo de la de fuera que tiene encima si es más. Pero nunca tanto que quede a menos de la dermis bajo ella, 2 mm (`DERMIS_DE_LA_SABANA_MM`, la diferencia de las dos holguras de D-331). Lo de encima se lee con una campana de 1,5 mm (`SIGMA_DE_LA_CARA_DE_DENTRO_MM`) en una rejilla de celdas de 3 mm.
+- **Lo que se abrió se lee donde está.** Un labio retraído o apartado sube lo que pide la piel de su sitio de ahora (`encimaDe`), no lo de su reposo. Solo los primeros 5 mm (`LO_QUE_SE_LEE_DONDE_ESTA_MM`): lo que un Farabeuf aparta más allá va pegado a lo suyo.
+- **La pared** copia lo que se movió el vértice de piel más cercano a ella tal como está ahora, no en reposo.
+- **La tienda, alisada** (`alisarLaTienda`, `PASADAS_DE_LA_TIENDA`). `tenderLaPiel` va de arista en arista, y en la franja que el corte deja afinada junto a la incisión —triángulos finos y de tamaños muy distintos— la distancia por las aristas no es la del aire. La falda salía con dientes: tras la vertical del tobillo, la piel de alrededor tenía grumos que sin cortar no estaban. Ahora se tiende, se alisa doce veces con la media de cada vértice y sus vecinos sin bajar de lo que pide ninguno, y se vuelve a tender, porque junto a lo que pide mucho la media puede quedar más empinada que la pendiente. Con 4 pasadas se iban casi todos los grumos; con 12, también los de la falda. Antes se probó a leer la sábana en todos los vértices, y no solo en los que se movieron, y a sumar a cada uno la diferencia entre la sábana donde está y donde estaba: los grumos seguían.
+
+**3. La fascia en L y en T** (`planoQueCorta`, `repasaLaFascia`). Antes, con la fascia abierta en cualquier sitio, todo trazo profundo iba al músculo. La transversal se hacía en el músculo a través de una fascia intacta, y la fascia no podía tener una L. Ahora el trazo profundo se mide contra las incisiones de la fascia con la misma decisión que la piel (`decidirEnSuCapa('fascia', …)`):
+- si la repasa, llega al músculo;
+- si va por fascia entera, la corta a ella.
+
+La pregunta se hace con el trazo sin el bulto, como lo medirá el corte: si no, el repaso de la vertical, pinchado en las puntas, quedaría hasta 20 mm por encima de la incisión de la fascia: no se reconocería como repaso, y se cortaría la fascia otra vez en vez del músculo. Un trazo de menos de tres puntos no da para decidir, y sigue yendo al músculo como antes.
+
+Para la sábana se probaron, y se descartaron:
+- **Pedirle a la cara de fuera lo que necesitaba la de dentro, y tender las dos juntas.** La de fuera se llenó de bultos de un centímetro, uno por cada racimo de vértices que se subía de golpe: 823 aristas dobladas.
+- **Leer todo donde está, sin tope.** La L quedaba mejor, pero los labios apartados con Farabeuf se arrugaban: 113 triángulos vueltos y 1019 aristas dobladas.
+- **Que la pared copiara al vértice más cercano en reposo.** En reposo, el más cercano puede ser el labio de enfrente: la pared cruzaba la herida como un hilo.
+- **Los gemelos solos.** No quitaban las esquirlas de la esquina con los Farabeuf.
+
+**4. El trazo profundo va a la fascia por su rayo** (`enLaFascia`, `porElRayoHastaLaCapa`, `cerradaDe`). En la pierna nueva del taller (ver *Qué se probó*), con la T, el tercer trazo por la vertical no se tomaba como repaso. Le sumaba a la fascia una rama de 43 mm y otra de 16, en vez de llegar al músculo. El trazo se pincha en lo primero que se ve, y bajo la piel abierta eso es el trozo de tibia que asoma por la fascia abierta, de 6 a 10 mm por encima de su línea: más de lo que admite un repaso (`ALTURA_DEL_REPASO_MM`, 3). Y su última muestra se colaba por el hueco de la barra hasta el peroné, 30 mm más hondo.
+
+Ahora cada punto del trazo profundo sigue el rayo de la cámara con que se pinchó hasta la fascia, y queda lo que hay en ella bajo ese píxel:
+- contra la fascia **cerrada**: por el hueco de su propia herida el rayo pasaría de largo, y es justo por ahí por donde va el repaso;
+- lo primero desde el ojo: el tabique intermuscular también es fascia, y está detrás;
+- a no más de 50 mm de donde se pinchó (`PROFUNDIDAD_DEL_CORTE_HONDO_MM`, lo que ya bajaba el corte): más allá está la fascia del otro lado de la pierna.
+
+El punto cuyo rayo no da en ella baja del bulto, como antes. Lo usan la pregunta de `repasaLaFascia` y el corte mismo, que así guardan la incisión en la línea de la fascia y no sobre el hueso. Con un músculo elegido no: ese trazo se pinchó en él a través de lo que lo tapa (P-003 E10), y subirlo a la fascia sería apartarlo de lo que se eligió.
+
+**5. La pierna de la L sale de la punta sin gancho** (`desdeLaPunta`, en `codoEnLaPunta`). En la misma pierna, la L con los dos Farabeuf daba 100 triángulos de piel vueltos, casi todos en la esquina. Abriendo cada herida sola (`vueltosPorHerida`, en la sonda): la vertical, 6; el brazo sin retracción, 40; las dos, 100. El bulto no contaba: sin él, lo mismo.
+
+El brazo empezaba con un gancho. La punta se ponía delante del trazo (`anclado`), y la mano empezó 2 mm al lado: la pierna salía a 54° en sus primeros 2 mm y después seguía su línea. La herida se aparta según por dónde de la pierna cae cada vértice (`cuantoSeAparta`, con su `largoT`). Del lado de dentro del gancho, dos vértices vecinos caían uno en la punta y otro al 30 % de la pierna (`mapaDeLaHerida`): uno no se movía y el de al lado se movía 9 mm.
+
+Ahora el trazo entero se lleva a la punta. Cada punto se mueve lo que separa el primero de ella, menos cuanto más lejos va, hasta no moverse nada el último: los 2 mm se reparten en lo que mide la pierna, y acaba donde acabó la mano.
+
+**6. El arranque de la pierna no lo cierra lo que sigue entero tras la punta** (`OpcionesDeCorte.unida`, en `cerrarLasPuntasConTejidoEntero`). Sin el gancho, la esquina del caso 3 empeoró: de 87 triángulos vueltos a 142, con un par de Farabeuf en cada herida. El corte dejaba abierto el arranque del brazo, porque sus primeros cruces pasaban. Pero después lo cerraba `cerrarLasPuntasConTejidoEntero` (P-015). Más allá del arranque está lo que sigue entero tras la punta de la vertical, y lo apartado (D-420) se funde a 0 justo ahí, así que contaba como tejido entero entre los dos labios. Con la punta cerrada, `puntasDeLosLabios` no mira los cruces de cada labio con la otra incisión. El labio del colgajo arrancaba de 0 en la esquina, subía unos 2 mm por milímetro y se plegaba. El gancho lo escondía: llevaba esa rampa por debajo del colgajo. En el caso 86, el arranque ya quedaba abierto.
+
+Ahora el extremo que nace en otra incisión no se cierra por el tejido de más allá: su punta la deciden los cruces de cada labio. `cortarCapa` ya sabía cuál es (`unida`, D-420) y ahora se lo pasa al corte. El otro extremo se sigue cerrando como en P-015. Con un par de Farabeuf en cada herida, el caso 3 baja a 58 y el 86 queda en 26 (antes, 27).
+
+En la T del caso 3, en cambio, empeora: de 21 a 43. Ahí la barra solo se corta 15 mm, 13 a un lado de la vertical y 1,6 al otro, porque su mitad de arriba cae sobre el hueso que asoma. La vertical, acortada hasta la barra, nace en ella, y su pie ahora queda abierto: se pliega contra la punta cerrada de la barra, a 1,6 mm. Ver las consecuencias.
+
+Para la esquina se probaron, y se descartaron:
+- **Desplegar los triángulos vueltos tras sumar los arrastres** (`componerCortes`), con la media de los vecinos. Subían: se plegaban los labios, la pared y la franja afinada.
+- **Bajar la pendiente del labio** (`PENDIENTE_MAXIMA_DEL_LABIO`) **o hacer recta su cuerda.** Bajaba los vueltos sin tocar la causa (con la cuerda recta, 73), y cambiaba cómo se abre toda herida.
+
+**7. «Ya hay uno aquí» solo en la misma herida** (`colocarSeparador`). En el caso 3, el par de Farabeuf del brazo no se ponía. La comprobación miraba la posición a lo largo de la herida —una fracción, de 0 a 1— en los separadores de cualquier herida, y la del brazo caía a menos de 0,08 de la del par de la vertical. Ahora compara solo con los de la misma herida.
+
+**8. La barra que cruza lo que asoma se corta en la piel que lo tapa** (`enLaPiel`, `bajoLoQueLaTapa`). Tras los puntos 4 a 7, el dueño pidió que no quedara nada que no fuera casi real: «si no esta al 100% casi realista no lo quiero, quiero que los cortes se vena natural.» En la T del caso 3, la mitad de arriba de la barra cae, en pantalla, sobre el trozo de tibia que asoma por la piel, y se pinchaba en él: de 58 mm de trazo, la herida era de 15. Ahora cada punto del trazo de la piel sigue el rayo de la cámara hasta la piel que hay detrás de él, a no más de 30 mm (`PIEL_BAJO_LO_QUE_ASOMA_MM`), y después baja del bulto como antes. Solo detrás: lo visto por el hueco de una herida abierta tiene la piel delante, en sus labios, y no se sube a ella. La barra corta ahora 28 mm, una T entera. Con los Farabeuf, sin los puntos 9 y 10, daba 103 triángulos vueltos con un par por herida: ya no era el pliegue de la punta sino el del arrastre.
+
+**9. La piel arrastra más lejos, y por su superficie** (`ARRASTRE_DE_LA_PIEL_MM`, `OpcionesDeCorte.arrastre` y `porLaSuperficie`). Cada corte aparta su tejido con un peso que cae, en curva suave, de 1 en el labio a 0 a 30 mm. Un Farabeuf a 14 mm, con lo que el labio se retrae solo, lo aparta 17 a 20 mm. La curva baja, en lo más empinado, 1,5 veces su media: a unos 15 mm del labio, el tejido se apretaba hasta darse vuelta. Ahí estaban casi todos los vueltos de las dos piernas, en L y en T, a 10–20 mm del labio. Para la piel, el arrastre llega ahora a 45 mm; la fascia y el músculo siguen en 30.
+
+Con 45 mm el arrastre llega a donde la pierna ya da la vuelta. Por la tangente del trazo, esa piel salía de la pierna, y a 14 mm de hondura bajo el trazo (`profundidad`) dejaba de arrastrarse de golpe. Las dos cosas daban vueltos en el borde de la pierna: 60 en la T de la pierna del taller, que con 30 mm tenía 17. Por eso, en la piel y su fascia superficial:
+- El peso cae con la distancia en línea recta hasta el trazo, hondura incluida, y no se corta a `profundidad`. Descontado el grosor de la piel (`fueraDeLaLamina`): sus dos caras, junto al labio, se arrastran lo mismo.
+- Cada vértice se aparta por la tangente de su sitio (`porLaTangente`). Es la del círculo que sale del trazo por su lateral y pasa por él, quitado lo que sale del plano de su normal de reposo (`normalesSinLaPared`). Junto al labio, a menos de la mitad del arrastre, se mezcla con la del trazo: con la tangente pura, el labio y la pared iban por sitios distintos, y se plegaban 22 triángulos a menos de 2 mm del labio.
+- Más allá de las puntas, a lo largo del trazo, el peso sigue cayendo en 30 mm. Con 45, la L de la pierna del taller se partía bajo la esquina, por la prolongación del brazo.
+
+**10. Lo que aún se da vuelta se endereza** (`enderezarLosVueltos`, `enderezarPosiciones`). Lo que queda lo da vuelta, sobre todo, la apertura que cambia a lo largo del labio. Junto a la hoja, un labio se aparta 13 mm y, dos milímetros más allá, 9. Los triángulos finos que lo bordean, con un vértice a una décima de él, se cruzan con eso: 33 en la L de la pierna del taller. A cada triángulo vuelto se le devuelve una quinta parte de su área, medida sobre su normal de reposo, moviendo sus vértices por el gradiente del área. Después se mira a sus vecinos, hasta 100 veces; con 30 quedaban 4 en la fascia superficial de la L del caso 3. Lo que ni así se endereza es un vértice que atravesó a sus vecinos: enderezar uno de sus triángulos lo devuelve dentro del otro. Se lo lleva al medio de sus vecinos y se pasa otra vez, hasta 3 rondas; así se fueron los 2 que quedaban en la fascia superficial de la L del taller. La pared de la última herida de la malla no se mueve, porque es la cara que se ve del corte, salvo en un triángulo que es todo de pared: a ese no lo endereza nadie más, y así quedaban 2 junto al labio en la L del taller. La pared de una herida anterior sí se mueve: se abre donde la última se funde con ella, y quieta también esa, en la T del caso 3 quedaban 8. Un labio solo se desliza de lado, sin que cambie lo que se aparta, porque es lo que sujeta la hoja del separador. Suelto, una hoja abierta 12 mm lo dejaba a 10,6 (lo vigila `separadorEnElLabio.test.ts`); clavado del todo, en la L del caso 3 quedaban 7. Se hace al componer las heridas (`componerCortes`) y otra vez tras el bulto (`abultarUnaPiel`). Sobre el hueso que asoma, el bulto levanta la piel hasta 30 mm y, junto a los labios, volvía a dar vuelta lo que los arrastres dejaban derecho: en la T del caso 3, 68 triángulos, y ninguno con el bulto apagado. Con 30 pasadas costaba menos de medio milisegundo por composición, en el caso 3; las 100 pasadas y las rondas solo corren mientras queda algo vuelto. Lo que se ve está enderezado, y un tejido doblado entero no se ve vuelto, sino aplastado: `vueltosAntesDeEnderezar` dice cuántos dio vuelta el arrastre antes de enderezar la última composición.
+
+Para el arrastre se probaron, y se descartaron:
+- **Alisar el arrastre con la media de los vecinos**, otra vez, con los labios y la pared quietos y pesos por lo cerca que están en reposo. La media no sabe de qué lado tiene que quedar cada vértice: en la T del caso 3, de 72 a 85.
+- **Quitarle al arrastre sumado lo que sale de la superficie**, sin devolverle el largo. Acortaba lo de lejos más que lo de cerca, y la caída se empinaba: 171 vueltos, y 192 con 50 mm.
+- **Solo ensanchar el arrastre**, a 50 o 70 mm. Los vueltos se iban al borde de la pierna.
+- **Clavar al enderezar la pared y los labios de todas las heridas de la malla.** Con la pared de las anteriores, la T del caso 3 dejaba 8 vueltos a 5–20 mm del labio; con los labios clavados, la L, 7 junto a él.
+
+*Qué se probó.*
+- `abultamientoDeLaPiel.test.ts`, cinco nuevas, en una piel de dos caras como la del atlas:
+  - la cara de dentro no asoma junto a una incisión que corta el camino de una sola (sin los gemelos, falla);
+  - en un miembro redondo no asoma ni sin herida (sin el techo quedaba 1,6 mm por fuera);
+  - la piel no engorda sobre el bulto;
+  - los dos labios de una incisión suben lo mismo, a una centésima (el margen de `tenderLaPiel`);
+  - `pielSinAbultar` y `conSuBulto` dan la piel de debajo mientras nadie la reescriba, y nada después.
+- `planosBlandos.test.ts`, tres casos de `repasaLaFascia`.
+- `abultamientoDeLaPiel.test.ts`, dos más de `alisarLaTienda`: quita los dientes de la falda sin bajar de lo que pide ningún vértice, y cuenta una vez el vecino que comparten dos triángulos.
+- `trazoEnReposo.test.ts`: el trazo baja del bulto antes de medirse contra las incisiones de antes, también el que corta la fascia, y la fascia se decide con la misma función que la piel y con el trazo sin el bulto.
+- `trazoEnReposo.test.ts`, tres de `porElRayoHastaLaCapa`: lo pinchado en el hueso que asoma va a la fascia de debajo en el mismo píxel; manda lo primero desde el ojo, no el orden de la lista; y más allá del alcance, o con el rayo fuera de la fascia, el punto se queda como estaba. Otra comprueba que el bisturí profundo pasa por `enLaFascia`, salvo con un músculo elegido.
+- `incisiones.test.ts`: la pierna de la L sale de la punta sin gancho y acaba donde acabó la mano. La prueba de la L que esperaba el gancho ahora mide la línea recta.
+- `corteDeMalla.test.ts`: el extremo que nace en otra incisión no lo cierra el tejido de más allá; el otro extremo, sí.
+- `abordajePorPlanos.test.ts`: «ya hay uno aquí» compara solo con los separadores de la misma herida.
+- `trazoEnReposo.test.ts`, tres de `bajoLoQueLaTapa`: lo pinchado sobre el hueso va a la piel de detrás en el mismo píxel; lo que ya está en la piel se queda; y lo visto por el hueco de una herida, con la piel delante, no se sube a ella. Otra comprueba que el bisturí de piel pasa por `enLaPiel` antes de llevar el trazo al reposo.
+- `corteDeMalla.test.ts`, tres del enderezado: abierta más de lo que su alcance aguanta, `abrirHerida` se da vuelta y `componerCortes` no; lo que no toca a lo vuelto queda como lo abre la herida; y `enderezarPosiciones` endereza lo que se suma después, y sin nada vuelto no toca nada.
+- `corteDeMalla.test.ts`, dos del arrastre por la superficie, en el tubo: a 45°–75° del trazo lo que se aparta va por la tangente de su sitio (por la del trazo, más del 60 % salía de la piel), y lo de detrás del tubo no se mueve.
+- `unionDeIncisiones.test.ts`: la L de la losa con un Farabeuf en cada brazo pasa de «12 vueltos como mucho» a ninguno a la vista, y los 12 se piden ahora a lo que da vuelta el arrastre antes de enderezar (son 10). Con la cuerda anclada en la punta del trazo, como antes de D-420, la cuña doblada ya no se ve vuelta sino aplastada, así que la prueba cuenta también ahí lo de antes de enderezar: 160, y pide más de 100, como pedía.
+- `corteDeMalla.test.ts`, dos más del enderezado: con una apertura que salta de 6 a 1 mm, como junto a la hoja, los labios se deslizan y se apartan lo mismo que sin enderezar; y un vértice empujado seis aristas por encima de sus vecinos vuelve entre ellos (con las pasadas solas quedaban 3 vueltos).
+
+En el navegador, en el caso 3 con la base desechable, de frente a la cara medial de la tibia distal (`tobillo.cjs`, fuera del repositorio):
+1. una vertical de 78 mm con el bisturí de piel, sobre el bulto;
+2. una transversal en su punta de abajo, en L (30 mm hacia un lado) o en T (20 mm a cada lado);
+3. un par de Farabeuf a 14 mm en cada brazo;
+4. el bisturí profundo por la vertical;
+5. el bisturí profundo por la transversal;
+6. otra vez por la vertical.
+
+Triángulos vueltos de la piel / aristas dobladas, tras cada paso:
+
+| Paso | L, puntos 1 a 7 | L, con 8 a 10 | T, puntos 1 a 7 | T, con 8 a 10 |
+| --- | --- | --- | --- | --- |
+| 1. Vertical | 1 / 42 | 0 / 62 | 1 / 42 | 0 / 62 |
+| 2. Transversal | 1 / 59 | 0 / 80 | 20 / 114 | 0 / 98 |
+| 3. Farabeuf a 14 mm | 58 / 324 | 0 / 266 | 43 / 220 | 0 / 298 |
+
+- En `main` no hay con qué compararlos: la vertical no corta («El trazo no atraviesa ninguna malla»). Sin cortar, la piel abultada ya enseña manchas grises y esquirlas negras; con este cambio, ninguna.
+- Antes de alisar la tienda, la L daba 6, 26 y 99 en los mismos tres pasos.
+- Antes de los puntos 4 a 7, la L daba 19 y 87 en los pasos 2 y 3, y la T, 14 y 21. De aquellos 87 de la L, 57 estaban a menos de 5 mm del labio, en la esquina; de los 58 de ahora, 14. Es el pliegue que D-420 dejó pendiente para la L de unos 90° a 115°, agravado aquí por el bulto.
+- Con los puntos 4 a 7, la T empeoraba: la barra solo se cortaba 15 mm (punto 6). Con el 8 corta 28.
+- Con los puntos 8 a 10, ninguna de las dos tiene un triángulo vuelto en ninguno de los seis pasos, ni en la piel, ni en la fascia superficial, ni en la fascia crural, ni en los músculos. Un par de Farabeuf por herida. Con 30 pasadas, la fascia superficial de la L tenía 4.
+- Las aristas dobladas suben con la vertical, de 42 a 62, y en la T con los Farabeuf, de 220 a 298, aunque ningún triángulo se dé vuelta. El arrastre mueve ahora una franja de 45 mm alrededor de cada herida, y en la T la barra entera.
+- La fascia crural, en la L: una sola incisión en L, «90 + 36 mm» en el panel, sin triángulos vueltos y con 2 aristas dobladas. Antes del punto 4 el panel daba «129 + 104 mm»: el trazo bajaba y subía por la herida abierta.
+- La fascia crural, en la T: «94 + 86 mm», una T entera, con 1 triángulo vuelto y 16 aristas dobladas. Antes del punto 4 era «109 + 15 mm», en L: la mitad de arriba de la barra cae, en pantalla, sobre el hueso que asoma, y el bisturí pinchaba el hueso.
+- El músculo: el tercer trazo repasa la fascia abierta y corta 86 mm de músculo, en la L y en la T. Antes del punto 4 cortaba 102 mm en la T, y en la L nada. Bajo la cara medial de la tibia no hay músculo sino hueso, y el corte, de 50 mm de hondo, lo atraviesa: corta el peroneo corto, los flexores largos, el sóleo y el tibial posterior. Ver las consecuencias.
+- Junto a la vertical recién cortada quedan unas ondas suaves en la piel de encima del bulto, que sin cortar no están. Son mucho menores que los grumos de antes de alisar la tienda, pero se ven con luz rasante.
+
+En la pierna nueva del taller anatómico (el caso 86 de la base desechable, con el modelo #57): el atlas recortado con «Recortar» del tercio distal del muslo a bajo el pie, y la tibia quebrada al 92 % de su largo, 43-A2, con el fragmento distal angulado por el taller. Los mismos seis pasos, de frente a la cara medial. Aquí `main` sí corta, así que se comparan todos. En la L, el paso 4 empieza 9 mm más abajo: en la punta de arriba queda el mango del Farabeuf del brazo, y el primer clic tomaba el separador.
+
+| Paso | L, `main` | L, puntos 1 a 7 | L, con 8 a 10 | T, `main` | T, puntos 1 a 7 | T, con 8 a 10 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1. Vertical | 136 | 0 / 17 | 0 / 18 | 136 | 0 / 17 | 0 / 18 |
+| 2. Transversal | 152 | 1 / 26 | 0 / 21 | 178 | 0 / 20 | 0 / 17 |
+| 3. Farabeuf a 14 mm | 369 | 27 / 193 | 0 / 175 | 271 | 17 / 201 | 0 / 108 |
+
+- En `main`, la piel se rompe en esquirlas ya con la vertical, y la fascia no se abre en L ni en T: el segundo trazo profundo se va al músculo.
+- La fascia, en la L: «70 + 34 mm», y el tercer trazo corta 67 mm de músculo. En la T: «75 + 44 mm», y el tercero, 76 mm de músculo. Antes del punto 4, el tercero de la T le sumaba a la fascia una rama de 43 mm y otra de 16, en vez de llegar al músculo.
+- Antes del punto 5, la L daba 100 con los Farabeuf.
+- Con los puntos 8 a 10, ningún triángulo vuelto en ninguna capa ni en ninguno de los seis pasos. Con la pared quieta del todo y 30 pasadas, quedaban 2 en la pared de la piel, junto al labio del brazo, y 2 en la fascia superficial, que con los puntos 1 a 7 tenía 14 (la de la T, 18). El mango del Farabeuf del brazo de la L ya no queda bajo la piel.
+
+Antes de subir, en un worktree con `src` pasado a LF (con CRLF fallan siempre las pruebas que leen el código del simulador): `typecheck` y `lint`, limpios (las 15 advertencias de `<img>` ya estaban); `build` con `/traumahub`, bien, con los 8 avisos de siempre; `test:integration`, 406 de 406; `test:coverage` con `TZ=UTC` (sin él falla además `tableroDeRevision`, por la zona horaria), 7671 pasan y 7 fallan. Tres son las del entorno Windows de siempre: `directorioDeRespaldos` ×2 y `respaldoEnWindows`. Las otras cuatro, bajo la carga de la suite entera: `autoria` y `crearComentarioDelTaller` ×2 vencen por tiempo, y `bloqueoDeInstituciones` no encuentra su institución. Solas pasan, 28 de 28, y la de instituciones también en `test:integration`. Cobertura: 86 % de las sentencias, 79 % de las ramas y 88 % de las funciones y de las líneas, sobre un umbral de 58.
+
+*Consecuencias.*
+- (+) El trazo corta donde se ve, sobre el bulto del trozo desplazado, y la transversal se une a la vertical en L o en T.
+- (+) La piel abultada no se da vuelta en esquirlas, y la cara de dentro no asoma en manchas grises.
+- (+) La fascia se abre en L y en T como la piel, y la decide la misma función que hace la T de la piel.
+- (+) En la pierna nueva del taller, la L y la T se abren sin ningún triángulo vuelto, donde `main` da 369 y 271, y el tercer trazo profundo llega al músculo también en la T.
+- (+) Con los Farabeuf, la piel se abre sin esquirlas ni pliegues en las dos piernas: en el caso 3, la L y la T sin ningún triángulo vuelto (eran 58 y 43), y la fascia superficial de debajo tampoco (eran 20 y 1). El pliegue de la esquina de la L, el que D-420 dejó pendiente, no aparece en las dos L probadas, de unos 90°.
+- (+) La barra de una T que cruza, en pantalla, lo que asoma por la piel se corta entera, en la piel que lo tapa.
+- (+) El mango del Farabeuf del brazo de la L ya no queda bajo la piel.
+- (−) Lo que se endereza se mueve por geometría, no por anatomía: a un triángulo vuelto se le devuelve área moviendo sus vértices lo justo, también los del labio, que se deslizan de lado. Con una apertura mucho mayor que la de un Farabeuf a 14 mm, las 100 pasadas y las 3 rondas pueden no bastar, y lo que quede vuelto se vería como antes.
+- (−) Lo enderezado esconde un doblez: un tejido doblado entero queda derecho, aplastado a una quinta parte de su área. Contar los triángulos vueltos de la malla ya no basta para verlo; para eso está `vueltosAntesDeEnderezar`.
+- (−) Con 45 mm de arrastre, la piel se mueve en una franja más ancha alrededor de cada herida. En el caso 3 las aristas dobladas suben con la vertical (de 42 a 62) y en la T con los Farabeuf (de 220 a 298), sin ningún triángulo vuelto.
+- (−) Los 45 mm, la tangente mezclada hasta la mitad del arrastre, la quinta parte del área, las 100 pasadas y las 3 rondas se midieron en dos piernas y con un Farabeuf a 14 mm por labio.
+- (−) **El corte del músculo atraviesa el hueso.** Baja 50 mm desde la fascia (`PROFUNDIDAD_DEL_CORTE_HONDO_MM`) y, bajo la cara medial de la tibia, corta músculos del otro lado del hueso. Ya lo hacía en la T; ahora que la L reconoce el repaso, también en la L. Queda pendiente.
+- (−) Las ondas suaves junto a la vertical recién cortada, sobre el bulto. Doce pasadas de la tienda las bajan, pero no las quitan.
+- (−) La sábana supone que el reposo es la piel cerrada, con los dos labios en el mismo sitio. Un hueco de verdad en el reposo mezclaría, en la campana de 1,5 mm, el labio alto con el bajo. Hoy no pasa: el reposo es siempre el de antes de abrir.
+- (−) Al pie de la falda del bulto, la cara de dentro sube hasta un milímetro donde la de fuera ya no sube: la grasa se aplasta (D-331). Por la campana, puede quedar a media dermis de la de fuera, no a una entera.
+- (−) Los 5 mm de lectura, las 4 pasadas de las direcciones, las 12 de la tienda y la campana de 1,5 mm se midieron en un caso, la tibia distal del 3.
+- (−) Alisar la tienda cuesta doce vueltas por las aristas de lo que se abulta cada vez que el bulto se rehace.
+
+### D-422 · 2026-11-20 · vigente · pedido del dueño · amplía P-015, D-420 y D-421 · superada en parte por D-423 (la punta del colgajo, que ahora va en arco)
+**La piel se abre según cruce sus líneas de tensión: en un miembro, la incisión transversal se retrae el doble que la que va a lo largo. Y en la esquina de una L la punta del colgajo se retrae por sus dos bordes: la esquina se abre en vez de quedar en dos ojales que se tocan.**
+
+*Qué pasó.* «quiero que investigues como se comporta la piel en un entorno real con todos los tipos de corte, luego qiuero que investigues como esta contruido lo que tengo yo y por ultimo quiero que modifiques las funciones que tengo para poder lograr que sea vea como en la realidad... antes de partir todo esto dame la funcion matematica que se usa actualemente». Y, a mitad del trabajo: «quiero que me vayas mandando imágenes a este chat con todas las pruebas de las cosas nuevas, sean o no sean en el modelo del cuerpo».
+
+*La función de hasta hoy* (se le explicó al dueño antes de tocar nada). Es geométrica, no física: cada vértice va a su reposo más, por cada incisión, `±k · û`. `k` suma lo que aparta cada hoja (`P(t)`) y lo que el labio se retrae solo, `r · huso(t)`, todo multiplicado por una caída suave de 45 mm desde el labio (D-421). `r` dependía solo del largo y del plano: en la piel, `mín(3,5 mm; 0,07 · L)`, igual en cualquier dirección. Lo que no tiene: tensión de la piel en reposo ni sus líneas, elasticidad, conservación del material (donde se aprieta, el triángulo se achica en vez de arrugarse) y colgajos que se retraigan por su cuenta.
+
+*Lo que hace la piel de verdad.* Lo buscado, con lo que sirve para decidir:
+- **Está estirada de antemano, y más a lo largo de sus líneas que a través.** Extirpada, se encoge un 23 % a lo largo y un 10 % a través (Destrade y otros, piel de perro, *Skin Res Technol* 2017). Una herida circular in vivo se abre un 16 % a lo largo de la línea y se cierra un 10 % a través. Su respuesta es en J, blanda al empezar y rígida después (elastina y colágeno), y es unas tres veces más rígida a lo largo de las líneas (Frontiers 2021, PMC8569611).
+- **La incisión que cruza las líneas se abre más.** Se retrae más y pide más tensión para cerrarla (piel de cerdo, *Plast Reconstr Surg* 1977). Langer veía el agujero redondo de un punzón quedar en un ojal a lo largo de ellas.
+- **En la pierna van a lo largo.** Cerrar en vertical pide menos tensión que en cualquier otra dirección (Paul y otros 2018, tensiómetro en 23 heridas de la extremidad inferior, PMC5889464). Las líneas de los pliegues (RSTL), que son las que se ven, van alrededor: en los miembros se confunden con las de Langer, y por eso se tomó la medida de tensión y no el dibujo.
+- **Una grieta en una lámina tensa se abre en elipse.** En la piel, que sigue entera más allá de la punta, en ojal de puntas agudas: eso ya lo hace el huso (P-015).
+- **Un colgajo se encoge al cortarlo, sobre todo por su punta.** La contracción primaria ronda el 20 % (más si va paralelo a las líneas): es la elastina que retrocede. En la esquina de una L o de una T, la punta del colgajo es lo más libre que hay, y se retrae hacia su base.
+- **Lo que se aprieta se arruga, no se encoge.** La piel es una lámina fina sobre algo blando, y comprimida se pandea en pliegues cuyo largo de onda lo da su grosor.
+- **Simuladores que lo hacen de verdad:** Sifakis y Cutting, con elementos finitos y la malla embebida (incisión, retracción y sutura, Z-plastias y rombos); dinámica proyectiva para colgajos de la cara (Wang 2022); posiciones con restricciones (PBD) para cortar en tiempo real.
+
+*Lo que se cambió.* Dos de esas cosas, las que la arquitectura de hoy admite sin rehacerla:
+
+**1. La tensión de la piel tiene dirección** (`retraccionDelCorte.ts`, `aspectoAnatomico.ts`, `LienzoQuirurgico.tsx`):
+- `RETRACCION_DE_LA_PIEL` pasa a ser la de la incisión **a lo largo** de las líneas, y no cambia: el abordaje de 5 cm de la pierna sigue en un ojal de 7 mm, que es lo que se ve en pabellón (P-015).
+- `RETRACCION_DE_LA_PIEL_A_TRAVES` es el doble: 0,14 por milímetro y hasta 7 mm. Entre las dos se mezcla, como el músculo, por el cuadrado del seno del ángulo: es lo que tira de través sobre la línea del corte.
+- El doble y no el triple: la pierna es un tubo y la piel también tira alrededor. Con el triple, una transversal de 3 o 4 cm ya pasaba de lo que su punta tolera (`topeDeLaRetraccionMm`).
+- La dirección de las líneas es el eje de la malla de piel (`ejePrincipal`, el que ya daba las fibras del músculo), y solo si es la de un miembro: `alargamiento` mide cuántas veces más larga que ancha es, y `cuantoCruzaLaTension` empieza a mirar el ángulo a 1,3 y lo mira entero desde 1,6 (`ALARGAMIENTO_DE_UN_MIEMBRO`). En el tronco Langer las dibujó de través, al revés que en la pierna; una piel poco alargada no cruza nada y se abre como antes.
+- Medido en el navegador: la piel del caso 3 da 4,85 y la del taller, 3,10. La vertical cruza 0,002 a 0,02; la transversal, 0,97 y 0,98.
+- Se mide una vez por trazo, en la malla más grande que corta: la piel y su fascia superficial se retraen lo mismo, y el labio de una sigue bajo el de la otra.
+- La fascia no lo mira: la crural tira sobre todo alrededor, y sin saberlo de cada fascia vale más abrirla igual en todas.
+
+**2. La punta del colgajo en la esquina de una L** (`corteDeMalla.ts`, `heridas.ts`):
+- Hasta hoy solo el labio de la pierna era suelto en la esquina (D-420). El de la primera seguía cerrándose hacia su punta, 3,5 mm pasada la esquina, como si lo sujetara tejido que la pierna ya había partido. A dos milímetros de la esquina se apartaba una quinta parte de lo del medio, y la esquina eran dos ojales que se tocaban por la punta.
+- Ahora la pierna, al nacer por un extremo, deja en la otra un `ColgajoDelBrazo`: en qué incisión nace, qué labio de ella da al colgajo, dónde y de qué lado de la pierna queda cada tramo de la otra. `recomponer` se lo pasa a esa herida (`colgajosDe`, `ColgajoEnLaUnion`).
+- `componerCortes` le suma a ese labio lo que se retraería como borde de un tramo **abierto en la unión** (`retraccionDelColgajo`), menos lo que ya se retrae. El tramo va de la unión a la punta de su lado, con el cierre de esa punta y su propio tope: los 3,5 mm de la pasada, del otro lado de la pierna, son la piel de fuera, que la punta sujeta, y no dan para retraerse.
+- De qué tramo es cada vértice lo decide el lado de la pierna, que solo se sabe en la malla compuesta. Por eso lo de cada tramo se lleva aparte por las mezclas de los cortes siguientes, y al final se suma del lado que toca. Pasada la punta cerrada de la pierna, se funde a cero en 10 mm (`apartadosPorLaOtra`, como D-420): sin eso, la piel entera de la prolongación de la pierna se rasgaba.
+- Los lados de la pierna en la malla compuesta se guardan, porque no cambian mientras la herida se abre. Los borradores se reutilizan de un fotograma a otro: con 50 000 vértices eran 2,5 MB por cuadro.
+- Una pierna que nace en el medio de la otra (la T) no cambia nada: ahí el labio ya se retraía entero.
+
+*Lo que no se hizo, y por qué.*
+- **Una lámina elástica de verdad** (proyectiva o de elementos finitos, con la pretensión de Langer), que daría sola la elipse según la dirección, la punta del colgajo redondeada, el borde que se combea entre dos ganchos y las arrugas en vez de triángulos aplastados. Pide resolver un sistema en cada fotograma mientras la herida se abre, y que lo que se ve del labio deje de ser lo que calculan los separadores (`verticeEnReposo`). Es el paso siguiente si se quiere más, no un retoque.
+- **La punta del colgajo redondeada.** Queda en ángulo recto, retraída en bloque.
+- **Las arrugas donde se aprieta** y **el borde combado entre dos hojas** (hoy, recto).
+- **Las líneas de cada región.** Se toma el eje del miembro entero; en el antebrazo van más en espiral, y junto a una articulación cambian.
+- `verticeEnReposo` no cuenta lo del colgajo: un separador puesto justo en la esquina mide su apertura desde donde el labio estaría sin él.
+
+*Qué se probó.*
+- `retraccionDelCorte.test.ts`:
+  - a lo largo, lo de antes; de través, el doble; a 45°, una vez y media. Y aun de través, la piel sigue por encima de la fascia y por debajo del tope de su punta;
+  - el alargamiento de un tubo es 0,82 de su largo sobre su diámetro, y el de una esfera, 1;
+  - en un miembro, la transversal cruza del todo; en lo que no es un miembro no cruza nada, con la mezcla entre los dos umbrales;
+  - un trozo de tronco tan largo como ancho no pasa por miembro.
+- `unionDeIncisiones.test.ts`, la L sobre la losa:
+  - sola, la primera se aparta junto a donde nacerá la pierna una quinta parte de lo del medio;
+  - con la pierna, más de 0,8 de lo del medio, y la pasada del otro lado, menos de 1,2 mm;
+  - la pierna guarda su colgajo con los lados que tocan;
+  - ningún triángulo vuelto, cerrada ni abierta 6 mm.
+- En el navegador, con el robot del tobillo de D-421 (`tobillo.cjs`, fuera del repositorio), los mismos seis pasos en las dos piernas (el caso 3 y la del taller, el caso 86), en L y en T. «Antes» es D-421 tal como quedó.
+
+Lo que se abre la piel, en mm, vertical / transversal:
+
+| Paso | Caso 3, L | Caso 3, T | Taller, L | Taller, T |
+| --- | --- | --- | --- | --- |
+| 2. Transversal, antes | 7 / 3,2 | 7 / 3,9 | 7 / 3,2 | 7 / 4,6 |
+| 2. Transversal, ahora | 7 / 6,4 | 7 / 7,9 | 7,2 / 6,3 | 7,1 / 9,1 |
+| 3. Farabeuf a 14 mm, antes | 35 / 28,4 | 35 / 27,9 | 35 / 27,2 | 35 / 28,6 |
+| 3. Farabeuf a 14 mm, ahora | 35 / 32,4 | 35 / 31,9 | 35,2 / 30,3 | 35,1 / 33,1 |
+
+Triángulos vueltos de la piel / aristas dobladas:
+
+| Paso | Caso 3, L | Caso 3, T | Taller, L | Taller, T |
+| --- | --- | --- | --- | --- |
+| 1. Vertical | 0 / 62 → 0 / 62 | 0 / 62 → 0 / 62 | 0 / 18 → 0 / 19 | 0 / 18 → 0 / 19 |
+| 2. Transversal | 0 / 80 → 0 / 94 | 0 / 98 → 0 / 110 | 0 / 21 → 0 / 23 | 0 / 17 → 0 / 23 |
+| 3. Farabeuf a 14 mm | 0 / 266 → 0 / 288 | 0 / 298 → 0 / 327 | 0 / 175 → 0 / 190 | 0 / 108 → 0 / 128 |
+
+- Ningún triángulo vuelto en ninguna capa ni en ninguno de los seis pasos, en las cuatro: piel, fascia superficial, fascia crural, tabiques, retináculo y músculos.
+- La vertical de la pierna del taller pasa de 7 a 7,1 o 7,2: cruza las líneas un 2 %, porque el eje de esa malla no va del todo a lo largo de la tibia.
+- La fascia y el músculo, como antes, al décimo de milímetro: la fascia no mira la dirección, y el músculo ya la miraba por sus fibras.
+- Las aristas dobladas suben entre un 7 y un 35 %: la piel se abre más, y la franja que se arrastra se dobla más. Ningún triángulo se da vuelta.
+- En la pierna del taller, sin Farabeuf, la punta del colgajo de la L colgaba dentro de la herida. Ahora se retrae y deja a la vista el trozo de tibia desplazado que tiene debajo.
+- Con el brazo de la L más abierto, el clic del robot pone el Farabeuf del colgajo un 7 % más allá a lo largo del brazo (0,685 en vez de 0,619), justo sobre ese trozo de tibia, que queda a uno o dos milímetros bajo la piel. La punta del mango queda bajo el borde de la piel, que el hueso alza. Su pala ya quedaba entera dentro del hueso antes de este cambio (`palaOcultaPct` 100 en los dos). Ver las consecuencias.
+
+*Consecuencias.*
+- (+) La transversal de la pierna se abre el doble que la vertical del mismo largo: 6,4 mm en vez de 3,2 en el brazo de 21 mm de la L, en las dos piernas. La vertical sigue en 7.
+- (+) La esquina de la L se abre: la punta del colgajo se retrae en diagonal hacia su base, como en pabellón.
+- (−) La punta del colgajo queda en ángulo recto.
+- (−) Lo que se abre la piel cambia en cualquier incisión de un miembro que no vaya a lo largo de él: las transversales y las oblicuas se abren más que antes. El panel lo dice («abierta N mm») y lo dice bien, pero quien se acostumbró a las de antes las verá más abiertas.
+- (−) **Un Farabeuf sobre un hueso que alza la piel** deja la punta del mango bajo el borde. `posarSeparador` tiende el mango a 15° del plano de la piel en el labio, sin mirar si la piel sube hacia fuera. Ya pasaba (la pala quedaba dentro del hueso); con el brazo de la L más abierto, en la pierna del taller ahora se ve. Queda pendiente.
+- (−) Las aristas dobladas suben entre un 7 y un 35 % con la piel más abierta, sin ningún triángulo vuelto.
+- (−) El doble sale de juntar estudios en perro, cerdo y personas, ninguno en la pierna de frente. Es un número razonable, no una medida de esta piel.
+
+### D-423 · 2026-11-20 · vigente · pedido del dueño · amplía D-413, D-421 y D-422 · supera en parte a P-008 E2 (la recta entre dos hojas) y a D-422 (la punta en ángulo recto)
+**La piel cortada se porta más como una lámina elástica: la punta del colgajo se redondea, el borde se comba entre dos ganchos y la piel que aprieta un separador se arruga. Y el mango del Farabeuf ya no se mete en la piel que alza un hueso.**
+
+*Qué pasó.* Al cerrar D-422 se le explicó al dueño lo que seguía viéndose mal: el Farabeuf sobre el trozo de tibia del taller, con la punta del mango bajo el borde de la piel; la punta del colgajo de la L, retraída pero en ángulo recto; y la piel sin arrugas donde se aprieta, con el borde recto entre dos ganchos. Pidió: «quiero que hagas y ejecutes un plan para esto… quiero que quede funcionando lo mas parecido a la realidad posible y al final explicame los cambios impleemnteados, recuerda ir dejadnome fotos de las pruebasd e las funciones y en el modelo». Antes, en D-421: «si no esta al 100% casi realista no lo quiero, quiero que los cortes se vean natural».
+
+*Lo que no se hizo: la lámina elástica de verdad.* D-422 la dejó como el paso siguiente: un sistema que resuelva la piel en cada fotograma (dinámica proyectiva o elementos finitos), del que las tres cosas saldrían solas. Se volvió a pesar y se descartó otra vez, por lo mismo: lo que se ve del labio dejaría de ser lo que calculan los separadores (`verticeEnReposo`, `labioEnLaPosicion`), que es en lo que se apoyan la hoja, el panel y la consola; y la malla de la pierna tiene 50 000 vértices que se recomponen en cada cuadro mientras la herida se abre. En su lugar, cada una de las tres cosas se modela con la solución cerrada de la física que la produce, sumada como un desplazamiento más. Cada fórmula se puede leer y probar sola, y lo que calculan los separadores sigue siendo lo que se ve.
+
+*Lo que se cambió.*
+
+**1. El mango del Farabeuf sobre la piel que alza un hueso** (`exposicionEnLaEscena.ts`, `LienzoQuirurgico.tsx`, `sondaDelLienzo.ts`):
+- El mango iba tendido a 15° del plano de la piel **en el labio**, sin mirar la piel de fuera. Sobre el trozo de tibia del taller, que alza la piel uno a tres milímetros, la piel subía más que el mango y su punta quedaba debajo.
+- `mangoSobreLaPiel` mira cada vértice de la piel que cae bajo el mango —a lo largo de él, hasta su largo, y dentro de su ancho, medidos en el modelo del instrumento (`medidasDelMango`)— y gira la hoja alrededor del codo lo que pida el que más sube, para que pase un milímetro por encima (`MANGO_SOBRE_LA_PIEL_MM`). La pala gira con él: es una pieza, y engancha un poco más bajo el labio. El codo no se mueve.
+- El giro tiene tope en 55° sobre los 15° de siempre (`LEVANTE_MAXIMO_DEL_MANGO_GRADOS`): más ya es un gancho de pie, y la pala saldría de la herida.
+- El bulto de la piel (`abultamiento.alDia`) se pone al pintar, después de posar los separadores. Por eso el lienzo los vuelve a posar cuando el bulto cambia: si no, el mango miraba la piel sin bulto.
+- La sonda da `mangoOcultoPct`: la parte del mango que queda tapada vista desde la cámara.
+- **Lo que de verdad pasaba en el caso 3, y lo que lo arregla.** La primera pasada del robot con lo anterior dejó el Farabeuf del labio de abajo de la L a 70°, de pie delante de la cámara: se tragaba el segundo clic, y la segunda pareja no llegó a ponerse. Con un corte de la piel bajo el mango, vértice a vértice, se vio por qué. La hoja no enganchaba la piel sino la fascia superficial, que el caso corta con el papel de «piel» y con el mismo trazo, 4,5 mm más abajo: era la herida más cercana al clic. Y el bulto del trozo de tibia sube la piel y no la fascia: ahí la subía unos 25 mm y la corría 8 hacia fuera. El codo quedaba 25 mm bajo el borde que se veía, y el mango, levantado sobre esa piel, se ponía de pie. Tres cambios:
+  - `laDeFuera`: de las heridas de la piel con un labio apilado en el mismo sitio —a menos de 3 mm de lado y 10 de alto (`LABIOS_DEL_MISMO_TRAZO_MM`)—, la hoja se queda con la de fuera, como ya hacía la hoja honda al colgarse de la piel (`bordeDeLaPielEncima`, D-413). La otra rama de una L, en la misma malla, cae lejos de lado y no cuenta.
+  - `bordeQueSeVe`: el codo va un milímetro sobre lo más alto de la pared de **ese** labio —la que mira a la herida— junto a su sitio, y no sobre la cadena de vértices por donde pasó el corte, que no siempre es el borde de arriba: en la transversal del caso 3 quedaba 2,8 mm por debajo. Lo usa también la hoja honda que cuelga de la piel.
+  - El mango no mira los primeros 8 mm desde el codo (`MANGO_MIRA_DESDE_MM`, el doble de lo que el codo entra en la herida): ahí está el labio que la hoja sostiene, y un vértice a poco más de la holgura pedía casi 90°, porque el arcoseno de la holgura entre la distancia se dispara. Con la herida todavía sin abrir, la hoja recién puesta salía de pie un cuadro.
+  - Con los tres, el Farabeuf de abajo pasa de 70° a 34°, apoyado en la piel abultada, y la segunda pareja se pone.
+
+**2. La punta del colgajo, redondeada** (`corteDeMalla.ts`, `heridas.ts`):
+- D-422 retraía la punta en diagonal hacia su base, pero entera: seguía en ángulo recto. La dermis tira de la punta desde sus dos bordes libres a la vez, y la esquina, que es la que menos tejido tiene detrás, se retrae más: en pabellón es un arco.
+- `redondearLasPuntas` lleva la punta, en su plano, al arco de radio `r` tangente a sus dos bordes. Mueve la «cometa» que forman la punta, los dos puntos de tangencia y el centro del arco: cada punto va hacia el centro, por su radio, la parte `s` que pide su borde para caer en el arco. `s` es el mayor de los cosenos con los pies de las dos perpendiculares: vale 1 en los radios de los puntos de tangencia, con derivada nula, así que la cometa empalma con el colgajo sin pliegue. La esquina se retira (√2 − 1)·r en una punta recta.
+- `r` es 1,5 veces la media de lo que se retraen los dos bordes (`REDONDEO_DE_LA_PUNTA`), sin pasar de un tercio de cada borde (`PARTE_DEL_BORDE_PARA_EL_ARCO`). Se calcula en reposo y se suma como desplazamiento: cerca de la punta, lo de D-422 es casi una traslación, y el arco viaja con ella.
+- Va por todo el grosor y solo en el colgajo, que se reconoce por los lados guardados en la malla de las dos incisiones (`ladoEnLaMallaDeAhora`), no por la posición.
+- En una T, las dos puntas. En una L, la pasada de 3,5 mm no se redondea: no es un colgajo sino la piel de fuera, sujeta por esa punta (`RADIO_MINIMO_DEL_ARCO`).
+- Para eso la pierna guarda en su `ColgajoDelBrazo` dónde nace, hacia dónde va la otra y hacia dónde se aleja ella, y la normal de la piel (`punta`).
+
+**3. El borde combado entre dos ganchos** (`exposicion.ts`):
+- Entre dos hojas del mismo labio, el borde iba en recta: «no se hunde, porque las dos tiran de él» (P-008 E2). Pero tiran de él en las hojas, y entre ellas el borde es piel suelta, que la dermis de detrás retiene. Tirada de dos puntos, una lámina elástica se comba entre ellos.
+- `combaEntreDosHojas` es la solución de `u'' = κ²u`: el borde sigue a cada hoja y se le escapa con la distancia, en `1/κ = 20 mm` (`LARGO_DE_LA_COMBA_MM`, del orden de la franja que se arrastra). Entre dos alturas iguales, el medio baja a `y / cosh(κD/2)`, con `D` la piel suelta entre los bordes de las hojas: 96 % con 12 mm, 80 % con 28 (dos Farabeuf a 4 cm), 43 % con 60. Muy juntas, es la recta.
+- La envolvente de los apoyos (`cuerdaDelLabio`) ahora sabe de qué hoja es cada punto. Una hoja más baja entre dos altas, que la recta dejaba en el aire, queda por encima de la comba y sostiene el labio.
+- De la punta a la primera hoja, el arco de siempre (`arcoDelLabio`, P-015).
+
+**4. Las arrugas donde la piel se aprieta** (`corteDeMalla.ts`, `retraccionDelCorte.ts`, `heridas.ts`, `LienzoQuirurgico.tsx`):
+- Lo que abre un separador se reparte por la piel de detrás del labio, menos cuanto más lejos, y la piel queda apretada. Hasta hoy se quedaba lisa: los triángulos se achicaban y el borde parecía de goma.
+- Lo apretado se toma como en la piel de verdad, más junto a la hoja: `(tira/ℓ)·e^(−s/ℓ)`, con `ℓ = 30 mm` (`CAIDA_DE_LO_APRETADO`). No la pendiente del arrastre de la malla, que arranca plana en el labio para no plegarla: con ella, la piel se arrugaba más a 3 cm que junto a la hoja.
+- La piel viva está estirada de antemano, y hasta eso lo apretado solo le quita lo que le sobraba: un 10 % a través de las líneas de tensión y un 23 % a lo largo (`ESTIRADA_PREVIA_DE_LA_PIEL`: lo que se encoge extirpada, Destrade y otros 2017, la misma fuente de D-422). Un corte a lo largo de las líneas aprieta de través y se arruga antes; uno de través aprieta a lo largo y se arruga menos (`arrugasDeLaPiel`, con el mismo `cuantoCruzaLaTension` de D-422).
+- Pasado eso, la piel se dobla: una dermis de milímetro y medio sobre grasa cientos de veces más blanda se arruga con una onda de 20 a 50 mm (2π·t·(E/3E₀)^⅓). Se toma 20 (`ONDA_DE_LAS_ARRUGAS_MM`): detrás de un Farabeuf caben uno o dos rodetes en lo que arrastra.
+- La arruga `(alto/2)·(1 − cos(2πs/onda))` nace plana en el labio, con crestas paralelas al corte. Su alto es el de una onda que gasta un octavo de lo que sobra, `(onda/(π√2))·√sobra` —lo demás lo absorben la dermis, que se engruesa, y la grasa, que se corre—, con tope en un cuarto de la onda. La raíz se suaviza al nacer, y la arruga se apaga en el último tercio de lo que se arrastra: sin eso, al pie de cada una quedaba un escalón.
+- Tirada 3 mm, no se arruga; 8 mm, un rodete de 1,2 mm a 1 cm del labio; 12 mm, 1,9 mm y otro de 0,9 a 3 cm; 20 mm, 2,7 y 1,6.
+- Alza el grosor entero, hacia fuera: las dos caras van con la normal de la de fuera. Solo la piel, y solo lo que tira la mano: lo que la herida se retrae sola devuelve lo estirado y no aprieta nada.
+- `cortarMalla` guarda en cada vértice de la piel lo lejos que queda del corte y su normal (`MallaCortada.arruga`); el lienzo pasa al corte de piel cuánto cruza sus líneas (`cruzaLaTension`).
+
+*Qué se probó.*
+- `separadorEnElLabio.test.ts`, con un Farabeuf de mentira con su caja: sobre la piel plana, el mango sigue a 15°; con la piel alzada 12 mm a 15 mm del labio, tendido a 15° pasaría por debajo, y ahora sube a más de 20° y queda entre 1 y 1,3 mm sobre ella, con la pala en ángulo recto y el codo en su sitio; sobre un bulto imposible, se queda en el tope de 70°; un vértice a milímetro y medio del codo, por encima del mango, no lo levanta. Y la hoja de la piel: de la piel y la fascia cortadas con el mismo trazo engancha la piel, aunque el clic caiga en la fascia; una herida más alta en otro sitio no cuenta; con todo un lado de la losa alzado 6 mm salvo la cadena, el codo sube con el borde.
+- `unionDeIncisiones.test.ts`, la L y la T sobre la losa: la punta queda en el arco tangente a sus dos bordes, a menos de 0,15·r de él, retirada entre 0,33 y 0,5 de r de la esquina recta; en la T, las dos; la pasada de la L, sin arco; ningún triángulo vuelto, cerrada ni abierta 6 mm.
+- `exposicion.test.ts`: con dos hojas, el medio baja a `12 / cosh(12/40)` y bajo las hojas sigue en 12; más separadas, a `12 / cosh(60/40)`, sin saltos; una hoja más baja entre dos altas sostiene el labio.
+- `arrugasDeLaPiel.test.ts`, una losa con sus dos caras: sin nada que tire no se arruga; tirada 12 mm sale un rodete de 1 a 5 mm a media onda del labio, plano en él, que solo sube, vuelve al valle a una onda, paralelo al corte, con la cara de dentro alzada lo mismo, y sin triángulos vueltos; más tirada, más alto, y con 3 mm nada; de través, menos; sin la tensión de la piel, nada.
+- Láminas fuera del cuerpo: la punta en la losa (L y T, cerrada y abierta), el relieve de la losa con tres Farabeuf, y el gráfico de las cuatro funciones.
+- En el navegador, el robot del tobillo de D-421 en las dos piernas, en L y en T. «Antes» es D-422. Y para la comba, una vertical sola de la pierna del taller con dos parejas a 0,2 y 0,8 de su largo, con la recta de antes y con la comba: el borde entre las hojas, que iba tenso de una a otra, se curva hacia la herida.
+- Un corte de la piel bajo cada mango, vértice a vértice, con y sin el bulto (`pielSinAbultar`): es lo que enseñó que la hoja colgaba de la fascia.
+- Las órdenes de AGENTS.md, en el worktree: `typecheck` y `lint` sin errores (los 15 avisos de siempre); `test:coverage`, 7691 pasan y 8 fallan por el entorno —los seis de D-422 (autoría, el comentario del taller ×2, el directorio de respaldos ×2 y el respaldo en Windows) y dos que se vencen bajo carga (la autoría con sesión y el respaldo cifrado con un `pg_dump` que falla), que pasan solos—, con un 86,6 % de sentencias cubiertas; `test:integration`, 406 de 406 contra la base desechable de 55432; y el build con `/traumahub`, sin errores.
+
+Las cuatro pruebas, dos Farabeuf por brazo abiertos a 14 mm (tanda `d423b`, contra `d422`). «Pala tapada» es la parte de la pala que el tejido tapa vista desde la cámara; «bajo el borde», lo que baja la punta de la pala desde el borde que se ve; los grados, los del mango sobre la piel.
+
+| Prueba | Pala tapada (D-422 → D-423) | Bajo el borde, mm | Mango, grados | Hojas puestas |
+|---|---|---|---|---|
+| Caso 3, T | 100 % las cuatro → 37–53 % | 44–46 → 21–23 | 15 → 15–21 | 4 → 4 |
+| Caso 3, L | 98–100 % → 51–77 % | 40–47 → 18,5–23 | 15 → 15–23 | 4 → 4 (2 en la primera pasada) |
+| Taller, T | 44–74 % → 40–53 % | 23–28 → 22,5–23 | 15 → 15–20 | 4 → 4 |
+| Taller, L | 51–100 % → 51–74 % | 25,6–36 → 21–23 | 15 → 15–18 | 4 → 4 |
+
+- En D-422 las cuatro palas del caso 3 quedaban enteras bajo el tejido, con la punta 45 mm bajo el borde que se veía: colgaban de la fascia, debajo del bulto. Ahora bajan lo que mide la pala, y se ven el codo y el enganche.
+- La primera pasada con solo `mangoSobreLaPiel` (tanda `d423`) dejó dos mangos a 70°: el de abajo de la L del caso 3 y uno de la transversal del taller. Con `laDeFuera`, `bordeQueSeVe` y los 8 mm junto al codo, ninguno pasa de 23°.
+- Ningún triángulo vuelto en ninguna malla, en los seis pasos de las cuatro pruebas: piel, fascias, tabiques, retináculo, membrana interósea y músculos.
+- La punta del colgajo de la L, recién cortada, sale en arco en las dos piernas, donde D-422 la dejaba en ángulo recto (lámina de la esquina).
+
+*Consecuencias.*
+- (+) La esquina de la L y las dos de la T son arcos, como en pabellón, y sin triángulos vueltos.
+- (+) Dos ganchos separados dejan el borde colgando entre ellos, y la piel detrás de cada hoja hace su rodete: el labio deja de parecer de goma.
+- (+) El Farabeuf ya no enseña el mango cortado por la piel que alza un hueso.
+- (−) Las tres fórmulas son las soluciones cerradas de la física de cada cosa, no una lámina resuelta: no ven lo que pasa cuando se juntan (una arruga que llega a la punta de un colgajo, un gancho puesto en la esquina misma). Si hace falta eso, la lámina de verdad sigue siendo el paso siguiente.
+- (−) Las arrugas de la epidermis, de décimas de milímetro, no se dibujan: la malla no da para ellas.
+- (−) Los números —la onda de 20 mm, el `ℓ` de 30, el radio de 1,5 veces la retracción, el largo de la comba de 20— son razonables y coherentes con lo que se mide en piel, no medidas de esta piel.
+- (−) Una cruz no se redondea: sus cuatro puntas no tienen `ColgajoDelBrazo` (D-422 solo los hace donde un brazo nace por un extremo).
+- (−) `verticeEnReposo` no cuenta el arco de la punta ni la arruga: un separador puesto justo en la esquina mide su apertura desde donde estaría el labio sin ellos.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
@@ -18096,7 +18428,7 @@ Pedido del dueño, 2026-11-02, tras dejar el archivo de Penpot «casi listo para
 | E5 · Panel | hecha (2026-11-03) | D-238 |
 | E6 · Lo que la base no guarda | propuesta aparte | — |
 
-### P-008 · 2026-11-03 · hecha (E1 a E6) y desplegada en ved el 2026-11-04, con P-009; las propuestas de E7 quedan sin decidir
+### P-008 · 2026-11-03 · hecha (E1 a E6) y desplegada en ved el 2026-11-04, con P-009; las propuestas de E7 quedan sin decidir · E2 superada en parte por D-423 (el borde entre dos hojas se comba, ya no va en recta)
 **Separadores al milímetro, placas a medida que se arrastran, la reducción automática del editor y del residente, la mesa de instrumental a la izquierda y la línea negra de los cortes.**
 
 #### De dónde sale

@@ -75,11 +75,12 @@ import {
 import {
   DURACION_DE_LA_RETRACCION_MS,
   avanceDeLaRetraccion,
+  cuantoCruzaLaTension,
   cuantoCruzaLasFibras,
   retraccionDelLabioMm,
 } from '@/lib/retraccionDelCorte'
 import { ATRIBUTO_DE_LA_CARA_DE_DENTRO, crearAbultamientoDeLaPiel, quitarElAbultamiento } from './abultamientoEnLaEscena'
-import { ejePrincipal } from '@/lib/aspectoAnatomico'
+import { alargamiento, ejePrincipal } from '@/lib/aspectoAnatomico'
 import { flotantesDe } from '@/atlas/canalDeLaGeometria'
 import { EL_PLANO, planDelCierre, textoDelCierre, type PlanoQueSeCierra } from '@/lib/cierreDeUnClic'
 import {
@@ -225,7 +226,17 @@ import {
   type SeparadorEnEscena,
   type SitioDeSeparador,
 } from './exposicionEnLaEscena'
-import { conSuReposo, llevarAlReposo, porElTrazo, type MallaConReposo } from './trazoEnReposo'
+import {
+  bajoLoQueLaTapa,
+  cerradaDe,
+  conSuBulto,
+  conSuReposo,
+  llevarAlReposo,
+  porElRayoHastaLaCapa,
+  porElTrazo,
+  talComoSeVe,
+  type MallaConReposo,
+} from './trazoEnReposo'
 import {
   TENSION_DE_CIERRE,
   cierreDeLaHerida,
@@ -4228,9 +4239,26 @@ export function LienzoQuirurgico({
       }
       // Los instrumentos profundos cortan el músculo, pero la fascia está en medio: el primer trazo profundo abre la
       // fascia y el segundo llega al músculo (P-006, E10). Sin fascia visible en el campo se corta el músculo como siempre.
+      // Con la fascia ya abierta, al músculo solo por donde lo está (D-421): el trazo que va por fascia entera —la barra
+      // de una T, el brazo de una L— la corta a ella, como en la piel.
+      const fasciaAbierta = (t.heridas?.get('fascia')?.length ?? 0) > 0
+      // Con el trazo sin el bulto de la piel, como lo medirá el corte: sobre el tobillo, el repaso de la vertical quedaba
+      // 20 mm por encima de la incisión de la fascia, no se reconocía, y la fascia se cortaba otra vez en vez del músculo.
+      // Y llevado a la fascia por el rayo con que se pinchó (`enLaFascia`): sobre el trozo de tibia que asoma por ella
+      // abierta, el repaso iba 6 a 10 mm por encima de su línea, y tampoco se reconocía.
+      const repasaLaFascia = (() => {
+        if (plano !== 'musculo' || !fasciaAbierta || t.puntosDelTrazo.length < 3) return undefined
+        const { puntos, normales } = enLaFascia(
+          mallasConRol(t, u.piezas, ['fascia']),
+          t.puntosDelTrazo.map((q): Punto => [q.x, q.y, q.z]),
+          t.normalesDelTrazo.map((q): Punto => [q.x, q.y, q.z]),
+        )
+        return decidirEnSuCapa('fascia', puntos, normales).tipo === 'repaso'
+      })()
       const { plano: planoQueSeCorta, redirigido } = planoQueCorta(plano, {
         hayFascia: mallasConRol(t, u.piezas, ['fascia']).length > 0,
-        fasciaAbierta: (t.heridas?.get('fascia')?.length ?? 0) > 0,
+        fasciaAbierta,
+        repasaLaFascia,
       })
       // Profundizar sin la piel tomada con pinzas: es lo que se avisa, no lo que se impide.
       if (planoQueSeCorta !== 'piel' && (t.heridas?.get('piel')?.length ?? 0) > 0) {
@@ -4256,6 +4284,25 @@ export function LienzoQuirurgico({
       malla.updateWorldMatrix(true, false)
       const enLaMalla = trazoEnElMundo.clone().transformDirection(malla.matrixWorld.clone().invert())
       return cuantoCruzaLasFibras([enLaMalla.x, enLaMalla.y, enLaMalla.z], ejePrincipal(flotantesDe(posicion)))
+    }
+
+    /**
+     * Cuánto cruza el trazo las líneas de tensión de la piel (D-422), de 0 a 1: a lo largo del miembro, si la piel es la
+     * de uno (`cuantoCruzaLaTension`). Se mide en la malla más grande que se corta, una sola vez por trazo: la piel y su
+     * fascia superficial se retraen lo mismo, y así el labio de una queda bajo el de la otra.
+     */
+    const cuantoCruzaLaPiel = (mallas: readonly THREE.Mesh[], trazoEnElMundo: THREE.Vector3): number => {
+      let mayor: THREE.Mesh | undefined
+      for (const m of mallas) {
+        const n = m.geometry.getAttribute('position')?.count ?? 0
+        if (n > 0 && (!mayor || n > mayor.geometry.getAttribute('position').count)) mayor = m
+      }
+      if (!mayor) return 0
+      mayor.updateWorldMatrix(true, false)
+      const enLaMalla = trazoEnElMundo.clone().transformDirection(mayor.matrixWorld.clone().invert())
+      const posiciones = flotantesDe(mayor.geometry.getAttribute('position'))
+      const eje = ejePrincipal(posiciones)
+      return cuantoCruzaLaTension([enLaMalla.x, enLaMalla.y, enLaMalla.z], eje, alargamiento(posiciones, eje))
     }
 
     /**
@@ -4285,6 +4332,109 @@ export function LienzoQuirurgico({
         reaplicarSeparadores(t, ultimas.current)
       }
       requestAnimationFrame(cuadro)
+    }
+
+    /**
+     * El trazo sin el bulto de la piel (D-421): cada punto que cae en piel abultada va a donde estaba esa piel sin abultar.
+     *
+     * De la piel aunque se corte la fascia, que no se abulta: el trazo profundo de punta a punta de la incisión se pincha
+     * en la piel cerrada de las puntas, y sobre el tobillo quedaba 20 mm por encima de ella. Sin bajarlo, la vertical de la
+     * fascia salía de 45 mm bajo una de piel de 80, y la transversal ya no le llegaba a la punta para hacer la L.
+     */
+    const bajarDelBulto = (mallas: THREE.Mesh[], puntos: Punto[], normales: Punto[]): { puntos: Punto[]; normales: Punto[] } => {
+      const t = taller.current
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const pieles = mallasConRol(t, ultimas.current.piezas, ['piel'])
+      const conBulto = [...new Set([...mallas, ...pieles])].map(conSuBulto).filter((m): m is MallaConReposo => m !== null)
+      if (conBulto.length === 0) return { puntos, normales }
+      const bajados = llevarAlReposo(puntos, normales, conBulto, 0.1 * unidadesPorMm, 0.05 * unidadesPorMm)
+      return { puntos: puntos.map((p, i) => bajados[i]?.punto ?? p), normales: normales.map((n, i) => bajados[i]?.normal ?? n) }
+    }
+
+    /**
+     * El trazo del bisturí de piel en la piel (D-421): lo pinchado sobre el hueso que asoma por ella va, por el mismo rayo de
+     * la cámara, a la piel que hay debajo (`bajoLoQueLaTapa`), y después todo baja del bulto como siempre. Sin esto, la
+     * mitad de la barra de una T dibujada sobre el trozo de tibia del caso 3 no cortaba nada.
+     */
+    const enLaPiel = (mallas: THREE.Mesh[], puntos: Punto[], normales: Punto[]): { puntos: Punto[]; normales: Punto[] } => {
+      const t = taller.current
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const pieles = [...new Set([...mallas, ...mallasConRol(t, ultimas.current.piezas, ['piel'])])]
+        .map(talComoSeVe)
+        .filter((m): m is MallaConReposo => m !== null)
+      if (pieles.length > 0) {
+        camara.updateMatrixWorld()
+        const ojo = camara.getWorldPosition(new THREE.Vector3())
+        const debajo = bajoLoQueLaTapa(puntos, [ojo.x, ojo.y, ojo.z], pieles, PIEL_BAJO_LO_QUE_ASOMA_MM * unidadesPorMm, 0.5 * unidadesPorMm)
+        if (debajo.some((d) => d !== null)) {
+          puntos = puntos.map((p, i) => debajo[i]?.punto ?? p)
+          normales = normales.map((n, i) => debajo[i]?.normal ?? n)
+        }
+      }
+      return bajarDelBulto(mallas, puntos, normales)
+    }
+
+    /**
+     * El trazo del bisturí profundo en la fascia (D-421): cada punto, por el rayo de la cámara con que se pinchó, hasta la
+     * fascia cerrada (`porElRayoHastaLaCapa`); el que no da en ella, bajado del bulto de la piel como el de la piel.
+     *
+     * Es el trazo con que el bisturí profundo decide y corta, sea la fascia o el músculo de debajo: el repaso, el cruce y la
+     * incisión guardada quedan todos en su línea. Antes cada uno iba sobre lo que se viera, el hueso que asoma o el fondo
+     * de una herida, y la fascia de la vertical quedaba guardada sobre el hueso, 8 mm fuera de ella. Sin fascia visible (un
+     * caso viejo, o la capa apagada) no hay dónde llevarlo y es lo de siempre.
+     */
+    const enLaFascia = (mallas: THREE.Mesh[], puntos: Punto[], normales: Punto[]): { puntos: Punto[]; normales: Punto[] } => {
+      const t = taller.current
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      const bajados = bajarDelBulto(mallas, puntos, normales)
+      const fascias = mallasConRol(t, ultimas.current.piezas, ['fascia']).map(cerradaDe).filter((m): m is MallaConReposo => m !== null)
+      if (fascias.length === 0) return bajados
+      camara.updateMatrixWorld()
+      const ojo = camara.getWorldPosition(new THREE.Vector3())
+      const llevados = porElRayoHastaLaCapa(puntos, [ojo.x, ojo.y, ojo.z], fascias, PROFUNDIDAD_DEL_CORTE_HONDO_MM * unidadesPorMm)
+      return {
+        puntos: puntos.map((p, i) => llevados[i]?.punto ?? bajados.puntos[i] ?? p),
+        normales: normales.map((n, i) => llevados[i]?.normal ?? bajados.normales[i] ?? n),
+      }
+    }
+
+    /**
+     * Qué es un trazo para las incisiones de su capa: las repasa, alarga una, la cruza u otra nueva (D-410, D-415, D-420).
+     * Los puntos van ya sin el bulto de la piel. Lo pregunta el corte y, antes que él, el bisturí profundo, para saber si
+     * va por la fascia ya abierta o por fascia entera (D-421).
+     */
+    const decidirEnSuCapa = (plano: PlanoDeCorte, puntosDelCorte: Punto[], normalesDelCorte: Punto[]) => {
+      const t = taller.current
+      const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
+      // Lo abierta que está una incisión: lo que más se abre, o a `s` de su inicio, de labio a labio tal como están
+      // ahora (D-415). Junto a la punta casi no se abre, aunque los Farabeuf del medio la tengan a 35 mm.
+      const largoDelCorte = new Map((t.cortes ?? []).map((c) => [c.id, largoDelTrazo(c.puntos.map(([x, y, z]) => ({ x, y, z })), 1)]))
+      const abiertaMm = (incision: number, s?: number) => {
+        const suyas = (t.heridas.get(plano) ?? []).filter((h) => h.incision === incision)
+        const maxima = Math.max(0, ...suyas.map(aberturaDe)) / unidadesPorMm
+        const largo = largoDelCorte.get(incision) ?? 0
+        if (s === undefined || largo <= 0) return maxima
+        let hueco = -1
+        for (const h of suyas) {
+          const mas = labioEnLaPosicion(h, 1, s / largo)
+          const menos = labioEnLaPosicion(h, -1, s / largo)
+          if (mas && menos) hueco = Math.max(hueco, mas.ahora.distanceTo(menos.ahora))
+        }
+        return hueco < 0 ? maxima : hueco / unidadesPorMm
+      }
+      // La punta que da a otra incisión de la misma no es una punta (D-420): es la esquina de la T, y ni se alarga ni se
+      // acorta en un cruce. Alargarla la separaría de la otra.
+      const libres = puntasLibresDe(t.cortes ?? [], EXTREMO_QUE_DA_A_LA_OTRA_MM * unidadesPorMm)
+      return decidirElTrazo(
+        (t.cortes ?? []).map((c) => ({ id: c.id ?? -1, capa: c.plano, puntos: c.puntos, normales: c.normales, libres: libres.get(c.id ?? -1) })),
+        plano,
+        { puntos: puntosDelCorte, normales: normalesDelCorte },
+        {
+          umbral: UMBRAL_PARA_ALARGAR_MM * unidadesPorMm,
+          mm: unidadesPorMm,
+          corredor: (incision, s) => corredorDelRepasoMm(abiertaMm(incision, s)) * unidadesPorMm,
+        },
+      )
     }
 
     /**
@@ -4386,6 +4536,19 @@ export function LienzoQuirurgico({
       // tal como se ve, que es con lo que están medidos el repaso y el cruce, y se lleva después lo que se va a cortar.
       // Las ramas y la barra, también aquí: cuando se corten, la malla ya habrá cambiado con lo principal.
       let alReposo: ((p: Punto, n: Punto) => { p: Punto; n: Punto }) | null = null
+      // Antes que nada, el trazo baja del bulto de la piel (D-421): lo que se ve está hinchado sobre el trozo desplazado o
+      // la placa, y las incisiones de antes, el repaso y el cruce se miden sin él.
+      // El del bisturí profundo, además, en la fascia (`enLaFascia`). Salvo con un músculo elegido: ese trazo se pinchó en él a
+      // través de lo que lo tapa (P-003 E10), y subirlo a la fascia sería apartarlo de lo que se eligió.
+      const conMusculoElegido = plano === 'musculo' && ultimas.current.musculoObjetivo?.accion === 'cortar'
+      if (deUnTrazo) {
+        ;({ puntos: puntosDelCorte, normales: normalesDelCorte } =
+          plano === 'piel'
+            ? enLaPiel(mallas, puntosDelCorte, normalesDelCorte)
+            : conMusculoElegido
+              ? bajarDelBulto(mallas, puntosDelCorte, normalesDelCorte)
+              : enLaFascia(mallas, puntosDelCorte, normalesDelCorte))
+      }
       if (deUnTrazo) {
         const conReposo = mallas.map(conSuReposo).filter((m): m is MallaConReposo => m !== null)
         if (conReposo.length > 0) {
@@ -4394,35 +4557,7 @@ export function LienzoQuirurgico({
         }
       }
       if (deUnTrazo) {
-        // Lo abierta que está una incisión: lo que más se abre, o a `s` de su inicio, de labio a labio tal como están
-        // ahora (D-415). Junto a la punta casi no se abre, aunque los Farabeuf del medio la tengan a 35 mm.
-        const largoDelCorte = new Map((t.cortes ?? []).map((c) => [c.id, largoDelTrazo(c.puntos.map(([x, y, z]) => ({ x, y, z })), 1)]))
-        const abiertaMm = (incision: number, s?: number) => {
-          const suyas = (t.heridas.get(plano) ?? []).filter((h) => h.incision === incision)
-          const maxima = Math.max(0, ...suyas.map(aberturaDe)) / unidadesPorMm
-          const largo = largoDelCorte.get(incision) ?? 0
-          if (s === undefined || largo <= 0) return maxima
-          let hueco = -1
-          for (const h of suyas) {
-            const mas = labioEnLaPosicion(h, 1, s / largo)
-            const menos = labioEnLaPosicion(h, -1, s / largo)
-            if (mas && menos) hueco = Math.max(hueco, mas.ahora.distanceTo(menos.ahora))
-          }
-          return hueco < 0 ? maxima : hueco / unidadesPorMm
-        }
-        // La punta que da a otra incisión de la misma no es una punta (D-420): es la esquina de la T, y ni se alarga ni se
-        // acorta en un cruce. Alargarla la separaría de la otra.
-        const libres = puntasLibresDe(t.cortes ?? [], EXTREMO_QUE_DA_A_LA_OTRA_MM * unidadesPorMm)
-        const decision = decidirElTrazo(
-          (t.cortes ?? []).map((c) => ({ id: c.id ?? -1, capa: c.plano, puntos: c.puntos, normales: c.normales, libres: libres.get(c.id ?? -1) })),
-          plano,
-          { puntos: puntosDelCorte, normales: normalesDelCorte },
-          {
-            umbral: UMBRAL_PARA_ALARGAR_MM * unidadesPorMm,
-            mm: unidadesPorMm,
-            corredor: (incision, s) => corredorDelRepasoMm(abiertaMm(incision, s)) * unidadesPorMm,
-          },
-        )
+        const decision = decidirEnSuCapa(plano, puntosDelCorte, normalesDelCorte)
         if (decision.tipo === 'repaso') {
           // Nada que cortar: la guía vuelve a ser la incisión que se repasó, que es lo que mide el paso, y se dice por qué
           // no pasó nada. Un trazo de más no es una incisión de más.
@@ -4533,6 +4668,7 @@ export function LienzoQuirurgico({
       let largoDelCorteMm = 0
       for (let i = 1; i < puntos.length; i++) largoDelCorteMm += puntos[i].distanceTo(puntos[i - 1]) / unidadesPorMm
       const deExtremoAExtremo = puntos[puntos.length - 1].clone().sub(puntos[0])
+      const cruzaLaPiel = plano === 'piel' ? cuantoCruzaLaPiel(mallas, deExtremoAExtremo) : 0
       // Un plano hondo se aparta paralelo a la piel cortada que tiene encima, no por su propia tangente (P-015): la
       // hoja de un separador lleva la pared entera, y sobre la cresta de la tibia la fascia, a 30° de la piel, subía
       // por encima de ella al abrirse.
@@ -4546,23 +4682,29 @@ export function LienzoQuirurgico({
           : undefined
       const parametrosDe = (malla: THREE.Mesh) => ({
         // La piel es fina; la fascia y los planos profundos empiezan bajo ella y bajo la grasa.
-        profundidad: (plano === 'piel' ? 14 : 50) * unidadesPorMm,
+        profundidad: (plano === 'piel' ? 14 : PROFUNDIDAD_DEL_CORTE_HONDO_MM) * unidadesPorMm,
         alcance: 30 * unidadesPorMm,
+        // La piel arrastra más lejos que lo de debajo: la aparta un Farabeuf (D-421).
+        arrastre: plano === 'piel' ? ARRASTRE_DE_LA_PIEL_MM * unidadesPorMm : undefined,
         unidadesPorMm,
         incision: id,
         // La piel tiene grosor: dermis y grasa entre sus dos caras (D-331), y el corte levanta la pared que se ve al
         // abrir (D-333). La fascia superficial, que se corta con ella, es una lámina y no la encuentra.
         pared: plano === 'piel' ? GROSOR_MAXIMO_DE_LA_PIEL_MM * unidadesPorMm : undefined,
-        // El tejido cortado se aparta solo (P-015): cada plano lo suyo, y el músculo según el trazo vaya a lo largo de
-        // sus fibras o las cruce. Las mallas que se cortan juntas en un plano —la piel y su fascia superficial— se
-        // retraen lo mismo, y así el labio de una queda bajo el de la otra.
-        retraccion: retraccionDelLabioMm(plano, largoDelCorteMm, plano === 'musculo' ? cuantoCruzaElTrazo(malla, deExtremoAExtremo) : 0) * unidadesPorMm,
+        // El tejido cortado se aparta solo (P-015): cada plano lo suyo, el músculo según el trazo vaya a lo largo de sus
+        // fibras o las cruce, y la piel según cruce sus líneas de tensión (D-422). Las mallas que se cortan juntas en un
+        // plano —la piel y su fascia superficial— se retraen lo mismo, y así el labio de una queda bajo el de la otra.
+        retraccion:
+          retraccionDelLabioMm(plano, largoDelCorteMm, plano === 'musculo' ? cuantoCruzaElTrazo(malla, deExtremoAExtremo) : cruzaLaPiel) *
+          unidadesPorMm,
         // Y la malla se afina alrededor del corte, para que lo que se aparta se doble en curva y no en facetas.
         afinar: ARISTA_JUNTO_AL_CORTE_MM * unidadesPorMm,
         normalesDeEncima,
         // Lo de debajo de la piel no deja líneas rojas en el fondo de la herida (D-411).
         hondo: plano !== 'piel',
         naceDe,
+        // Y la piel que un separador aprieta detrás del labio se arruga, menos si el corte cruza sus líneas (D-423).
+        cruzaLaTension: plano === 'piel' ? cruzaLaPiel : undefined,
       })
       const hechas: HeridaEnCapa[] = []
       for (const malla of mallas) {
@@ -5609,9 +5751,15 @@ export function LienzoQuirurgico({
       const tipo = tipoDelSeparador(separa)
       const lado = ladoAlColocar(tipo, c.info.lado)
       const posicion = c.info.t
-      // Uno igual y muy cerca: se elige ese en lugar de poner un segundo encima.
+      // Uno igual y muy cerca: se elige ese en lugar de poner un segundo encima. En la misma herida: `posicion` es la
+      // fracción de la suya, y la mitad de un brazo de L caía «aquí» junto a la mitad de la vertical, a 80 mm, y no se
+      // podía separar (D-421). Uno sin herida guardada viene de antes de que se guardara, y cuenta en todas.
       const cercanos = lista.filter(
-        (q) => q.datos.instrumentoId === (inst.id ?? '') && q.datos.plano === c.plano && Math.abs(q.datos.posicion - posicion) < 0.08,
+        (q) =>
+          q.datos.instrumentoId === (inst.id ?? '') &&
+          q.datos.plano === c.plano &&
+          (q.datos.incision === undefined || q.datos.incision === c.herida.incision) &&
+          Math.abs(q.datos.posicion - posicion) < 0.08,
       )
       const igual = cercanos.find((q) => q.datos.lado === lado)
       if (igual) {
@@ -8822,6 +8970,9 @@ export function LienzoQuirurgico({
         // El paño se ciñe al cuerpo del atlas, y la piel abultada ya no lo es: se le cuenta cada vez que cambia (P-014).
         if (cambio) t.campo?.seguirLaPiel(pieles, abultamiento.caja)
         if (cambio && t.sutura && t.sutura.puntos.length > 0 && t.raiz) reconstruirHilo(t.sutura, mallasVisibles(t.raiz), 1 / mm, abultamiento.caja)
+        // Los separadores se posaron con la piel recién compuesta, sin el bulto: sobre un trozo de hueso que la alza, el
+        // labio sube y la piel de fuera también, y el mango quedaba debajo (D-423). Se vuelven a posar sobre la de ahora.
+        if (cambio) for (const s of t.separadores ?? []) posarSeparador(s, 1 / mm, t.heridas)
       })
       sinCaerse('vello', () => velloAlDia(aspecto.current, taller.current.heridas.values()))
       // La oclusión, en su propio `try`: si falla, la imagen se dibuja igual, sin ella.
@@ -11492,6 +11643,30 @@ const PLANO_CERRADO: Readonly<Record<PlanoBlando, string>> = { piel: 'piel cerra
  * los deja a todos dentro, y deja fuera la otra hoja que a veces atraviesa un corte hondo, que queda a centímetros.
  */
 const LABIO_FUERA_DE_LA_LAMINA_MM = 6
+
+/**
+ * Hasta dónde baja bajo el trazo el corte del bisturí profundo, en milímetros: la fascia y los planos profundos empiezan
+ * bajo la piel y la grasa. Es también hasta dónde se sigue el rayo del trazo hasta la fascia (`enLaFascia`, D-421): más
+ * allá, lo que el rayo encuentra ya no es la fascia que se tiene bajo el trazo, sino la del otro lado de la pierna.
+ */
+const PROFUNDIDAD_DEL_CORTE_HONDO_MM = 50
+
+/**
+ * Hasta dónde, detrás de lo que asoma por la piel, se busca la piel que lo tapa (`enLaPiel`, D-421), en milímetros. El
+ * trozo de tibia del caso 3 sube 20 mm por encima del bulto, que se queda en 30 (`ABULTAMIENTO_MAXIMO_MM`), y el rayo lo
+ * cruza en diagonal. Detrás del fondo de una herida abierta, la piel más cercana es la del otro lado de la pierna, más lejos.
+ */
+const PIEL_BAJO_LO_QUE_ASOMA_MM = 30
+
+/**
+ * Hasta dónde, a cada lado de una incisión de piel, llega lo que arrastra al abrirse (`OpcionesDeCorte.arrastre`, D-421),
+ * en milímetros. Un labio que un Farabeuf a 14 mm aparta, con lo que se retrae solo, se va 17 a 20 mm; el arrastre cae de
+ * eso a cero en curva suave, que en lo más empinado baja 1,5 veces su media. Con 30 mm, como el resto de los planos, eso
+ * era apretar el tejido de al lado hasta darlo vuelta: 17 triángulos en la T de la pierna del taller, 103 en la del caso 3.
+ * Con 38, 9 y 89; con 45, 5 y 68 antes de enderezar lo que queda (`enderezarLosVueltos`), y 0 y 0 después. Más allá, la
+ * piel ya rodea la pierna: por eso se arrastra por la superficie (`OpcionesDeCorte.porLaSuperficie`).
+ */
+const ARRASTRE_DE_LA_PIEL_MM = 45
 
 /**
  * Una puntada sobre un labio de la herida, a la altura `t` de su largo: a `mordidaMm` del borde, apoyada en la superficie

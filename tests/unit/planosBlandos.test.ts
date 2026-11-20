@@ -47,6 +47,28 @@ describe('qué plano corta un trazo profundo', () => {
   it('un trazo que ya pide la fascia la corta, y no se redirige', () => {
     expect(planoQueCorta('fascia', { hayFascia: true, fasciaAbierta: false })).toEqual({ plano: 'fascia', redirigido: false })
   })
+
+  it('con la fascia abierta, el trazo que no la repasa —la barra de una T, el brazo de una L— la corta a ella (D-421)', () => {
+    expect(planoQueCorta('musculo', { hayFascia: true, fasciaAbierta: true, repasaLaFascia: false })).toEqual({
+      plano: 'fascia',
+      redirigido: true,
+    })
+  })
+
+  it('con la fascia abierta, el trazo que va por su herida llega al músculo', () => {
+    expect(planoQueCorta('musculo', { hayFascia: true, fasciaAbierta: true, repasaLaFascia: true })).toEqual({
+      plano: 'musculo',
+      redirigido: false,
+    })
+  })
+
+  it('sin saber si repasa —un trazo de menos de tres puntos, que no da para decidirlo— se queda como antes: al músculo', () => {
+    // Un toque con el bisturí profundo sobre la fascia ya abierta no debe abrir fascia nueva: no se sabe hacia dónde iba.
+    expect(planoQueCorta('musculo', { hayFascia: true, fasciaAbierta: true, repasaLaFascia: undefined })).toEqual({
+      plano: 'musculo',
+      redirigido: false,
+    })
+  })
 })
 
 describe('qué trazos cambian lo que mide un paso de trazo (D-414)', () => {

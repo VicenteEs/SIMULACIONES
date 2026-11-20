@@ -198,6 +198,13 @@ describe('el cableado', () => {
     expect(consola).toContain('invertirRetraccion(r.id)')
   })
 
+  it('«ya hay uno aquí» solo en la misma herida: la mitad del brazo de una L no es la mitad de la vertical (D-421)', () => {
+    const colocar = lienzo.slice(lienzo.indexOf('const colocarSeparador = '), lienzo.indexOf('const dejarElSeparador = '))
+    const cercanos = colocar.slice(colocar.indexOf('const cercanos = '), colocar.indexOf('const igual = '))
+    expect(cercanos).toContain('q.datos.incision === undefined || q.datos.incision === c.herida.incision')
+    expect(cercanos).toContain('Math.abs(q.datos.posicion - posicion) < 0.08')
+  })
+
   it('Mayúsculas + rueda corre la zona retraída solo cuando hay un músculo retraído', () => {
     expect(consola).toMatch(/const correLaRetraccion = ruedaDelInstrumento === 'separa' && retracciones\.length > 0/)
     expect(consola).toContain('m.correrRetraccion(sentido * 2)')

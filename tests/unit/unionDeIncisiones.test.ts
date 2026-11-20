@@ -5,12 +5,13 @@ import {
   cadenaDeLaMalla,
   cortarCapa,
   FUNDIDO_JUNTO_A_LA_PUNTA_MM,
+  reposoVigente,
   solturaDeLaHerida,
   type HeridaEnCapa,
   type ParametrosDeCorte,
 } from '@/components/simulador/heridas'
 import { perfilDeLaCapa, puntasDeLaGrieta, puntasDeLosLabios, type PuntasDeLaHerida, type SeparadorColocado } from '@/lib/exposicion'
-import { apartadosPorLaOtra, cruceHaciaCadaLabio, husoDeLaGrieta, husoDelLabio, solturaDelLabio } from '@/lib/corteDeMalla'
+import { apartadosPorLaOtra, cruceHaciaCadaLabio, husoDeLaGrieta, husoDelLabio, solturaDelLabio, vueltosAntesDeEnderezar } from '@/lib/corteDeMalla'
 import { PASADO_DEL_CODO_MM } from '@/lib/incisiones'
 import { retraccionDelLabioMm } from '@/lib/retraccionDelCorte'
 
@@ -146,6 +147,38 @@ describe('dos incisiones que se tocan son una sola, también en la malla (D-420)
     expect(vueltos(m)).toBe(0)
   })
 
+  it('la punta del colgajo se retrae por sus dos bordes, y la piel de fuera de la esquina se queda (D-422)', () => {
+    const m = losa()
+    const A = recta([-46, 0.37], [45.41 + PASADO_DEL_CODO_MM, 0.37])
+    const hA = cortarCapa(m, A.puntos, A.normales, parametros(1, A.largo))!
+    // Lo que retrae el labio de arriba de la primera, en y, en cada vértice de su cara de fuera.
+    const deArriba = () => {
+      const reposo = cadenaDeLaMalla(m).at(-1)!.corte.posiciones
+      const ahora = (m.geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array
+      return hA.corte.labios.mas.map((v) => ({ x: reposo[3 * v], y: ahora[3 * v + 1] - reposo[3 * v + 1] }))
+    }
+    const enElMedio = Math.max(...deArriba().filter((p) => Math.abs(p.x) < 5).map((p) => p.y))
+    const junto = (lista: { x: number; y: number }[], desde: number, hasta: number) => Math.max(...lista.filter((p) => p.x > desde && p.x < hasta).map((p) => p.y))
+    expect(enElMedio).toBeGreaterThan(3)
+    // Sola, la primera se cierra hacia su punta: a dos milímetros de donde nacerá la pierna, y a cinco de la punta, se
+    // aparta una quinta parte de lo del medio.
+    expect(junto(deArriba(), 42.5, 44.5)).toBeLessThan(0.25 * enElMedio)
+    const B = recta([45.41, -0.63], [45.41, 30])
+    const hB = cortarCapa(m, B.puntos, B.normales, parametros(2, B.largo, [{ incision: 1, punto: en(45.41, 0.37), lado: en(45.41, 15) }]))!
+    // La pierna sale hacia el labio «más» de la primera (+y), y el tramo de la primera que va a su inicio (−x) queda del
+    // lado «más» de la pierna, que avanza hacia +y: su lateral es z × y = −x.
+    expect(hB.colgajos).toHaveLength(1)
+    expect(hB.colgajos![0]).toMatchObject({ incision: 1, suyo: 1, inicioDelLado: 1 })
+    const ahora = deArriba()
+    // Con la pierna, ese labio es el borde del colgajo, y su punta se retrae como el medio de la incisión.
+    expect(junto(ahora, 42.5, 44.5)).toBeGreaterThan(0.8 * enElMedio)
+    // Al otro lado de la pierna, los 3,5 mm de la pasada son la piel de fuera, que la punta de la primera sujeta.
+    expect(junto(ahora, 46, 45.41 + PASADO_DEL_CODO_MM)).toBeLessThan(1.2)
+    expect(vueltos(m)).toBe(0)
+    abrir([hA, hB], 6)
+    expect(vueltos(m)).toBe(0)
+  })
+
   it('sin la pasada, la pierna empezaba en piel sana: las dos puntas cerradas y un puente de piel en la esquina', () => {
     // Lo que se vio en la pierna del caso 3 antes de `PASADO_DEL_CODO_MM`: la grieta de la primera acaba antes que su
     // trazo, en la última arista que partió, y la pierna nacida en la punta del trazo no la alcanza.
@@ -155,6 +188,94 @@ describe('dos incisiones que se tocan son una sola, también en la malla (D-420)
     const B = recta([45.41, -0.63], [45.41, 30])
     const hB = cortarCapa(m, B.puntos, B.normales, parametros(2, B.largo, [{ incision: 1, punto: en(45.41, 0.37), lado: en(45.41, 15) }]))!
     expect(hB.corte.grieta.cerradaAlInicio).toBe(true)
+  })
+})
+
+describe('la punta del colgajo se redondea (D-423)', () => {
+  // Con D-422 la punta se retraía en diagonal, pero entera: seguía en ángulo recto, un poco más atrás. La piel tira de
+  // ella desde sus dos bordes libres, y lo que más se retrae es la esquina misma: en pabellón es un arco.
+
+  /** Dónde está ahora cada vértice de un labio, en el plano. */
+  const ahoraDe = (m: THREE.Mesh, labio: readonly number[]) => {
+    const q = (m.geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array
+    return labio.map((v) => ({ x: q[3 * v], y: q[3 * v + 1], z: q[3 * v + 2] }))
+  }
+  const media = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+
+  /**
+   * La esquina de un colgajo cuya punta, en reposo, está en `(px, py)`, con un borde a lo largo de x (hacia `sx`) y el
+   * otro a lo largo de y (hacia +y). La esquina «en ángulo recto» es la que darían los dos bordes, rectos, medidos lejos
+   * de la punta; el arco tiene su centro a `r` de los dos, hacia dentro del colgajo.
+   */
+  function esquina(m: THREE.Mesh, aLoLargoDeX: readonly number[], aLoLargoDeY: readonly number[], px: number, py: number, sx: 1 | -1, r: number) {
+    const bordeX = ahoraDe(m, aLoLargoDeX).filter((p) => sx * (p.x - px) > 2 * r + 2 && sx * (p.x - px) < 2 * r + 6 && p.z > -0.1)
+    const bordeY = ahoraDe(m, aLoLargoDeY).filter((p) => p.y - py > 2 * r + 2 && p.y - py < 2 * r + 6 && p.z > -0.1)
+    const recta = { x: media(bordeY.map((p) => p.x)), y: media(bordeX.map((p) => p.y)) }
+    const centro = { x: recta.x + sx * r, y: recta.y + r }
+    const cerca = [...ahoraDe(m, aLoLargoDeX), ...ahoraDe(m, aLoLargoDeY)].filter(
+      (p) => p.z > -0.1 && sx * (p.x - recta.x) > -0.01 && sx * (p.x - centro.x) < 0 && p.y < centro.y && p.y - recta.y > -0.01,
+    )
+    return {
+      // Lo que queda la punta del colgajo de la esquina recta: 0 en ángulo recto, (√2 − 1)·r en el arco.
+      retiro: Math.min(...cerca.map((p) => Math.hypot(p.x - recta.x, p.y - recta.y))),
+      // Lo que se aparta del arco cada punto del borde dentro de la cometa.
+      fueraDelArco: Math.max(...cerca.map((p) => Math.abs(Math.hypot(p.x - centro.x, p.y - centro.y) - r))),
+      cuantos: cerca.length,
+    }
+  }
+
+  /** El radio que pide la retracción de las dos heridas: 1,5 veces la media. */
+  const radio = (a: HeridaEnCapa, b: HeridaEnCapa) => (1.5 * (reposoVigente(a) + reposoVigente(b))) / 2
+
+  it('en la L, la punta queda en el arco tangente a sus dos bordes, retirada (√2 − 1)·r de la esquina', () => {
+    const m = losa()
+    const A = recta([-46, 0.37], [45.41 + PASADO_DEL_CODO_MM, 0.37])
+    const hA = cortarCapa(m, A.puntos, A.normales, parametros(1, A.largo))!
+    const B = recta([45.41, -0.63], [45.41, 30])
+    const hB = cortarCapa(m, B.puntos, B.normales, parametros(2, B.largo, [{ incision: 1, punto: en(45.41, 0.37), lado: en(45.41, 15) }]))!
+    const punta = hB.colgajos![0].punta!
+    expect(punta.union[0]).toBeCloseTo(45.41, 1)
+    expect(punta.tangente[0]).toBeCloseTo(1, 3)
+    expect(punta.avance[1]).toBeCloseTo(1, 3)
+    const r = radio(hA, hB)
+    expect(r).toBeGreaterThan(2)
+    // El colgajo: el labio «más» de la primera (+y) y el «más» de la pierna (−x), hacia el inicio de la primera.
+    const e = esquina(m, hA.corte.labios.mas, hB.corte.labios.mas, 45.41, 0.37, -1, r)
+    expect(e.cuantos).toBeGreaterThan(3)
+    expect(e.retiro).toBeGreaterThan(0.33 * r)
+    expect(e.retiro).toBeLessThan(0.5 * r)
+    expect(e.fueraDelArco).toBeLessThan(0.15 * r)
+    expect(vueltos(m)).toBe(0)
+    // La pasada de 3,5 mm no es un colgajo: la piel de fuera de la esquina sigue en su sitio, sin arco.
+    const fuera = ahoraDe(m, hA.corte.labios.mas).filter((p) => p.x > 46 && p.x < 45.41 + PASADO_DEL_CODO_MM && p.z > -0.1)
+    expect(Math.max(...fuera.map((p) => p.y - 0.37))).toBeLessThan(1.2)
+    // Abierta con los separadores, el arco viaja con la punta y nada se da la vuelta.
+    abrir([hA, hB], 6)
+    expect(vueltos(m)).toBe(0)
+  })
+
+  it('en la T, las dos puntas de la barra se redondean, una a cada lado del tallo', () => {
+    const m = losa()
+    const A = recta([-46, 0.37], [46, 0.37])
+    const hA = cortarCapa(m, A.puntos, A.normales, parametros(1, A.largo))!
+    const B = recta([0.41, -0.63], [0.41, 30])
+    const hB = cortarCapa(m, B.puntos, B.normales, parametros(2, B.largo, [{ incision: 1, punto: en(0.41, 0.37), lado: en(0.41, 15) }]))!
+    expect(hB.colgajos).toHaveLength(1)
+    const r = radio(hA, hB)
+    // Del lado −x del tallo, su labio «más»; del +x, el «menos».
+    for (const [labio, sx] of [
+      [hB.corte.labios.mas, -1],
+      [hB.corte.labios.menos, 1],
+    ] as const) {
+      const e = esquina(m, hA.corte.labios.mas, labio, 0.41, 0.37, sx, r)
+      expect(e.cuantos).toBeGreaterThan(3)
+      expect(e.retiro).toBeGreaterThan(0.33 * r)
+      expect(e.retiro).toBeLessThan(0.5 * r)
+      expect(e.fueraDelArco).toBeLessThan(0.15 * r)
+    }
+    expect(vueltos(m)).toBe(0)
+    abrir([hA, hB], 6)
+    expect(vueltos(m)).toBe(0)
   })
 })
 
@@ -218,7 +339,9 @@ describe('la L con un separador en cada brazo (D-420)', () => {
   it('con un Farabeuf en cada brazo, la cuña de dentro no se da la vuelta', () => {
     const { m, hA, hB, enLaPrimera, enLaPierna } = ele()
     expect(vueltos(m)).toBe(0)
-    // Cada uno solo, ninguno; los dos juntos, casi ninguno, junto a la punta de la primera.
+    // Cada uno solo, ninguno; los dos juntos, casi ninguno, junto a la punta de la primera, y esos los endereza
+    // `componerCortes` (D-421). Lo que se ve está enderezado, así que lo que da vuelta el arrastre se cuenta antes.
+    const antesDeEnderezar = () => vueltosAntesDeEnderezar(cadenaDeLaMalla(m).at(-1)!.corte)
     abrirCon(hA, enLaPrimera, lasDeAhora)
     abrirCon(hB, [], lasDeAhora)
     expect(vueltos(m)).toBe(0)
@@ -227,10 +350,12 @@ describe('la L con un separador en cada brazo (D-420)', () => {
     expect(vueltos(m)).toBe(0)
     abrirCon(hA, enLaPrimera, lasDeAhora)
     abrirCon(hB, enLaPierna, lasDeAhora)
-    expect(vueltos(m)).toBeLessThanOrEqual(12)
-    // Con la cuerda de la pierna anclada en la punta del trazo, como hasta ahora, la cuña se doblaba entera.
+    expect(antesDeEnderezar()).toBeLessThanOrEqual(12)
+    expect(vueltos(m)).toBe(0)
+    // Con la cuerda de la pierna anclada en la punta del trazo, como hasta ahora, la cuña se doblaba entera. Enderezada
+    // no se ve vuelta, sino aplastada a una quinta parte de su área.
     abrirCon(hB, enLaPierna, lasDeAntes)
-    expect(vueltos(m)).toBeGreaterThan(100)
+    expect(antesDeEnderezar()).toBeGreaterThan(100)
   })
 
 })

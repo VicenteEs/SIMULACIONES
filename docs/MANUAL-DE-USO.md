@@ -904,8 +904,10 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   El bisturí de piel corta la piel; el profundo, el electrobisturí y las tijeras, los planos de
   debajo. **Si el caso trae fascia**, el primer trazo profundo corta **la fascia** (la lámina
   rosada que cubre al músculo) y el segundo llega **al músculo**: sin abrirla no se entra, y la
-  consola lo dice. Un caso sin fascia, o con la capa «Fascia» apagada, corta el músculo de
-  una vez. Hace falta que la capa esté encendida. La herida queda
+  consola lo dice. Al músculo se llega solo **por donde la fascia ya está abierta**: un trazo
+  profundo que va por fascia entera —el brazo de una L, la barra de una T— la corta a ella,
+  y la fascia queda en L o en T como la piel. Un caso sin fascia, o con la capa «Fascia»
+  apagada, corta el músculo de una vez. Hace falta que la capa esté encendida. La herida queda
   a la vista como una **cinta roja** siguiendo el corte, aunque los labios estén pegados; la
   cinta se aparta sola cuando la herida abre más de 5 mm. «Borrar trazo» la deshace; pasar de
   paso no (la piel cortada sigue cortada), y «Cerrar la herida» o reiniciar el caso la cierran.
@@ -940,6 +942,12 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
     mueve exactamente lo que ese borde se mueve: al abrir, la hoja queda apoyada en el labio y no
     flotando por fuera de él. El **Hohmann** deja la punta donde la clavó, al otro lado del hueso, y
     lo que se mueve al abrir es el **mango**, que bascula hacia el lado que aparta (hasta unos 35°).
+  - **La piel que sostienen (D-423).** Con dos hojas en el mismo labio, el borde entre ellas se comba hacia
+    la herida, más cuanto más separadas estén: a 4 cm, el medio abre un 80 % de lo que abren las hojas. La
+    piel que la hoja aprieta detrás del labio se levanta en un rodete paralelo al corte, de uno a tres
+    milímetros según cuánto se abra, y menos si el corte cruza las líneas de la piel. Y si la piel de fuera
+    sube —un trozo de hueso desplazado debajo—, la hoja engancha el borde de la piel tal como se ve, sobre el
+    bulto, y el mango se levanta lo justo para pasar por encima de ella.
   - **En pareja.** Con «En pareja» encendido (lo está de entrada), un clic pone **los dos
     Farabeuf o Senn-Miller, uno por borde y a la misma altura**, como las pinzas; los mangos
     salen hacia fuera y no se cruzan sobre la herida. Con uno ya puesto, el clic completa la
@@ -1175,7 +1183,10 @@ sola al modo que le corresponde y el panel de su recuadro dice qué hacer con é
   rueda con él.
 - **La herida se abre sola al cortar (P-015).** Una incisión se separa sola unos milímetros, en huso, como
   en un paciente. Se separa más en la piel que en la fascia, y el músculo más si se corta a través de sus
-  fibras que a lo largo. Un corte de 5 cm en la piel queda en un ojal de unos 7 mm. Lo que abren los
+  fibras que a lo largo. Un corte de 5 cm en la piel queda en un ojal de unos 7 mm. En un brazo o una
+  pierna, la piel se abre el doble si el corte va de través que si va a lo largo, como sus líneas de tensión
+  (D-422). En la esquina de una L, la punta del colgajo se retrae hacia su base, en arco y no en ángulo recto, y la
+  esquina se abre; en una T, las dos puntas (D-423). Lo que abren los
   separadores se suma a eso, y la cifra «abierta N mm» del panel lo incluye. La cinta roja desaparece en
   cuanto se ve el hueco. Con un separador **bajado al músculo**, se abren a la vez la piel, la fascia y el
   músculo que tiene encima, si está a no más de 30 mm de su línea, a lo ancho o pasado el extremo.

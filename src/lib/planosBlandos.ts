@@ -44,6 +44,11 @@ export interface EstadoDeLaFascia {
   hayFascia: boolean
   /** Ya hay una herida en la fascia. */
   fasciaAbierta: boolean
+  /**
+   * El trazo va entero por encima de una incisión de la fascia ya hecha (`decidirElTrazo` lo da por repaso, D-410). Sin
+   * decirlo, se supone que sí: es lo que se hacía antes de D-421.
+   */
+  repasaLaFascia?: boolean
 }
 
 /**
@@ -53,9 +58,15 @@ export interface EstadoDeLaFascia {
  * se llega al músculo. El primer trazo profundo abre la fascia y el segundo, el músculo; es lo que se hace en pabellón y
  * lo que deja que el cierre vaya por planos. Sin fascia visible (un caso viejo, o la capa apagada), el trazo profundo
  * corta el músculo como siempre.
+ *
+ * Con la fascia ya abierta, el músculo solo se corta por donde está abierta: el trazo que la repasa (D-421). El que va
+ * por fascia entera —el brazo de una L o una T, la barra transversal en el tobillo, otra incisión más allá— la corta a
+ * ella, como pasa en la piel. Antes bastaba una herida en la fascia para que todo trazo profundo fuera al músculo: la
+ * transversal se hacía en el músculo a través de una fascia intacta, y la fascia no podía tener una L.
  */
 export function planoQueCorta(pedido: PlanoBlando, fascia: EstadoDeLaFascia): { plano: PlanoBlando; redirigido: boolean } {
-  if (pedido === 'musculo' && fascia.hayFascia && !fascia.fasciaAbierta) return { plano: 'fascia', redirigido: true }
+  if (pedido !== 'musculo' || !fascia.hayFascia) return { plano: pedido, redirigido: false }
+  if (!fascia.fasciaAbierta || fascia.repasaLaFascia === false) return { plano: 'fascia', redirigido: true }
   return { plano: pedido, redirigido: false }
 }
 

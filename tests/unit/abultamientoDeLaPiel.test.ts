@@ -11,16 +11,20 @@ import {
   PENDIENTE_DE_LA_PIEL,
   RADIO_DEL_ABULTAMIENTO_MM,
   abultamientoMm,
+  alisarLaTienda,
   muestrasDeLaSuperficie,
   tenderLaPiel,
   verticesDeLaCaraDeDentro,
 } from '@/lib/abultamientoDeLaPiel'
 import {
+  ATRIBUTO_DE_LA_CARA_DE_DENTRO,
   abultamientoMaximoMm,
   crearAbultamientoDeLaPiel,
   marcarLaCaraDeDentro,
+  pielSinAbultar,
   quitarElAbultamiento,
 } from '@/components/simulador/abultamientoEnLaEscena'
+import { conSuBulto } from '@/components/simulador/trazoEnReposo'
 
 /**
  * La piel que se hincha (P-013, pedidos 1 y 8 de Cristóbal): «al cerrar, la mitad de la placa quedó afuera de la piel» y
@@ -170,6 +174,35 @@ describe('la piel tendida', () => {
     const posiciones = Float32Array.from([0, 0, 0, 1, 0, 0, 2, 0, 0])
     const sube = tenderLaPiel(Float32Array.from([10, 0, 0]), posiciones, (k, visitar) => (k === 0 ? visitar(1) : k === 1 ? visitar(0) : undefined), 1)
     expect([...sube]).toEqual([10, 9, 0])
+  })
+
+  it('alisada, pierde los dientes de la falda y no baja de lo que pide ningún vértice (D-421)', () => {
+    // La falda con dientes, como la deja `tenderLaPiel` en la franja afinada de una incisión: medio milímetro arriba y
+    // abajo de un vértice al siguiente.
+    const { posiciones, vecinos } = fila(41)
+    const pide = new Float32Array(41)
+    pide[20] = 15
+    const sube = tenderLaPiel(Float32Array.from(pide), posiciones, vecinos, 1)
+    for (let k = 0; k < 41; k++) if (sube[k] > 1 && k !== 20) sube[k] += k % 2 ? 0.5 : -0.5
+    const dientes = (s: Float32Array) => {
+      let mayor = 0
+      for (let k = 1; k < 40; k++) if (k !== 20) mayor = Math.max(mayor, Math.abs(s[k - 1] - 2 * s[k] + s[k + 1]))
+      return mayor
+    }
+    const antes = dientes(sube)
+    alisarLaTienda(sube, pide, vecinos)
+    expect(dientes(sube)).toBeLessThan(antes / 10)
+    for (let k = 0; k < 41; k++) expect(sube[k]).toBeGreaterThanOrEqual(pide[k])
+    expect(sube[20]).toBe(15)
+  })
+
+  it('el vecino que comparten dos triángulos cuenta una vez', () => {
+    // Con un vecino dado dos veces, la media lo pesa el doble: 0, 10 y 0, con el de la izquierda repetido.
+    const sube = Float32Array.from([0, 10, 0])
+    alisarLaTienda(sube, new Float32Array(3), (k, visitar) => {
+      if (k === 1) [0, 0, 2].forEach(visitar)
+    }, 1)
+    expect(sube[1]).toBeCloseTo(10 / 3, 5)
   })
 })
 
@@ -340,5 +373,176 @@ describe('en la escena', () => {
     expect(lienzo).toContain('const cambio = abultamiento.alDia(pieles, loQueEmpujaLaPiel(), mm)')
     expect(lienzo).toContain('if (t.implantes?.placa) deGrupo(t.implantes.placa.grupo)')
     expect(lienzo).toContain("const delFoco = m === t.fragmento || !!t.posesReducidas?.has(m) || rolDe.get(m.name) === 'fragmento'")
+  })
+})
+
+describe('la piel se abulta como una sábana (D-421)', () => {
+  /** La rejilla de la prueba: 61 × 61 vértices a 1 mm, el de la fila `f` y la columna `c`. */
+  const LADO = 61
+  const enRejilla = (f: number, c: number) => f * LADO + c
+  const DERMIS_MM = HOLGURA_DE_LA_CARA_DE_FUERA_MM - HOLGURA_DE_LA_CARA_DE_DENTRO_MM
+
+  /**
+   * Una piel de 60 × 60 mm con sus dos caras, como la del atlas: la de fuera en z = 0, mirando hacia arriba, y la de dentro
+   * `grosorMm` más abajo, mirando al cuerpo. El vértice `i` de la de dentro está bajo el `i` de la de fuera, en `i + 3721`.
+   *
+   * - `incision`: la de fuera partida a lo largo de 18 mm en x = 0, con los dos labios en el mismo sitio, como queda en el
+   *   reposo una incisión (el reposo es la piel cerrada, `reposoDeLaPiel`): cada vértice del labio de la derecha,
+   *   repetido, y la piel de ese lado colgada del repetido. Solo en la de fuera: así corta distinto los caminos de las dos.
+   *
+   * Un hueco de verdad en el reposo —dos labios en sitios distintos— no se prueba porque no pasa: la sábana lee la piel de
+   * alrededor con una campana de 1,5 mm, y a través de un hueco mezclaría el labio alto con el bajo.
+   */
+  function pielDeDosCaras({ grosorMm = 3, incision = false } = {}) {
+    const plano = new THREE.PlaneGeometry(0.06, 0.06, 60, 60)
+    const fuera = plano.getAttribute('position').array as Float32Array
+    const n = fuera.length / 3
+    const triangulos = Array.from(plano.getIndex()!.array)
+    const posiciones = [...fuera]
+    const normales: number[] = []
+    for (let i = 0; i < n; i++) normales.push(0, 0, 1)
+    // Los repetidos del labio de la derecha, sin las dos puntas: en ellas los labios se juntan.
+    const repetido = new Map<number, number>()
+    if (incision) {
+      for (let f = 21; f <= 39; f++) {
+        repetido.set(enRejilla(f, 30), posiciones.length / 3)
+        posiciones.push(fuera[enRejilla(f, 30) * 3], fuera[enRejilla(f, 30) * 3 + 1], 0)
+        normales.push(0, 0, 1)
+      }
+    }
+    const deFuera: number[] = []
+    for (let t = 0; t < triangulos.length; t += 3) {
+      const tri = triangulos.slice(t, t + 3)
+      const columna = Math.min(...tri.map((v) => v % LADO))
+      const fila = Math.min(...tri.map((v) => Math.floor(v / LADO)))
+      // La celda está a la derecha de x = 0 si su columna más baja es la 30.
+      deFuera.push(...(incision && columna === 30 && fila >= 20 && fila < 40 ? tri.map((v) => repetido.get(v) ?? v) : tri))
+    }
+    const nFuera = posiciones.length / 3
+    for (let i = 0; i < n; i++) {
+      posiciones.push(fuera[i * 3], fuera[i * 3 + 1], -grosorMm / 1000)
+      normales.push(0, 0, -1)
+    }
+    // La de dentro, con las vueltas al revés: mira hacia abajo.
+    const deDentro: number[] = []
+    for (let t = 0; t < triangulos.length; t += 3) deDentro.push(triangulos[t] + nFuera, triangulos[t + 2] + nFuera, triangulos[t + 1] + nFuera)
+    const geometria = new THREE.BufferGeometry()
+    geometria.setAttribute('position', new THREE.BufferAttribute(Float32Array.from(posiciones), 3))
+    geometria.setAttribute('normal', new THREE.BufferAttribute(Float32Array.from(normales), 3))
+    geometria.setIndex([...deFuera, ...deDentro])
+    // Marcada a mano: medidas desde el centro, las dos caras de una lámina plana dan volumen positivo, y
+    // `marcarLaCaraDeDentro` no vería ninguna. En el atlas la piel envuelve el cuerpo y sí las separa.
+    const marca = new Float32Array(nFuera + n)
+    marca.fill(1, nFuera)
+    geometria.setAttribute(ATRIBUTO_DE_LA_CARA_DE_DENTRO, new THREE.BufferAttribute(marca, 1))
+    const piel = new THREE.Mesh(geometria, new THREE.MeshBasicMaterial())
+    piel.name = 'piel'
+    piel.updateMatrixWorld(true)
+    return { piel, nFuera, repetido }
+  }
+  /** Un trozo de hueso de 4 mm que asoma `altoMm` sobre la piel, en (`xMm`, 0). */
+  function trozo(xMm: number, altoMm: number) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.004, 0.004), new THREE.MeshBasicMaterial())
+    m.position.set(xMm / 1000, 0, altoMm / 1000)
+    m.updateMatrixWorld(true)
+    return m
+  }
+  const zMm = (piel: THREE.Mesh, i: number) => piel.geometry.getAttribute('position').getZ(i) * 1000
+
+  it('la cara de dentro nunca asoma por la de fuera, ni junto a una incisión que corta el camino de una sola', () => {
+    // Era la mancha gris del tobillo: cada cara se tendía por su lado, la de dentro pasaba por debajo de la incisión y la
+    // de fuera no, y al otro lado la de dentro quedaba milímetros por encima de la de fuera. Lo arreglan juntos los
+    // gemelos, que pasan la de fuera de un labio al otro, y el techo de la de dentro.
+    const { piel, nFuera } = pielDeDosCaras({ incision: true })
+    expect(crearAbultamientoDeLaPiel().alDia([piel], [trozo(-8, 20)], 1000)).toBe(true)
+    let peor = Infinity
+    let mayorSubida = 0
+    for (let i = 0; i < 61 * 61; i++) {
+      peor = Math.min(peor, zMm(piel, i) - zMm(piel, nFuera + i))
+      mayorSubida = Math.max(mayorSubida, zMm(piel, i))
+    }
+    expect(mayorSubida).toBeGreaterThan(20)
+    // La dermis entre las dos como poco; lo que lee la de dentro es la sábana alrededor, y en la falda se lleva unas
+    // décimas de lo de al lado.
+    expect(peor).toBeGreaterThanOrEqual(DERMIS_MM - 0.2)
+  })
+
+  it('en un miembro redondo, la cara de dentro, que tiene menos vuelta, no se tiende más ancha que la de fuera', () => {
+    // Lo del tobillo, sin herida ninguna: medida por la piel, la falda baja lo mismo por milímetro en las dos caras, pero
+    // la de dentro da la vuelta a 3 mm menos del eje, y a igual ángulo le queda menos camino. A un radián de la cima subía
+    // un milímetro más de lo que le dejaba la de fuera, y asomaba. Es lo que para el techo.
+    const R = 0.02
+    const fuera = new THREE.CylinderGeometry(R, R, 0.06, 126, 60, true)
+    const dentro = new THREE.CylinderGeometry(R - 0.003, R - 0.003, 0.06, 126, 60, true)
+    const n = fuera.getAttribute('position').count
+    const indices = Array.from(fuera.getIndex()!.array)
+    const vueltas = Array.from(dentro.getIndex()!.array)
+    for (let t = 0; t < vueltas.length; t += 3) [vueltas[t + 1], vueltas[t + 2]] = [vueltas[t + 2], vueltas[t + 1]]
+    const geometria = new THREE.BufferGeometry()
+    const posiciones = new Float32Array(n * 6)
+    posiciones.set(fuera.getAttribute('position').array as Float32Array)
+    posiciones.set(dentro.getAttribute('position').array as Float32Array, n * 3)
+    const normales = new Float32Array(n * 6)
+    normales.set(fuera.getAttribute('normal').array as Float32Array)
+    normales.set((dentro.getAttribute('normal').array as Float32Array).map((v) => -v), n * 3)
+    geometria.setAttribute('position', new THREE.BufferAttribute(posiciones, 3))
+    geometria.setAttribute('normal', new THREE.BufferAttribute(normales, 3))
+    geometria.setIndex([...indices, ...vueltas.map((v) => v + n)])
+    const marca = new Float32Array(n * 2)
+    marca.fill(1, n)
+    geometria.setAttribute(ATRIBUTO_DE_LA_CARA_DE_DENTRO, new THREE.BufferAttribute(marca, 1))
+    const piel = new THREE.Mesh(geometria, new THREE.MeshBasicMaterial())
+    piel.updateMatrixWorld(true)
+    // El trozo, 20 mm por encima de la piel en lo alto del miembro (el cilindro de three tiene el ángulo 0 en +z).
+    expect(crearAbultamientoDeLaPiel().alDia([piel], [trozo(0, R * 1000 + 20)], 1000)).toBe(true)
+    const p = geometria.getAttribute('position')
+    const radioMm = (i: number) => Math.hypot(p.getX(i), p.getZ(i)) * 1000
+    let peor = Infinity
+    for (let i = 0; i < n; i++) peor = Math.min(peor, radioMm(i) - radioMm(n + i))
+    expect(Math.max(...Array.from({ length: n }, (_, i) => radioMm(i)))).toBeGreaterThan(R * 1000 + 20)
+    // Sin techo quedaba 1,6 mm por fuera. Con él, media dermis como poco: al pie de la falda de la de fuera, la campana
+    // con que la de dentro la lee recoge medio milímetro de lo que sube al lado.
+    expect(peor).toBeGreaterThanOrEqual(DERMIS_MM / 2)
+  })
+
+  it('la cara de dentro sube al menos lo de la de fuera: la piel no engorda sobre el bulto', () => {
+    const { piel, nFuera } = pielDeDosCaras()
+    crearAbultamientoDeLaPiel().alDia([piel], [trozo(0, 20)], 1000)
+    let mayorGrosor = 0
+    for (let i = 0; i < 61 * 61; i++) mayorGrosor = Math.max(mayorGrosor, zMm(piel, i) - zMm(piel, nFuera + i))
+    expect(mayorGrosor).toBeLessThanOrEqual(3 + 0.2)
+  })
+
+  it('los dos labios de una incisión cerrada suben lo mismo: el bulto pasa por ella como si no estuviera', () => {
+    // Sin atarlos, el labio del lado del trozo subía con la tienda y el otro se quedaba: un escalón de milímetros a lo
+    // largo de la incisión, con la pared a la vista.
+    const { piel, repetido } = pielDeDosCaras({ incision: true })
+    crearAbultamientoDeLaPiel().alDia([piel], [trozo(8, 16)], 1000)
+    let subida = 0
+    for (const [original, gemelo] of repetido) {
+      // Una centésima: el margen con que `tenderLaPiel` deja de subir lo que ya está casi a su altura.
+      expect(Math.abs(zMm(piel, gemelo) - zMm(piel, original))).toBeLessThanOrEqual(0.011)
+      subida = Math.max(subida, zMm(piel, original))
+    }
+    // Y suben de verdad: la incisión está dentro de la falda del bulto.
+    expect(subida).toBeGreaterThan(2)
+  })
+
+  it('da la piel de debajo del bulto mientras nadie la reescriba, y el trazo la usa para bajar a ella', () => {
+    const { piel } = pielDeDosCaras()
+    const antes = Float32Array.from(piel.geometry.getAttribute('position').array as Float32Array)
+    expect(pielSinAbultar(piel)).toBeNull()
+    expect(conSuBulto(piel)).toBeNull()
+    crearAbultamientoDeLaPiel().alDia([piel], [trozo(0, 20)], 1000)
+    expect([...(pielSinAbultar(piel) ?? [])]).toEqual([...antes])
+    const conBulto = conSuBulto(piel)
+    expect(conBulto?.ahora).toBe(piel.geometry.getAttribute('position').array)
+    expect(Array.from(conBulto?.reposo ?? [])).toEqual([...antes])
+    // Una herida que reescribe la piel deja lo de ahora sin bulto que quitar: ya no hay nada que bajar.
+    const atributo = piel.geometry.getAttribute('position') as THREE.BufferAttribute
+    ;(atributo.array as Float32Array).set(antes)
+    atributo.needsUpdate = true
+    expect(pielSinAbultar(piel)).toBeNull()
+    expect(conSuBulto(piel)).toBeNull()
   })
 })

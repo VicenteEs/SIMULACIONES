@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
+import { alargamiento, ejePrincipal } from '@/lib/aspectoAnatomico'
 import {
+  ALARGAMIENTO_DE_UN_MIEMBRO,
   PENDIENTE_MAXIMA_EN_LA_PUNTA,
   PUNTA_DEL_HUSO_MM,
   RETRACCION_DE_LA_FASCIA,
   RETRACCION_DE_LA_PIEL,
+  RETRACCION_DE_LA_PIEL_A_TRAVES,
   RETRACCION_DEL_MUSCULO_A_LO_LARGO,
   RETRACCION_DEL_MUSCULO_A_TRAVES,
   avanceDeLaRetraccion,
+  cuantoCruzaLaTension,
   cuantoCruzaLasFibras,
   puntaDelHuso,
   retraccionDelLabioMm,
@@ -67,8 +71,25 @@ describe('cuánto se retrae cada tejido', () => {
     expect(enDiagonal).toBeLessThan(aTraves)
     expect(retraccionDelLabioMm('musculo', 60, 7)).toBe(aTraves)
     expect(retraccionDelLabioMm('musculo', 60, -2)).toBe(aLoLargo)
-    // En la piel y en la fascia no cuenta cómo cruce nada.
-    expect(retraccionDelLabioMm('piel', 60, 1)).toBe(retraccionDelLabioMm('piel', 60, 0))
+    // En la fascia no cuenta cómo cruce nada.
+    expect(retraccionDelLabioMm('fascia', 60, 1)).toBe(retraccionDelLabioMm('fascia', 60, 0))
+  })
+
+  it('la piel cortada a través de sus líneas de tensión se abre el doble que a lo largo (D-422)', () => {
+    // A lo largo, como hasta D-422: el abordaje de 5 cm de la pierna sigue en un ojal de 7 mm.
+    expect(retraccionDelLabioMm('piel', 50, 0)).toBeCloseTo(RETRACCION_DE_LA_PIEL.topeMm, 6)
+    for (const largo of [10, 30, 50, 120]) {
+      const aLoLargo = retraccionDelLabioMm('piel', largo, 0)
+      expect(retraccionDelLabioMm('piel', largo, 1)).toBeCloseTo(2 * aLoLargo, 6)
+      // A 45° de ellas, lo que tira de través sobre el corte es la mitad de cada una.
+      expect(retraccionDelLabioMm('piel', largo, 0.5)).toBeCloseTo(1.5 * aLoLargo, 6)
+    }
+    expect(retraccionDelLabioMm('piel', 200, 1)).toBe(RETRACCION_DE_LA_PIEL_A_TRAVES.topeMm)
+    // Y aun de través, la piel no deja de ser lo que más se abre, ni su punta se pliega (`topeDeLaRetraccionMm`).
+    for (const largo of [8, 20, 40, 50, 60, 120]) {
+      expect(retraccionDelLabioMm('piel', largo, 1)).toBeGreaterThan(retraccionDelLabioMm('fascia', largo))
+      expect(retraccionDelLabioMm('piel', largo, 1)).toBeLessThan(topeDeLaRetraccionMm(largo, true))
+    }
   })
 
   it('una incisión sin largo no se abre', () => {
@@ -93,6 +114,67 @@ describe('cuánto cruza el trazo las fibras', () => {
   it('sin trazo o sin eje no cruza nada, y no da un número roto', () => {
     expect(cuantoCruzaLasFibras([0, 0, 0], [0, 1, 0])).toBe(0)
     expect(cuantoCruzaLasFibras([1, 0, 0], [0, 0, 0])).toBe(0)
+  })
+})
+
+describe('cuánto cruza el trazo las líneas de tensión de la piel (D-422)', () => {
+  /** La piel de un tubo: anillos de `vueltas` vértices a lo largo de y. */
+  const tubo = (largo: number, diametro: number, anillos = 41, vueltas = 24): Float32Array => {
+    const p: number[] = []
+    for (let i = 0; i < anillos; i++)
+      for (let k = 0; k < vueltas; k++) {
+        const a = (2 * Math.PI * k) / vueltas
+        p.push((diametro / 2) * Math.cos(a), (largo * i) / (anillos - 1) - largo / 2, (diametro / 2) * Math.sin(a))
+      }
+    return Float32Array.from(p)
+  }
+
+  it('el alargamiento de la piel de un tubo es 0,82 de su largo sobre su diámetro, y el de una esfera, 1', () => {
+    const piel = tubo(250, 70)
+    const eje = ejePrincipal(piel)
+    expect(Math.abs(eje[1])).toBeGreaterThan(0.999)
+    // Con anillos en los extremos el largo no se reparte del todo parejo: un poco más que 0,82 · 25 / 7 = 2,92.
+    expect(alargamiento(piel, eje)).toBeGreaterThan(2.9)
+    expect(alargamiento(piel, eje)).toBeLessThan(3.1)
+    // Repartidos parejo (la espiral de Fibonacci): por anillos iguales, los polos se llevan tantos vértices como el
+    // ecuador y la esfera sale 1,34 veces más larga de polo a polo.
+    const esfera: number[] = []
+    for (let i = 0; i < 500; i++) {
+      const y = 1 - (2 * (i + 0.5)) / 500
+      const r = Math.sqrt(1 - y * y)
+      const a = i * Math.PI * (3 - Math.sqrt(5))
+      esfera.push(r * Math.cos(a), y, r * Math.sin(a))
+    }
+    const deLaEsfera = Float32Array.from(esfera)
+    expect(alargamiento(deLaEsfera, ejePrincipal(deLaEsfera))).toBeLessThan(1.15)
+  })
+
+  it('en un miembro, la transversal las cruza del todo y la que va a lo largo nada', () => {
+    const piel = tubo(250, 70)
+    const eje = ejePrincipal(piel)
+    const largo = alargamiento(piel, eje)
+    expect(cuantoCruzaLaTension([1, 0, 0], eje, largo)).toBeCloseTo(1, 6)
+    expect(cuantoCruzaLaTension([0, 0, 1], eje, largo)).toBeCloseTo(1, 6)
+    expect(cuantoCruzaLaTension([0, 1, 0], eje, largo)).toBeCloseTo(0, 6)
+    expect(cuantoCruzaLaTension([1, 1, 0], eje, largo)).toBeCloseTo(0.5, 6)
+  })
+
+  it('en lo que no es un miembro no se sabe hacia dónde van: se abre como antes, en cualquier dirección', () => {
+    const { desde, hasta } = ALARGAMIENTO_DE_UN_MIEMBRO
+    expect(cuantoCruzaLaTension([1, 0, 0], [0, 1, 0], 1)).toBe(0)
+    expect(cuantoCruzaLaTension([1, 0, 0], [0, 1, 0], desde)).toBe(0)
+    // Entre los dos umbrales, de a poco: una piel algo alargada no salta de una regla a la otra.
+    expect(cuantoCruzaLaTension([1, 0, 0], [0, 1, 0], (desde + hasta) / 2)).toBeCloseTo(0.5, 6)
+    expect(cuantoCruzaLaTension([1, 0, 0], [0, 1, 0], hasta)).toBeCloseTo(1, 6)
+    // Un trozo de tronco tan largo como ancho, ovalado: no pasa por miembro.
+    const tronco: number[] = []
+    for (let i = 0; i < 31; i++)
+      for (let k = 0; k < 36; k++) {
+        const a = (2 * Math.PI * k) / 36
+        tronco.push(175 * Math.cos(a), (350 * i) / 30 - 175, 110 * Math.sin(a))
+      }
+    const delTronco = Float32Array.from(tronco)
+    expect(alargamiento(delTronco, ejePrincipal(delTronco))).toBeLessThan(desde)
   })
 })
 

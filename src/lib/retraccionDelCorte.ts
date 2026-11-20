@@ -13,7 +13,8 @@
  * grasa hay debajo y de cómo cruza las líneas de tensión de la piel—. Son lo que se ve en pabellón, redondeado:
  *
  * - **La piel** es lo que más se abre. Está tensa en todas direcciones y, cortada con su grasa, una incisión de cinco
- *   centímetros en una pierna queda en un ojal de seis a ocho milímetros.
+ *   centímetros a lo largo de una pierna queda en un ojal de seis a ocho milímetros. No igual en todas, sin embargo
+ *   (D-422): tira más a lo largo de sus líneas de tensión, y la incisión que las cruza se abre el doble.
  * - **La fascia profunda** se abre menos: es una lámina fibrosa, tensa pero poco elástica. Unos milímetros.
  * - **El músculo** depende de cómo se lo corte. Abierto **a lo largo** de sus fibras apenas se separa: las fibras
  *   siguen enteras a los dos lados. Cortado **a través**, cada fibra partida se encoge hacia su inserción y los dos
@@ -33,7 +34,28 @@ interface ReglaDeRetraccion {
   topeMm: number
 }
 
+/** La piel abierta a lo largo de sus líneas de tensión: la incisión de un abordaje de la pierna, que es lo que se ve en pabellón. */
 export const RETRACCION_DE_LA_PIEL: ReglaDeRetraccion = { porMilimetro: 0.07, topeMm: 3.5 }
+/**
+ * La piel cortada a través de sus líneas de tensión (D-422): el doble. Hasta D-422 la piel se abría igual en cualquier
+ * dirección, y una incisión transversal de la pierna quedaba tan cerrada como la del abordaje, que va a lo largo; la
+ * herida transversal de la espinilla es justamente la que más se abre. Lo que se sabe:
+ *
+ * - La piel viva está estirada de antemano, y más a lo largo de sus líneas que a través. Extirpada, se encoge un 23 % a
+ *   lo largo y un 10 % a través (Destrade y otros, en perro, Skin Res Technol 2017): lo que estaba estirado es 0,30
+ *   frente a 0,11, casi el triple.
+ * - Una herida que cruza esas líneas se retrae más que una paralela a ellas, y pide más tensión para cerrarla (piel de
+ *   cerdo, Plast Reconstr Surg 1977). Langer, que las dibujó pinchando cadáveres, veía el agujero redondo de un punzón
+ *   quedar en un ojal a lo largo de ellas.
+ * - En la pierna van a lo largo: cerrar en vertical pide menos tensión que cerrar en cualquier otra dirección (Paul y
+ *   otros, 2018, medido con tensiómetro en 23 heridas de la extremidad inferior). Es lo que el lienzo toma por eje
+ *   (`cuantoCruzaLaTension`).
+ *
+ * El doble y no el triple: la pierna es un tubo y la piel también tira alrededor de él, y con el triple un corte
+ * transversal de cuatro centímetros ya se abría lo que su punta tolera (`topeDeLaRetraccionMm`). En medio se mezcla
+ * como el músculo, por el cuadrado del seno: lo que tira de través sobre la línea del corte.
+ */
+export const RETRACCION_DE_LA_PIEL_A_TRAVES: ReglaDeRetraccion = { porMilimetro: 0.14, topeMm: 7 }
 export const RETRACCION_DE_LA_FASCIA: ReglaDeRetraccion = { porMilimetro: 0.04, topeMm: 2 }
 /** El músculo abierto a lo largo de sus fibras: el menor de los tres. Tiene que quedar por debajo de la fascia, o su herida no se vería por la de ella. */
 export const RETRACCION_DEL_MUSCULO_A_LO_LARGO: ReglaDeRetraccion = { porMilimetro: 0.03, topeMm: 1.2 }
@@ -51,16 +73,18 @@ const aplicar = (regla: ReglaDeRetraccion, largoMm: number) => Math.min(regla.to
 /**
  * Lo que se retrae solo cada labio de una incisión de `largoMm` en ese plano, en milímetros, en lo más ancho.
  *
- * `aTraves` solo cuenta en el plano muscular: de 0 (la incisión va a lo largo de las fibras) a 1 (las cruza en ángulo
- * recto). Es el cuadrado del seno del ángulo entre las dos (`cuantoCruzaLasFibras`).
+ * `aTraves` es cuánto cruza la incisión lo que tensa ese plano, de 0 (va a lo largo) a 1 (lo cruza en ángulo recto): en
+ * el músculo, sus fibras; en la piel, sus líneas de tensión (D-422). Es el cuadrado del seno del ángulo entre las dos
+ * (`cuantoCruzaLasFibras`). La fascia no lo mira: en la pierna la crural tira sobre todo alrededor, al revés que la piel,
+ * y sin saberlo de cada fascia vale más abrirla igual en todas.
  */
 export function retraccionDelLabioMm(plano: PlanoBlando, largoMm: number, aTraves = 0): number {
   if (!(largoMm > 0)) return 0
-  if (plano === 'piel') return aplicar(RETRACCION_DE_LA_PIEL, largoMm)
   if (plano === 'fascia') return aplicar(RETRACCION_DE_LA_FASCIA, largoMm)
   const k = Math.min(1, Math.max(0, aTraves))
-  const aLoLargo = aplicar(RETRACCION_DEL_MUSCULO_A_LO_LARGO, largoMm)
-  return aLoLargo + (aplicar(RETRACCION_DEL_MUSCULO_A_TRAVES, largoMm) - aLoLargo) * k
+  const [aLo, aTra] = plano === 'piel' ? [RETRACCION_DE_LA_PIEL, RETRACCION_DE_LA_PIEL_A_TRAVES] : [RETRACCION_DEL_MUSCULO_A_LO_LARGO, RETRACCION_DEL_MUSCULO_A_TRAVES]
+  const aLoLargo = aplicar(aLo, largoMm)
+  return aLoLargo + (aplicar(aTra, largoMm) - aLoLargo) * k
 }
 
 /**
@@ -74,6 +98,56 @@ export function cuantoCruzaLasFibras(incision: readonly [number, number, number]
   if (li < 1e-12 || lf < 1e-12) return 0
   const coseno = (incision[0] * fibras[0] + incision[1] * fibras[1] + incision[2] * fibras[2]) / (li * lf)
   return Math.min(1, Math.max(0, 1 - coseno * coseno))
+}
+
+/**
+ * Desde cuánto alargamiento (`alargamiento` de `aspectoAnatomico.ts`) una piel es la de un miembro, y hasta cuánto
+ * todavía no del todo. La piel de un tubo de diámetro D y largo L da 0,82 · L / D —lo largo, repartido parejo, contra
+ * un contorno—: un antebrazo de 25 cm y 7 de diámetro, 2,9; un recorte de pierna dos veces más largo que grueso, 1,6.
+ * Un trozo de tronco tan largo como ancho, de sección ovalada, da 0,8.
+ */
+export const ALARGAMIENTO_DE_UN_MIEMBRO = { desde: 1.3, hasta: 1.6 }
+
+/**
+ * Cuánto cruza una incisión las líneas de tensión de la piel, de 0 a 1, para `retraccionDelLabioMm` (D-422): en un
+ * miembro van a lo largo de él (su `eje`), y se mide como las fibras de un músculo. En una malla que no es un miembro
+ * —poco `alargada`— no se sabe hacia dónde van: en el tronco Langer las dibujó de través, al revés que en la pierna. Ahí
+ * no cruza nada y la piel se abre como hasta D-422, que es como se abre a lo largo.
+ */
+export function cuantoCruzaLaTension(incision: readonly [number, number, number], eje: readonly [number, number, number], alargado: number): number {
+  const { desde, hasta } = ALARGAMIENTO_DE_UN_MIEMBRO
+  const miembro = Math.min(1, Math.max(0, (alargado - desde) / (hasta - desde)))
+  return miembro > 0 ? cuantoCruzaLasFibras(incision, eje) * miembro : 0
+}
+
+/**
+ * Lo que mide de una cresta a la siguiente una arruga de la piel apretada, en milímetros (D-423).
+ *
+ * La piel que se aprieta no se acorta: se dobla, como una lámina dura sobre una blanda. Una lámina así se arruga con una
+ * onda de 2π·t·(E/3E₀)^⅓, con `t` su grosor y `E`, `E₀` lo rígida que es ella y lo que tiene debajo: la dermis, de un
+ * milímetro y medio, sobre la grasa, cientos de veces más blanda, da de 20 a 50 mm. Las arrugas finas de la epidermis
+ * —décimas de milímetro— no las dibuja una malla de 2 mm, ni se ven desde la distancia del cirujano. Con 20, detrás de
+ * un Farabeuf caben una o dos crestas en lo que arrastra (45 mm), que es lo que se ve: un rodete o dos, no un acordeón.
+ */
+export const ONDA_DE_LAS_ARRUGAS_MM = 20
+
+/**
+ * Lo que la piel viva está estirada antes de cortarla, en cada dirección, en fracción de su largo (D-423): lo que se
+ * puede apretar sin arrugarse, porque solo devuelve lo que ya tenía de más. Se mide en la dirección en que se aprieta,
+ * que es la que cruza el corte: un corte a lo largo de las líneas de tensión aprieta de través, donde la piel está
+ * menos estirada (un 10 %), y uno de través aprieta a lo largo de ellas (un 23 %). Es lo que se encoge la piel al
+ * extirparla en cada dirección (Destrade y otros, en perro, 2017), la misma fuente de `RETRACCION_DE_LA_PIEL_A_TRAVES`.
+ */
+export const ESTIRADA_PREVIA_DE_LA_PIEL = { aTraves: 0.1, aLoLargo: 0.23 }
+
+/**
+ * Las arrugas de la piel con un corte que cruza sus líneas de tensión lo que dice `cruza`, de 0 a 1
+ * (`cuantoCruzaLaTension`): su onda en milímetros y lo que aguanta apretada sin arrugarse (D-423).
+ */
+export function arrugasDeLaPiel(cruza: number): { ondaMm: number; estiradaPrevia: number } {
+  const k = Math.min(1, Math.max(0, cruza))
+  const { aTraves, aLoLargo } = ESTIRADA_PREVIA_DE_LA_PIEL
+  return { ondaMm: ONDA_DE_LAS_ARRUGAS_MM, estiradaPrevia: aTraves + (aLoLargo - aTraves) * k }
 }
 
 /** La fracción del largo que tarda el huso en abrirse del todo desde cada punta: lo que pide `huso` de `corteDeMalla.ts`. */

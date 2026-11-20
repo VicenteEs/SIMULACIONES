@@ -417,10 +417,37 @@ export interface CodoEnLaPunta {
 }
 
 /**
+ * El trazo llevado a que empiece en `punta` sin quebrarse: cada punto se mueve lo que separa su primer punto de la punta,
+ * menos cuanto más lejos va, hasta no moverse nada el último (D-421).
+ *
+ * Antes la punta se ponía delante del trazo (`anclado`), y la mano casi nunca empieza justo en ella: en la pierna del
+ * taller del caso 86, el brazo de la L arrancaba 2 mm al lado, y la pierna salía con un gancho de 54° en sus primeros 2 mm.
+ * La herida se abre en perpendicular a la pierna según por dónde de ella cae cada vértice (`cuantoSeAparta`), y junto a un
+ * gancho dos vértices vecinos del lado de dentro caen uno en su punta y otro 30 % más allá: uno no se movía y el de al
+ * lado 9 mm, y con los dos Farabeuf la esquina daba 100 triángulos vueltos. Llevando todo el trazo, lo que se tuerce es
+ * esos 2 mm repartidos en lo que mida la pierna, y el otro extremo queda donde terminó la mano.
+ */
+function desdeLaPunta(t: TrazoDeIncision, punta: Punto, n: Punto): TrazoDeIncision {
+  const recorrido = [0]
+  for (let i = 1; i < t.puntos.length; i++) recorrido.push(recorrido[i - 1] + distancia(t.puntos[i - 1], t.puntos[i]))
+  const largo = recorrido[recorrido.length - 1]
+  if (!(largo > 0)) return anclado(t, { p: punta, n })
+  const p0 = t.puntos[0]
+  const hasta: Punto = [punta[0] - p0[0], punta[1] - p0[1], punta[2] - p0[2]]
+  return {
+    puntos: t.puntos.map((p, i): Punto => {
+      const f = 1 - recorrido[i] / largo
+      return [p[0] + hasta[0] * f, p[1] + hasta[1] * f, p[2] + hasta[2] * f]
+    }),
+    normales: [n, ...t.normales.slice(1)],
+  }
+}
+
+/**
  * El trazo que sale de una punta libre de `e` (a menos de `alcance`) en ángulo, como pierna que nace en ella (D-420), o
- * `null` si sigue de frente y la alarga. La pierna empieza en la punta misma: lo que el trazo tenga a menos de un
- * milímetro de ella se quita, porque de ahí sale la dirección con que `cruzarLaLinea` pasa la esquina, y un tramo de una
- * décima apuntaría a cualquier parte.
+ * `null` si sigue de frente y la alarga. La pierna empieza en la punta misma (`desdeLaPunta`): lo que el trazo tenga a
+ * menos de un milímetro de ella se quita, porque de ahí sale la dirección con que `cruzarLaLinea` pasa la esquina, y un
+ * tramo de una décima apuntaría a cualquier parte.
  */
 export function codoEnLaPunta(e: IncisionExistente, nuevo: TrazoDeIncision, alcance: number, mm: number): CodoEnLaPunta | null {
   if (e.puntos.length < 2 || nuevo.puntos.length < 2) return null
@@ -458,7 +485,7 @@ export function codoEnLaPunta(e: IncisionExistente, nuevo: TrazoDeIncision, alca
   const resto = { puntos: trazo.puntos.slice(desde), normales: trazo.normales.slice(desde) }
   const n = e.normales[mejor.alFinal ? e.normales.length - 1 : 0] ?? resto.normales[0] ?? [0, 0, 1]
   return {
-    pedazo: { ...anclado(resto, { p: punta, n }), nace: [{ en: e.id, punto: punta }] },
+    pedazo: { ...desdeLaPunta(resto, punta, n), nace: [{ en: e.id, punto: punta }] },
     alFinal: mejor.alFinal,
     fuera: [fuera[0] / largoFuera, fuera[1] / largoFuera, fuera[2] / largoFuera],
   }

@@ -561,8 +561,26 @@ describe('dos incisiones que se cruzan son una sola (D-420)', () => {
     expect(pierna.nace).toEqual([{ en: 1, punto: [90, 0, 0] }])
     expect(pierna.puntos[0]).toEqual([90, 0, 0])
     expect(pierna.puntos[pierna.puntos.length - 1]).toEqual([91, 40, 0])
-    // El primer punto del trazo, a 1,4 mm de la punta, se queda: la dirección de la esquina sale de ahí.
-    expect(pierna.puntos[1]).toEqual([91, 1, 0])
+    // Recta de la punta a donde acabó la mano, sin el gancho hasta su primer punto, a 1,4 mm al lado (D-421).
+    for (const p of pierna.puntos) expect(p[0] - 90).toBeCloseTo(p[1] / 40, 9)
+  })
+
+  it('el brazo que la mano empieza al lado de la punta sale de ella sin gancho, y acaba donde acabó la mano (D-421)', () => {
+    // Como en la pierna del caso 86: la mano empieza 2 mm al lado y 1,5 por delante, y sigue recta, punto a punto.
+    const puntos: Punto[] = []
+    for (let y = 1.5; y <= 40; y += 1) puntos.push([92, y, 0])
+    const d = decidirElTrazo([incision], 'piel', por(...puntos), opciones)
+    if (d.tipo !== 'alarga' || !d.codo) throw new Error('debía ser una L')
+    const pierna = d.ramas![0].puntos
+    expect(pierna[0]).toEqual([90, 0, 0])
+    expect(pierna[pierna.length - 1]).toEqual(puntos[puntos.length - 1])
+    // Ningún tramo se tuerce más de 5° respecto de la pierna entera: el gancho de antes iba a 37°.
+    const toda = [pierna[pierna.length - 1][0] - pierna[0][0], pierna[pierna.length - 1][1] - pierna[0][1]]
+    for (let i = 1; i < pierna.length; i++) {
+      const tramo = [pierna[i][0] - pierna[i - 1][0], pierna[i][1] - pierna[i - 1][1]]
+      const coseno = (tramo[0] * toda[0] + tramo[1] * toda[1]) / (Math.hypot(...tramo) * Math.hypot(...toda))
+      expect(coseno).toBeGreaterThan(Math.cos((5 * Math.PI) / 180))
+    }
   })
 
   it('por la punta del inicio y con el trazo dibujado hacia la incisión, igual', () => {

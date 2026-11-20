@@ -78,9 +78,39 @@ describe('los separadores colocados abren donde están', () => {
     expect(angosta).toBeLessThan(ancha)
   })
 
-  it('con dos hojas en el mismo labio, entre ellas el labio no se hunde: las dos tiran de él', () => {
+  it('con dos hojas en el mismo labio, entre ellas el borde se comba hacia la herida (D-423)', () => {
+    // Hasta D-423 iba en recta, a 12 mm de un gancho al otro. Las hojas de 12 mm en 0,3 y 0,7 de una herida de 60 dejan
+    // 12 mm de piel suelta entre sus bordes: en el medio baja a 12 / cosh(12 / 40).
     const s = [separador({ id: 1, posicion: 0.3, aperturaMm: 12 }), separador({ id: 2, posicion: 0.7, aperturaMm: 12 })]
-    expect(aperturaEnLaPosicion(s, 0.5, 60).mas).toBeCloseTo(12, 5)
+    expect(aperturaEnLaPosicion(s, 0.5, 60).mas).toBeCloseTo(12 / Math.cosh(12 / 40), 5)
+    // Bajo cada hoja, lo del panel entero: es rígida.
+    expect(aperturaEnLaPosicion(s, 0.35, 60).mas).toBeCloseTo(12, 5)
+    expect(aperturaEnLaPosicion(s, 0.65, 60).mas).toBeCloseTo(12, 5)
+    // Más separadas, se comban más: en una herida de 120, con 60 mm de piel suelta entre ellas, baja casi a la mitad.
+    const lejos = [separador({ id: 1, posicion: 0.2, aperturaMm: 12 }), separador({ id: 2, posicion: 0.8, aperturaMm: 12 })]
+    expect(aperturaEnLaPosicion(lejos, 0.5, 120).mas).toBeCloseTo(12 / Math.cosh(60 / 40), 5)
+    // Y baja de una hoja a la otra sin saltos: lo más empinado, al salir de cada hoja, es κ·y·tanh(κD/2) = 0,54 mm por
+    // mm, 0,65 en cada paso de 1,2 mm.
+    let antes = aperturaEnLaPosicion(lejos, 0.25, 120).mas
+    for (let x = 0.26; x <= 0.75; x += 0.01) {
+      const ahora = aperturaEnLaPosicion(lejos, x, 120).mas
+      expect(Math.abs(ahora - antes)).toBeLessThan(0.66)
+      antes = ahora
+    }
+  })
+
+  it('una hoja más baja entre dos altas, que la recta dejaba en el aire, sostiene el labio bajo la comba (D-423)', () => {
+    const s = [
+      separador({ id: 1, posicion: 0.2, aperturaMm: 12 }),
+      separador({ id: 2, posicion: 0.5, aperturaMm: 9 }),
+      separador({ id: 3, posicion: 0.8, aperturaMm: 12 }),
+    ]
+    // Sin la del medio, el borde bajaría ahí a 12 / cosh(1,5) = 5,1 mm; con ella, la sostiene a 9.
+    expect(aperturaEnLaPosicion(s, 0.5, 120).mas).toBeCloseTo(9, 5)
+    // Y entre ella y cada una de las altas, otra vez combado: por debajo de la recta.
+    const entre = aperturaEnLaPosicion(s, 0.35, 120).mas
+    expect(entre).toBeLessThan(10.5)
+    expect(entre).toBeGreaterThan(5)
   })
 
   it('pegada a una punta no abre más de lo que la piel aguanta, y la punta sigue cerrada', () => {

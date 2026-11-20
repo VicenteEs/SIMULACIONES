@@ -23,7 +23,7 @@ import {
 } from '@/lib/exposicion'
 import { LIMITE_PARA_COLOCAR_MM, HONDURA_PARA_CAMBIAR_DE_PLANO_MM } from '@/lib/abordajePorPlanos'
 import { bajoElTrazo } from '@/lib/corteDeMalla'
-import { abrirCapa, FUNDIDO_JUNTO_A_LA_PUNTA_MM, largoEnMm, verticeEnReposo, type HeridaEnCapa } from './heridas'
+import { abrirCapa, ATRIBUTO_DE_LA_PARED, FUNDIDO_JUNTO_A_LA_PUNTA_MM, largoEnMm, verticeEnReposo, type HeridaEnCapa } from './heridas'
 
 /**
  * Las pinzas y los separadores puestos en el campo, dentro de la escena.
@@ -187,6 +187,68 @@ export function labioEnLaPosicion(h: HeridaEnCapa, lado: 1 | -1, t: number): Pun
 }
 
 /**
+ * Dónde se busca el borde que se ve de un labio alrededor del punto de su cadena (`bordeQueSeVe`), en milímetros: de lado,
+ * a lo largo de la herida; hacia la herida y hacia fuera, y por encima de él. Por encima llega a lo que sube la piel sobre
+ * el trozo de tibia del caso 3 (hasta 30 mm, `pielSinAbultar`), y hacia fuera, a lo que ese bulto la corre.
+ */
+const BUSCAR_EL_BORDE_MM = { deLado: 3, haciaDentro: 6, haciaFuera: 25, arriba: 40 }
+
+/**
+ * El borde que se ve de un labio de la piel, en el mundo: lo más alto de su pared junto al punto `labio` de su cadena, o
+ * `null` si queda a la altura de él o no hay pared (D-423). `n` es la normal de la piel ahí y `hacia`, hacia dónde se
+ * aparta el labio.
+ *
+ * La cadena del labio es la de vértices por donde pasó el corte, y no siempre es el borde de arriba. Sobre la tibia del
+ * caso 3 el trazo se baja del bulto (D-421) y la cadena queda en la cara de dentro, cuatro milímetros y medio bajo la de
+ * fuera; y el abultamiento, que se suma después, sube la piel del labio hasta 23 mm y la corre 8 hacia fuera sin mover la
+ * cadena. El Farabeuf enganchaba la cadena: con el codo bajo la piel que se veía, el mango salía por debajo de ella, y
+ * al levantarlo sobre esa piel (`mangoSobreLaPiel`) quedaba de pie, a 70°, tapando el campo. La hoja tira del borde que
+ * se ve, así que se engancha ahí.
+ *
+ * Es la pared de **este** labio la que mira a la herida, contra `hacia`: la del labio de enfrente mira al revés, y con la
+ * herida recién abierta quedaría dentro de la ventana.
+ */
+function bordeQueSeVe(
+  h: HeridaEnCapa,
+  labio: THREE.Vector3,
+  n: THREE.Vector3,
+  hacia: THREE.Vector3,
+  unidadesPorMm: number,
+): THREE.Vector3 | null {
+  const g = h.malla.geometry
+  const pos = g.getAttribute('position') as THREE.BufferAttribute | undefined
+  const pared = g.getAttribute(ATRIBUTO_DE_LA_PARED) as THREE.BufferAttribute | undefined
+  const normales = g.getAttribute('normal') as THREE.BufferAttribute | undefined
+  if (!pos || !pared || !normales) return null
+  const fuera = hacia.clone().addScaledVector(n, -hacia.dot(n))
+  if (fuera.lengthSq() < 1e-12) return null
+  fuera.normalize()
+  const deLado = new THREE.Vector3().crossVectors(n, fuera)
+  const b = BUSCAR_EL_BORDE_MM
+  h.malla.updateWorldMatrix(true, false)
+  const matriz = h.malla.matrixWorld
+  const p = new THREE.Vector3()
+  const normal = new THREE.Vector3()
+  let mejor: THREE.Vector3 | null = null
+  let alto = 0.2 * unidadesPorMm
+  for (let v = 0; v < pos.count; v++) {
+    if (!(pared.getX(v) > 0)) continue
+    p.fromBufferAttribute(pos, v).applyMatrix4(matriz).sub(labio)
+    const arriba = p.dot(n)
+    if (!(arriba > alto) || arriba > b.arriba * unidadesPorMm) continue
+    if (Math.abs(p.dot(deLado)) > b.deLado * unidadesPorMm) continue
+    const afuera = p.dot(fuera)
+    if (afuera < -b.haciaDentro * unidadesPorMm || afuera > b.haciaFuera * unidadesPorMm) continue
+    if (normal.fromBufferAttribute(normales, v).transformDirection(matriz).dot(fuera) > -0.2) continue
+    alto = arriba
+    // Sin lo que queda de lado: la hoja sigue en su sitio a lo largo de la herida, y el vértice más alto puede caer
+    // a tres milímetros de él.
+    mejor = labio.clone().addScaledVector(n, arriba).addScaledVector(fuera, afuera)
+  }
+  return mejor
+}
+
+/**
  * Dónde cae un punto del mundo a lo largo de una herida (de 0 a 1) y a qué distancia de sus labios, en reposo.
  * Es lo que deja que un separador de un plano profundo abra la herida de encima **en su sitio**, aunque las dos
  * incisiones se trazaran por separado y no midan lo mismo.
@@ -271,7 +333,9 @@ function bordeDeLaPielEncima(
     // Los labios «más» y «menos» de la piel no tienen por qué ser los del plano hondo: cada plano se cortó con su trazo,
     // y pudo trazarse en el otro sentido. El suyo es el que queda hacia donde se aparta el labio hondo.
     const delLado = mas.ahora.clone().sub(menos.ahora).dot(hacia) >= 0
-    const borde = delLado ? mas.ahora : menos.ahora
+    // El borde que se ve, como el de la hoja de la piel (`bordeQueSeVe`): la hoja que baja a la fascia cuelga de él.
+    const cadena = delLado ? mas.ahora : menos.ahora
+    const borde = bordeQueSeVe(h, cadena, bajo.normal, hacia, unidadesPorMm) ?? cadena
     const enfrente = delLado ? menos.ahora : mas.ahora
     const altura = borde.dot(bajo.normal)
     const mejora = !mejor || bajo.deLadoMm < mejor.deLadoMm - 1 || (Math.abs(bajo.deLadoMm - mejor.deLadoMm) <= 1 && altura > mejor.altura)
@@ -307,6 +371,7 @@ export function labioDelSeparador(
   }
   if (!herida) return null
   const t = s.datos.posicion
+  if (s.datos.plano === 'piel') herida = laDeFuera(herida, heridasPorCapa.get('piel') ?? [], s, t)
   if (s.datos.lado !== 0) {
     const labio = labioEnLaPosicion(herida, s.datos.lado, t)
     return labio && { ...labio, herida }
@@ -315,6 +380,52 @@ export function labioDelSeparador(
   const menos = labioEnLaPosicion(herida, -1, t)
   if (!mas || !menos) return null
   return { ahora: mas.ahora.lerp(menos.ahora, 0.5), reposo: mas.reposo.lerp(menos.reposo, 0.5), herida }
+}
+
+/**
+ * Cuánto pueden separarse, en milímetros, el labio de la piel y el de la fascia superficial cortados con el mismo trazo
+ * (`laDeFuera`): de lado, casi nada; de alto, el grosor de la piel con su holgura.
+ */
+const LABIOS_DEL_MISMO_TRAZO_MM = { deLado: 3, grosor: 10 }
+
+/**
+ * De las heridas de la piel que tienen un labio en el mismo sitio que el de `herida`, la de fuera (D-423).
+ *
+ * El caso corta la fascia superficial con el papel de «piel» y con el mismo trazo (`aspectoDe`): deja dos heridas, una
+ * sobre otra, a cuatro milímetros y medio. La hoja se quedaba con la más cercana al clic, y en la L del caso 3 la del labio
+ * de abajo era la de la fascia: con el codo bajo la piel que se veía —y más todavía bajo el bulto del trozo de tibia, que
+ * sube la piel y no la fascia—, el mango salía por debajo de ella, y al levantarlo sobre esa piel (`mangoSobreLaPiel`)
+ * quedaba de pie, a 70°. Lo mismo que para colgar una hoja honda (`bordeDeLaPielEncima`): la de fuera es la que se ve, y
+ * la que la hoja sostiene.
+ *
+ * El mismo sitio es el labio del mismo lado en la misma posición, apilado: a menos de `LABIOS_DEL_MISMO_TRAZO_MM` de lado y
+ * encima. La otra rama de una L, en la misma malla, cae lejos de lado en esa posición y no cuenta.
+ */
+function laDeFuera(
+  herida: HeridaEnCapa,
+  heridas: readonly HeridaEnCapa[],
+  s: Pick<SeparadorEnEscena, 'datos' | 'punto'>,
+  t: number,
+): HeridaEnCapa {
+  const lado = s.datos.lado < 0 ? -1 : 1
+  const propio = labioEnLaPosicion(herida, lado, t)
+  const normal = propio && bajoLaHerida(herida, propio.reposo, herida.unidadesPorMm)?.normal
+  if (!propio || !normal) return herida
+  const mm = herida.unidadesPorMm
+  let mejor = herida
+  let alto = 0
+  for (const h of heridas) {
+    if (h === herida || h.hondo || (s.datos.incision !== undefined && h.incision !== s.datos.incision)) continue
+    const otro = labioEnLaPosicion(h, lado, t)
+    if (!otro) continue
+    const r = otro.reposo.clone().sub(propio.reposo)
+    const arriba = r.dot(normal)
+    if (!(arriba > alto) || arriba > LABIOS_DEL_MISMO_TRAZO_MM.grosor * mm) continue
+    if (r.addScaledVector(normal, -arriba).length() > LABIOS_DEL_MISMO_TRAZO_MM.deLado * mm) continue
+    alto = arriba
+    mejor = h
+  }
+  return mejor
 }
 
 /**
@@ -396,6 +507,120 @@ const INCLINACION_DEL_AUTOESTATICO_GRADOS = 45
 
 /** Cuánto bascula el mango de una palanca apoyada en el hueso con toda su apertura: unos 35°. */
 const BASCULA_DE_LA_PALANCA_GRADOS = 35
+
+/**
+ * Lo que el mango de una hoja de mano queda, como poco, por encima de la piel que tiene debajo, en milímetros (D-423).
+ * Lo mismo que el codo sobre el borde (`CODO_SOBRE_EL_BORDE_MM`): el mango se apoya, no flota ni se hunde.
+ */
+const MANGO_SOBRE_LA_PIEL_MM = 1
+
+/**
+ * Hasta dónde se deja levantar el mango sobre su inclinación de siempre, en grados (D-423). Más ya no es una hoja
+ * tendida que tracciona hacia fuera sino un gancho de pie, y la pala saldría de la herida: lo que pase de aquí, sobre un
+ * bulto muy alto, se queda tapado.
+ */
+const LEVANTE_MAXIMO_DEL_MANGO_GRADOS = 55
+
+/**
+ * Desde dónde mira el mango la piel que tiene debajo, en milímetros desde el codo (D-423): lo de antes es el labio que la
+ * hoja sostiene, con su pared y su borde, y no se aparta girando. Mirado, un vértice a poco más de la holgura del codo
+ * pedía casi 90° (el arcoseno de la holgura entre la distancia), y la hoja recién puesta, con la herida todavía sin abrir,
+ * salía de pie un cuadro antes de abrirla. Es el doble de lo que el codo entra en la herida.
+ */
+const MANGO_MIRA_DESDE_MM = 2 * CODO_DENTRO_DE_LA_HERIDA_MM
+
+/** Lo que mide cada instrumento en su propio marco: el medio ancho (X) y el largo del mango (+Y), en el mundo. */
+const medidasDelInstrumento = new WeakMap<THREE.Object3D, { medioAncho: number; largo: number }>()
+
+function medidasDelMango(c: InstrumentoColocado): { medioAncho: number; largo: number } | null {
+  if (!c.herramienta) return null
+  const ya = medidasDelInstrumento.get(c.herramienta.raiz)
+  if (ya) return ya
+  c.grupo.updateMatrixWorld(true)
+  const aLoSuyo = c.grupo.matrixWorld.clone().invert()
+  const caja = new THREE.Box3()
+  const p = new THREE.Vector3()
+  c.grupo.traverse((o) => {
+    const m = o as THREE.Mesh
+    const pos = m.isMesh ? (m.geometry.getAttribute('position') as THREE.BufferAttribute | undefined) : undefined
+    if (!pos) return
+    const matriz = aLoSuyo.clone().multiply(m.matrixWorld)
+    const paso = Math.max(1, Math.floor(pos.count / 4000))
+    for (let i = 0; i < pos.count; i += paso) caja.expandByPoint(p.fromBufferAttribute(pos, i).applyMatrix4(matriz))
+  })
+  if (caja.isEmpty()) return null
+  const medidas = { medioAncho: Math.max(-caja.min.x, caja.max.x), largo: caja.max.y }
+  medidasDelInstrumento.set(c.herramienta.raiz, medidas)
+  return medidas
+}
+
+/**
+ * El mango y la pala de una hoja de mano, levantados alrededor del codo lo justo para que el mango no se meta en la piel
+ * que tiene debajo (D-423).
+ *
+ * El mango va tendido a 15° del plano de la piel **en el labio** (`direccionDelMango`), y eso basta mientras la piel de
+ * fuera sea plana o baje. Sobre un trozo de hueso que la levanta, sube hacia fuera más que el mango, y su punta quedaba
+ * debajo: en la L de la pierna del taller, el Farabeuf del colgajo enseñaba el mango cortado por el borde de la piel. En
+ * la mano pasa lo contrario: la piel empuja el mango, y la hoja bascula sobre el labio que engancha. Eso se hace aquí: se
+ * mira cada vértice de la piel que cae bajo el mango —a lo largo de él y dentro de su ancho— y se gira lo que pida el
+ * que más sube, con su holgura. La pala gira con él: es una sola pieza, y se mete un poco más bajo el labio.
+ *
+ * Se mira la piel tal como está, con el bulto (`abultamiento.alDia`, que vuelve a posar los separadores cuando cambia).
+ */
+function mangoSobreLaPiel(
+  instrumento: InstrumentoColocado,
+  codo: THREE.Vector3,
+  mango: THREE.Vector3,
+  pala: THREE.Vector3,
+  pieles: readonly THREE.Mesh[],
+  unidadesPorMm: number,
+): { mango: THREE.Vector3; pala: THREE.Vector3 } {
+  const medidas = medidasDelMango(instrumento)
+  if (!medidas || pieles.length === 0) return { mango, pala }
+  const m = mango.clone().normalize()
+  // Hacia arriba del mango, en el plano que forma con la pala: hacia ahí lo lleva el giro.
+  const u = pala.clone().negate()
+  u.addScaledVector(m, -u.dot(m))
+  if (u.lengthSq() < 1e-12) return { mango, pala }
+  u.normalize()
+  const l = new THREE.Vector3().crossVectors(m, u)
+  const holgura = MANGO_SOBRE_LA_PIEL_MM * unidadesPorMm
+  const desde = MANGO_MIRA_DESDE_MM * unidadesPorMm
+  let angulo = 0
+  for (const piel of pieles) {
+    const pos = piel.geometry.getAttribute('position') as THREE.BufferAttribute | undefined
+    if (!pos) continue
+    piel.updateWorldMatrix(true, false)
+    const e = piel.matrixWorld.elements
+    const q = pos.array as ArrayLike<number>
+    const paso = pos.itemSize
+    for (let i = 0; i < pos.count; i++) {
+      const x = q[i * paso]
+      const y = q[i * paso + 1]
+      const z = q[i * paso + 2]
+      const rx = e[0] * x + e[4] * y + e[8] * z + e[12] - codo.x
+      const ry = e[1] * x + e[5] * y + e[9] * z + e[13] - codo.y
+      const rz = e[2] * x + e[6] * y + e[10] * z + e[14] - codo.z
+      const a = rx * m.x + ry * m.y + rz * m.z
+      if (!(a > desde) || a > medidas.largo) continue
+      if (Math.abs(rx * l.x + ry * l.y + rz * l.z) > medidas.medioAncho) continue
+      const b = rx * u.x + ry * u.y + rz * u.z
+      const r = Math.hypot(a, b)
+      if (!(r > holgura)) continue
+      // Girado `θ`, el punto queda a `r · sen(φ − θ)` del mango, con φ su ángulo sobre él: por debajo de la holgura pide θ.
+      const pide = Math.atan2(b, a) + Math.asin(holgura / r)
+      if (pide > angulo) angulo = pide
+    }
+  }
+  if (!(angulo > 0)) return { mango, pala }
+  const giro = new THREE.Quaternion().setFromAxisAngle(l, Math.min(angulo, (LEVANTE_MAXIMO_DEL_MANGO_GRADOS * Math.PI) / 180))
+  return { mango: m.applyQuaternion(giro), pala: pala.clone().applyQuaternion(giro) }
+}
+
+/** Las mallas de la piel que tienen herida: las que pisa el mango de una hoja de mano. */
+function pielesConHerida(heridasPorCapa: ReadonlyMap<CapaDeLaHerida, HeridaEnCapa[]> | undefined): THREE.Mesh[] {
+  return [...new Set((heridasPorCapa?.get('piel') ?? []).map((h) => h.malla))]
+}
 
 /**
  * Deja el separador en su sitio y con la apertura que tiene, como se usa en pabellón.
@@ -500,7 +725,8 @@ export function posarSeparador(
     const adentro = piel.borde.clone().sub(codo).dot(dPiel)
     const corrido = Math.min(maximo, Math.max(minimo, adentro))
     codo.addScaledVector(dPiel, adentro - corrido)
-    posarConLosDosEjes(s.instrumento.grupo, codo, mango, pala)
+    const levantado = mangoSobreLaPiel(s.instrumento, codo, mango, pala, pielesConHerida(heridasPorCapa), unidadesPorMm)
+    posarConLosDosEjes(s.instrumento.grupo, codo, levantado.mango, levantado.pala)
     return
   }
 
@@ -514,8 +740,10 @@ export function posarSeparador(
   const enfrente = labioEnLaPosicion(labio.herida, s.datos.lado > 0 ? -1 : 1, s.datos.posicion)
   const hastaEnfrente = enfrente ? Math.max(0, enfrente.ahora.clone().sub(labio.ahora).dot(haciaDentro)) : Infinity
   const adentro = Math.min(CODO_DENTRO_DE_LA_HERIDA_MM * unidadesPorMm, PARTE_DE_LA_HERIDA_PARA_EL_CODO * hastaEnfrente)
-  const codo = labio.ahora.clone().addScaledVector(n, CODO_SOBRE_EL_BORDE_MM * unidadesPorMm).addScaledVector(haciaDentro, adentro)
-  posarConLosDosEjes(s.instrumento.grupo, codo, mango, pala)
+  const borde = bordeQueSeVe(labio.herida, labio.ahora, n, d, unidadesPorMm) ?? labio.ahora
+  const codo = borde.clone().addScaledVector(n, CODO_SOBRE_EL_BORDE_MM * unidadesPorMm).addScaledVector(haciaDentro, adentro)
+  const levantado = mangoSobreLaPiel(s.instrumento, codo, mango, pala, pielesConHerida(heridasPorCapa), unidadesPorMm)
+  posarConLosDosEjes(s.instrumento.grupo, codo, levantado.mango, levantado.pala)
 }
 
 /**

@@ -11,12 +11,15 @@ import {
   ladoRespectoDe,
   retraccionDelVertice,
   solturaDelLabio,
+  tEnLaGrieta,
+  type AperturaDeUnCorte,
+  type ColgajoEnLaUnion,
   type CruceDelLabio,
   type MallaCortada,
   type SolturaDeLosLabios,
   type Vec3,
 } from '@/lib/corteDeMalla'
-import { puntaDelHuso, topeDeLaRetraccionMm } from '@/lib/retraccionDelCorte'
+import { arrugasDeLaPiel, puntaDelHuso, topeDeLaRetraccionMm } from '@/lib/retraccionDelCorte'
 
 /**
  * La herida de una capa de partes blandas dentro de la escena (D-167).
@@ -76,6 +79,8 @@ export interface HeridaEnCapa {
    * (`husoDeLaGrieta`): la mitad en una incisión corta, que es un solo arco, y menos en una larga.
    */
   punta: number
+  /** Cómo se arruga la piel que aprieta al abrirse, con la onda en unidades del mundo (D-423, `arrugasDeLaPiel`). */
+  arrugas?: { onda: number; estiradaPrevia: number }
   /**
    * Cuánto abre cada labio en cada punto de la herida, en unidades del mundo, si
    * la apertura no es pareja (separadores colocados en un punto). Sin perfil, la
@@ -121,6 +126,16 @@ export interface HeridaEnCapa {
    * Con ello cada labio, ahí, se suelta o se sujeta (`solturaDeLaHerida`, `puntasDeLosLabios`, D-420).
    */
   cruces?: { alInicio?: CrucesDelExtremo; alFinal?: CrucesDelExtremo }
+  /**
+   * Los colgajos que deja en cada incisión en que nace por un extremo (D-422): en ella, no en esta, la punta de cada uno
+   * se retrae en la unión. Lo lee `recomponer` y se lo pasa a esa herida (`ColgajoEnLaUnion`).
+   */
+  colgajos?: ColgajoDelBrazo[]
+}
+
+/** Un colgajo que deja una herida en la incisión en que nace (`ColgajoEnLaUnion` sin `otra`, más esa incisión). */
+export interface ColgajoDelBrazo extends Omit<ColgajoEnLaUnion, 'otra'> {
+  incision: number
 }
 
 /** Cómo da cada labio de un extremo unido a la otra incisión (`HeridaEnCapa.cruces`), con `partida` en milímetros. */
@@ -159,6 +174,8 @@ export interface ParametrosDeCorte {
   profundidad: number
   /** Cuánto tejido se arrastra al abrir, en unidades del mundo. */
   alcance: number
+  /** Hasta dónde llega lo arrastrado, si es más que `alcance` (`OpcionesDeCorte.arrastre`), en unidades del mundo. */
+  arrastre?: number
   /** Unidades del mundo por milímetro, para el ancho de la cinta. Sin él se supone 0,001 (metros). */
   unidadesPorMm?: number
   /** A qué incisión pertenece esta herida (P-003 E4). Sin él, la 0. */
@@ -199,6 +216,12 @@ export interface ParametrosDeCorte {
    * vez las siguientes (`cerrarCapa`), y con ellas cambian los índices de los vértices.
    */
   naceDe?: { incision: number; punto: THREE.Vector3; lado: THREE.Vector3 }[]
+  /**
+   * Cuánto cruza la incisión las líneas de tensión de la piel, de 0 (a lo largo) a 1 (de través), si se corta la piel
+   * (`cuantoCruzaLaTension`, D-423). Con él, la piel que un separador aprieta detrás del labio se arruga
+   * (`arrugasDeLaPiel`); sin él, no: lo de debajo de la piel no se arruga a la vista.
+   */
+  cruzaLaTension?: number
 }
 
 /**
@@ -384,11 +407,15 @@ export function cortarCapa(
   }
 
   const alcanceLocal = parametros.alcance / escala
+  const arrastreLocal = parametros.arrastre ? parametros.arrastre / escala : undefined
   // El brazo de una T o de una cruz (D-420): lo de enfrente de cada incisión en que nace queda aparte, y el extremo que
   // da a ella, abierto. Si esa incisión no cortó esta malla —la fascia que la otra no alcanzó—, se corta entera.
   let apartados: Float32Array | undefined
   const unida = { alInicio: false, alFinal: false }
   let cruces: HeridaEnCapa['cruces']
+  // Donde nace por un extremo, la incisión en que nace queda con un colgajo a cada lado (D-422): se mide al final, con
+  // el corte ya hecho, porque de qué lado de él queda cada tramo de la otra lo dice su propio trazo.
+  const nacimientos: { incision: number; otra: MallaCortada; suyo: 1 | -1; donde: Vec3; avance: Vec3 }[] = []
   const puntosLocales = puntos.map(aLocalVec)
   const normalesLocales = normales.map(aLocalDir)
   const mmLocal = (parametros.unidadesPorMm ?? 0.001) / escala
@@ -428,6 +455,7 @@ export function cortarCapa(
       const ya = cruces?.[cual]
       const elMenor = (a: CruceDelLabio, b: CruceDelLabio) => (a.partida <= b.partida ? a : b)
       cruces = { ...cruces, [cual]: ya ? { mas: elMenor(ya.mas, este.mas), menos: elMenor(ya.menos, este.menos) } : este }
+      nacimientos.push({ incision: otra.incision, otra: otra.corte, suyo, donde, avance: extremo.avance })
     }
   }
   const corte = cortarMalla(
@@ -441,15 +469,39 @@ export function cortarCapa(
       profundidad: parametros.profundidad / escala,
       alcance: alcanceLocal,
       // Más que la arista más larga que pueda cruzarse: el corte mira solo la
-      // franja que rodea a la incisión.
-      holgura: alcanceLocal,
+      // franja que rodea a la incisión. Y hasta donde llega lo arrastrado, que fuera de ella no tendría lado.
+      holgura: Math.max(alcanceLocal, arrastreLocal ?? 0),
+      arrastre: arrastreLocal,
+      porLaSuperficie: !parametros.hondo,
       pasoDelLabio: (PASO_DEL_LABIO_MM * (parametros.unidadesPorMm ?? 0.001)) / escala,
       pared: parametros.pared ? parametros.pared / escala : undefined,
       afinar: parametros.afinar ? parametros.afinar / escala : undefined,
       apartados,
+      unida,
     },
   )
   if (!corte) return null
+  // De qué lado de este corte queda el tramo de la otra que va hacia su inicio: el punto de ella un centímetro antes de
+  // la unión, por su tangente ahí. Con el punto de su trazo a esa altura no valía cuando nace en su punta de inicio: no
+  // hay trazo antes, y el punto caía en la unión misma.
+  const colgajos: ColgajoDelBrazo[] = nacimientos.map(({ incision, otra, suyo, donde, avance }) => {
+    const tUnion = tEnLaGrieta(otra.curva, donde)
+    const s = tUnion * otra.curva.largoTotal
+    let k = 0
+    while (k < otra.curva.tramos.length - 1 && otra.curva.tramos[k + 1].desde <= s) k++
+    const d = otra.curva.tramos[k]?.d ?? [0, 0, 0]
+    const atras: Vec3 = [donde[0] - d[0] * 10 * mmLocal, donde[1] - d[1] * 10 * mmLocal, donde[2] - d[2] * 10 * mmLocal]
+    // La punta de los colgajos (D-423): con la normal del nodo de la otra más cercano a la unión.
+    const normal = otra.curva.normales[s - (otra.curva.tramos[k]?.desde ?? 0) > 0.5 * (otra.curva.tramos[k]?.largo ?? 0) ? k + 1 : k] ?? [0, 0, 1]
+    return {
+      incision,
+      suyo,
+      tUnion,
+      inicioDelLado: ladoRespectoDe(corte.curva, atras),
+      fundido: FUNDIDO_JUNTO_A_LA_PUNTA_MM * mmLocal,
+      punta: { union: donde, tangente: d, avance, normal },
+    }
+  })
 
   const nueva = new THREE.BufferGeometry()
   nueva.setAttribute('position', new THREE.BufferAttribute(corte.posiciones.slice(), 3))
@@ -540,6 +592,12 @@ export function cortarCapa(
     tension: 1,
     asentada: 1,
     punta: puntaDelHuso(grietaMm),
+    ...(parametros.cruzaLaTension !== undefined && !parametros.hondo
+      ? (() => {
+          const { ondaMm, estiradaPrevia } = arrugasDeLaPiel(parametros.cruzaLaTension)
+          return { arrugas: { onda: ondaMm * unidadesPorMm, estiradaPrevia } }
+        })()
+      : {}),
     largo,
     unidadesPorMm,
     incision: parametros.incision ?? 0,
@@ -548,6 +606,7 @@ export function cortarCapa(
     hondo: parametros.hondo === true,
     ...(unida.alInicio || unida.alFinal ? { unida } : {}),
     ...(cruces ? { cruces } : {}),
+    ...(colgajos.length > 0 ? { colgajos } : {}),
   }
   herida.tardoMs = performance.now() - alEmpezar
   CADENAS.set(malla, [...previas, herida])
@@ -752,6 +811,10 @@ export function asentarHeridas(heridas: readonly HeridaEnCapa[], asentada: numbe
   for (const malla of mallas) recomponer(malla)
 }
 
+/** Cómo se arruga lo que aprieta la herida, en las unidades de su malla (`AperturaDeUnCorte.arrugas`, D-423). */
+export const arrugasDeLaHerida = (h: Pick<HeridaEnCapa, 'arrugas' | 'escala'>): AperturaDeUnCorte['arrugas'] =>
+  h.arrugas ? { onda: h.arrugas.onda / h.escala, estiradaPrevia: h.arrugas.estiradaPrevia } : undefined
+
 /**
  * Deja la malla con todas sus heridas abiertas lo que tiene cada una, y los bordes siguiendo a los labios. Con una
  * sola herida es lo de siempre; con varias, `componerCortes` las suma sobre la geometría del último corte.
@@ -760,9 +823,10 @@ function recomponer(malla: THREE.Mesh) {
   const cadena = CADENAS.get(malla)
   if (!cadena || cadena.length === 0) return
   const posiciones = componerCortes(
-    cadena.map((h) => ({
+    cadena.map((h, i) => ({
       corte: h.corte,
       apertura: {
+        colgajos: colgajosDe(cadena, i),
         mas: h.mas / h.escala,
         menos: h.menos / h.escala,
         perfil: h.perfil
@@ -774,6 +838,7 @@ function recomponer(malla: THREE.Mesh) {
         reposo: reposoVigente(h) / h.escala,
         punta: h.punta,
         soltura: solturaDeLaHerida(h),
+        arrugas: arrugasDeLaHerida(h),
       },
     })),
   )
@@ -784,6 +849,23 @@ function recomponer(malla: THREE.Mesh) {
   malla.geometry.computeBoundingSphere()
   malla.geometry.computeBoundingBox()
   for (const h of cadena) actualizarBordes(h)
+}
+
+/**
+ * Los colgajos de la herida `i` de una cadena (D-422): los que dejan en ella las heridas posteriores que nacen en su
+ * incisión. Nacen en la última herida de esa incisión antes de ellas, que es la que encontró el corte (`cortarCapa`).
+ */
+export function colgajosDe(cadena: readonly Pick<HeridaEnCapa, 'incision' | 'colgajos'>[], i: number): ColgajoEnLaUnion[] | undefined {
+  let salida: ColgajoEnLaUnion[] | undefined
+  for (let j = i + 1; j < cadena.length; j++) {
+    for (const { incision, ...colgajo } of cadena[j].colgajos ?? []) {
+      if (incision !== cadena[i].incision) continue
+      let k = -1
+      for (let q = j - 1; q >= 0 && k < 0; q--) if (cadena[q].incision === incision) k = q
+      if (k === i) (salida ??= []).push({ ...colgajo, otra: j })
+    }
+  }
+  return salida
 }
 
 /** Quita de la escena lo que una herida dibuja (bordes y cinta), sin tocar la geometría de la malla. */
@@ -821,7 +903,7 @@ export function cerrarCapa(h: HeridaEnCapa): HeridaEnCapa[] {
       // Y con la retracción que le quedaba: una herida cosida no se vuelve a abrir porque se cierre otra.
       const { mas, menos, perfil, incision, tension, asentada } = w
       // El extremo que da a otra incisión, el de ahora: si ella ya no está en la malla, el corte se rehízo entero.
-      Object.assign(w, nueva, { mas, menos, perfil, incision, tension, asentada, unida: nueva.unida, cruces: nueva.cruces })
+      Object.assign(w, nueva, { mas, menos, perfil, incision, tension, asentada, unida: nueva.unida, cruces: nueva.cruces, colgajos: nueva.colgajos })
       actual[actual.length - 1] = w
       recomponer(w.malla)
     }

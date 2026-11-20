@@ -101,6 +101,24 @@ export interface OpcionesDeCorte {
   /** Cuánto se arrastra el tejido a los lados al abrir. */
   alcance: number
   /**
+   * Hasta dónde llega, a cada lado, lo que se arrastra al abrir, si es más que `alcance` (D-421). El arrastre cae de 1 en el
+   * labio a 0 aquí, en curva suave; `alcance` sigue siendo el ancho de la franja afinada y el de las puntas. Ver
+   * `ARRASTRE_DE_LA_PIEL_MM`. La `holgura` tiene que llegar hasta aquí: lo que queda fuera de ella no tiene lado.
+   */
+  arrastre?: number
+  /**
+   * Lo arrastrado va por la superficie, como una lámina que resbala sobre lo de debajo (D-421): la piel y su fascia
+   * superficial. Cada vértice se aparta por la tangente de su sitio, no por la del trazo, y el arrastre cae con la
+   * distancia en línea recta hasta el trazo, hondura incluida, en vez de cortarse en seco a `profundidad` bajo él.
+   *
+   * Con 30 mm de `alcance` daba igual: a esa distancia el tubo de la pierna apenas ha girado. Pero 30 mm no bastan: un
+   * labio que se aparta 17 a 20 mm —un Farabeuf a 14 y lo que se retrae solo— aprieta ahí el tejido de al lado hasta
+   * darlo vuelta (`arrastre`). Con más, el arrastre llega a donde la pierna ya da la vuelta: por la tangente del trazo,
+   * esa piel salía de la pierna, y a 14 mm de hondura dejaba de arrastrarse de golpe. Las dos cosas daban vueltos en el
+   * borde de la pierna: 60 en la T de la pierna del taller, que con 30 mm tenía 17.
+   */
+  porLaSuperficie?: boolean
+  /**
    * A qué distancia de la incisión se mira un vértice. Fuera de esta franja el
    * campo no se evalúa: una malla de cien mil vértices no se recorre entera por
    * cada trazo. Tiene que ser mayor que la arista más larga de la zona.
@@ -137,6 +155,11 @@ export interface OpcionesDeCorte {
    * que da a la otra (`cerrarLasPuntasConTejidoEntero`, `distanciaALasPuntas`).
    */
   apartados?: Float32Array
+  /**
+   * Qué extremo del trazo nace en otra incisión (`HeridaEnCapa.unida`, D-420). Esa punta no la cierra el tejido entero
+   * de más allá (`cerrarLasPuntasConTejidoEntero`): la deciden los cruces de cada labio con la otra.
+   */
+  unida?: { alInicio: boolean; alFinal: boolean }
 }
 
 /**
@@ -242,6 +265,13 @@ export interface MallaCortada extends MallaPlana {
   pared: Float32Array
   /** Cuántas aristas se partieron: 0 quiere decir que la incisión no tocó la malla. */
   aristasPartidas: number
+  /**
+   * Lo que pide cada vértice para arrugarse (D-423), solo en la piel (`porLaSuperficie`): lo lejos que queda del corte
+   * en la medida con que se arrastra —el argumento de `suave` en el peso, de 0 en el labio a 1 donde ya no se
+   * arrastra; 2 en lo que no se mira—, el largo de ese arrastre en las unidades de la malla, y hacia fuera de la piel
+   * en reposo, con las dos caras hacia el mismo lado: una arruga alza el grosor entero. Cero en la pared.
+   */
+  arruga?: { lejos: Float32Array; alcance: number; normal: Float32Array }
 }
 
 // ------------------------------------------------------------------ vectores
@@ -513,6 +543,8 @@ interface Proyeccion {
   altura: number
   /** El lateral unitario en ese punto de la curva. */
   direccion: Vec3
+  /** La normal de la curva en ese punto: la que mide la `altura`. */
+  normal: Vec3
   /** El punto cae dentro del largo de la incisión (no antes del inicio ni después del final). */
   dentro: boolean
   /** Distancia al lugar más cercano. */
@@ -567,6 +599,7 @@ export function proyectar(curva: CurvaMedible, p: Vec3): Proyeccion {
     lateral,
     altura,
     direccion,
+    normal,
     dentro,
     distancia: Math.sqrt(mejorDistancia),
     tramo: mejor,
@@ -1193,8 +1226,18 @@ export function cerrarLasPuntasConTejidoEntero(
   largoT: Float32Array,
   /** Lo que el corte deja aparte (`OpcionesDeCorte.apartados`): no es tejido entero de esta herida. */
   apartados?: Float32Array,
+  /**
+   * Los extremos que nacen en otra incisión (`OpcionesDeCorte.unida`, D-421): esos no se cierran aquí. En la esquina de
+   * una L, más allá del arranque de la pierna está lo que sigue entero tras la punta de la otra, y lo apartado se funde
+   * a 0 justo ahí: contado como tejido entero, cerraba el arranque que el corte había dejado abierto. Con la punta
+   * cerrada, `puntasDeLosLabios` no mira los cruces, el labio del colgajo arrancaba de 0 y se plegaba en la esquina (caso
+   * 3: 142 triángulos de la piel vueltos con los dos Farabeuf; el gancho de la pierna lo escondía).
+   */
+  unida?: { alInicio: boolean; alFinal: boolean },
 ) {
-  if (grieta.cerradaAlInicio && grieta.cerradaAlFinal) return
+  const cierraElInicio = () => grieta.cerradaAlInicio || !!unida?.alInicio
+  const cierraElFinal = () => grieta.cerradaAlFinal || !!unida?.alFinal
+  if (cierraElInicio() && cierraElFinal()) return
   for (let t = 0; t + 2 < indices.length; t += 3) {
     if (apartados && (apartados[indices[t]] > 0 || apartados[indices[t + 1]] > 0 || apartados[indices[t + 2]] > 0)) continue
     // Solo cuenta lo que la herida arrastra: lo demás no tiene su sitio a lo largo medido, y no se desgarra.
@@ -1211,9 +1254,9 @@ export function cerrarLasPuntasConTejidoEntero(
       tMayor = Math.max(tMayor, largoT[v])
     }
     if (!mas || !menos) continue
-    if (tMenor > grieta.hasta) grieta.cerradaAlFinal = true
-    if (tMayor < grieta.desde) grieta.cerradaAlInicio = true
-    if (grieta.cerradaAlInicio && grieta.cerradaAlFinal) return
+    if (tMenor > grieta.hasta && !unida?.alFinal) grieta.cerradaAlFinal = true
+    if (tMayor < grieta.desde && !unida?.alInicio) grieta.cerradaAlInicio = true
+    if (cierraElInicio() && cierraElFinal()) return
   }
 }
 
@@ -1686,12 +1729,21 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
   const direccion = new Float32Array(total * 3)
   const lado = Int8Array.from(lista.lado)
   const largoT = new Float32Array(total)
+  const porLaSuperficie = opciones.porLaSuperficie === true
+  const enLaPared = new Uint8Array(total)
+  if (deLaPared) for (const [v] of deLaPared.hondura) enLaPared[v] = 1
+  const normalesDeReposo = porLaSuperficie ? normalesSinLaPared(posiciones, indices, enLaPared) : null
+  const grosor = opciones.pared ?? 0
+  const alcanceDelArrastre = Math.max(opciones.arrastre ?? opciones.alcance, 1e-9)
+  const arruga = porLaSuperficie
+    ? { lejos: new Float32Array(total).fill(2), alcance: alcanceDelArrastre, normal: new Float32Array(3 * total) }
+    : undefined
   for (let i = 0; i < total; i++) {
     if (lado[i] === 0 && i < nVertices) continue
     const p = leer(posiciones, i)
     if (i < nVertices && Number.isNaN(campo[i])) continue
     const pr = proyectar(curva, p)
-    if (pr.altura < -opciones.profundidad || pr.altura > opciones.profundidad * 0.5) continue
+    if (!porLaSuperficie && (pr.altura < -opciones.profundidad || pr.altura > opciones.profundidad * 0.5)) continue
     // A qué altura del largo cae, hacia dónde se aparta y cuánto se arrastra, con la curva de apertura (`deApertura`):
     // con el trazo quebrado, las tres cosas saltaban de un vértice al vecino. Lo que se arrastra, sobre todo en hondo:
     // la normal del trazo crudo cabecea hasta 20° de un nodo a otro, y a 24 mm bajo él el lateral de dos vértices de la
@@ -1702,7 +1754,10 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
     // Lo que queda más allá de un quiebre, fuera del abanico, no se cortó: se arrastra menos cuanto más se sale. Medido
     // solo de lado, el músculo que seguía entero al otro lado del quiebre se estiraba con los separadores como si lo
     // estuviera, y daba triángulos vueltos.
-    const cerca = 1 - suave(Math.hypot(medida.lateral, fueraDelAbanico(medida)) / Math.max(opciones.alcance, 1e-9))
+    const hondura = porLaSuperficie ? fueraDeLaLamina(medida.altura, grosor) : 0
+    const delCorte = Math.hypot(medida.lateral, hondura)
+    const lejos = Math.hypot(delCorte / alcanceDelArrastre, fueraDelAbanico(medida) / Math.max(opciones.alcance, 1e-9))
+    const cerca = 1 - suave(lejos)
     const t = ap && curva.deApertura ? curva.deApertura.tDelNodo[ap.tramo] * (1 - ap.u) + curva.deApertura.tDelNodo[ap.tramo + 1] * ap.u : enElLargo(p, pr)
     largoT[i] = t
     // Lo que se arrastra solo en parte (D-420): lo de enfrente junto a una punta de la otra incisión, donde vuelve a
@@ -1710,17 +1765,30 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
     const suelto = aparte && i < nVertices ? 1 - Math.min(1, aparte[i]) : 1
     peso[i] = cerca * afilado(t) * suelto
     pesoLateral[i] = cerca * suelto
-    const haciaDonde = ap ? ap.direccion : pr.direccion
+    const delTrazo = ap ? ap.direccion : pr.direccion
+    const haciaDonde =
+      normalesDeReposo && !enLaPared[i]
+        ? porLaTangente(delTrazo, medida, grosor, normalesDeReposo, i, suave(Math.min(1, delCorte / (0.5 * alcanceDelArrastre))))
+        : delTrazo
     direccion[3 * i] = haciaDonde[0]
     direccion[3 * i + 1] = haciaDonde[1]
     direccion[3 * i + 2] = haciaDonde[2]
+    if (arruga && normalesDeReposo && !enLaPared[i]) {
+      arruga.lejos[i] = lejos
+      // La cara de dentro mira hacia dentro: se le da la vuelta, con la normal del trazo, que es la de fuera.
+      const n = leer(normalesDeReposo, i)
+      const signo = punto(n, pr.normal) < 0 ? -1 : 1
+      arruga.normal[3 * i] = signo * n[0]
+      arruga.normal[3 * i + 1] = signo * n[1]
+      arruga.normal[3 * i + 2] = signo * n[2]
+    }
   }
   // Los vértices de la punta (sencillos) no se mueven: la herida acaba cerrada.
   for (let i = nVertices; i < total; i++) if (lado[i] === 0) peso[i] = pesoLateral[i] = 0
   // Lo apartado, hasta el último vértice: los que añadió el corte son todos de este lado.
   const apartadoEnTodos = aparte ? new Float32Array(total) : undefined
   if (apartadoEnTodos && aparte) apartadoEnTodos.set(aparte)
-  cerrarLasPuntasConTejidoEntero(grieta, indices, lado, pesoLateral, largoT, apartadoEnTodos)
+  cerrarLasPuntasConTejidoEntero(grieta, indices, lado, pesoLateral, largoT, apartadoEnTodos, opciones.unida)
   const hastaLaPunta = distanciaALasPuntas(posiciones, indices, lado, pesoLateral, nVertices, opciones.alcance * ALCANCE_DE_LAS_PUNTAS, apartadoEnTodos)
   const pared = new Float32Array(total).fill(-1)
   if (deLaPared) for (const [v, h] of deLaPared.hondura) pared[v] = h
@@ -1757,6 +1825,7 @@ export function cortarMalla(entrada: MallaPlana, incision: IncisionSobreLaMalla,
     labios: { mas: ordenar(visibles.mas), menos: ordenar(visibles.menos) },
     pared,
     aristasPartidas: partidas.size,
+    ...(arruga ? { arruga } : {}),
   }
 }
 
@@ -1821,7 +1890,298 @@ export interface AperturaDeUnCorte {
   punta?: number
   /** Lo suelto de cada labio en los extremos abiertos de la grieta (`SolturaDeLosLabios`). Sin ella, los dos sueltos. */
   soltura?: SolturaDeLosLabios
+  /** Las incisiones que nacen en esta después de ella, cada una con el colgajo que deja (`ColgajoEnLaUnion`, D-422). */
+  colgajos?: readonly ColgajoEnLaUnion[]
+  /**
+   * Cómo se arruga la piel que esta herida aprieta al abrirse (D-423, `alzaDeLaArruga`): la onda, en las unidades de la
+   * malla, y lo que aguanta apretada sin arrugarse (`arrugasDeLaPiel`). Sin ellas, o en una malla sin `arruga`, no se
+   * arruga.
+   */
+  arrugas?: { onda: number; estiradaPrevia: number }
 }
+
+/**
+ * Lo que se alza un vértice de la piel por la arruga que le toca (D-423), en las unidades de la malla, hacia fuera
+ * (`MallaCortada.arruga`).
+ *
+ * Lo que abre un separador se reparte por la piel de detrás del labio, menos cuanto más lejos: cada punto se mueve
+ * menos que el de delante, y la piel entre los dos queda apretada. En la piel de verdad, lo más apretado está pegado a
+ * la hoja —lo que la empuja cae como `e^(−s/ℓ)`, y lo apretado, que es su pendiente, `(tira/ℓ)·e^(−s/ℓ)`—, con `ℓ` un
+ * parte de lo que arrastra (`CAIDA_DE_LO_APRETADO`). No se toma la pendiente del arrastre de la malla (`cerca`), que
+ * arranca plana en el labio para que la malla no se pliegue ahí: con ella, la piel se arrugaba más a tres centímetros
+ * que junto a la hoja, y es al revés: detrás de un Farabeuf se levanta un rodete.
+ *
+ * La piel viva está estirada, y hasta su `estiradaPrevia` lo apretado solo le quita lo que le sobraba. Pasado eso se
+ * dobla: lo que sobra de largo se va en ondas de `onda`, con crestas paralelas al corte, que nacen planas en el labio, y
+ * de un alto `(onda/(π√2))·√(sobra)`, el de una onda que gasta un octavo de ese largo de más —lo demás lo absorben la
+ * dermis, que se engruesa, y la grasa, que se corre—, con tope en un cuarto de la onda, que más ya es un pliegue
+ * cerrado. Tirada 12 mm, la cresta de junto al labio sube unos 2 mm, y la siguiente, uno. Hasta D-423 lo apretado se
+ * quedaba liso: el borde parecía de goma.
+ *
+ * Cuenta solo lo que tira la mano, no lo que la herida se retrae sola: eso devuelve lo estirado y no aprieta nada. Y
+ * con el labio suelto en parte (`pesoLateral` menos que `cerca`, junto a una punta cerrada) tira esa parte.
+ */
+/**
+ * En cuántas veces menos que lo que arrastra la piel cae lo que la empuja una hoja (D-423, `alzaDeLaArruga`): con el
+ * arrastre de la piel (45 mm), en 30 mm. Junto a la hoja la piel se aprieta `tira / 30`: tirada 3 mm, un 10 %, que es lo
+ * que tenía estirado, y no se arruga; 12 mm, un 40 %. Con 3, en 15 mm, ya se arrugaba tirada milímetro y medio, y un
+ * Farabeuf apenas apoyado levantaba ondas.
+ */
+const CAIDA_DE_LO_APRETADO = 1.5
+
+function alzaDeLaArruga(corte: MallaCortada, i: number, apertura: AperturaDeUnCorte): number {
+  const a = corte.arruga
+  const ar = apertura.arrugas
+  const lado = corte.lado[i]
+  if (!a || !ar || lado === 0 || !(ar.onda > 0)) return 0
+  const x = a.lejos[i]
+  if (!(x > 0 && x < 1)) return 0
+  const cerca = 1 - suave(x)
+  if (!(cerca > 1e-6)) return 0
+  let tira: number
+  if (apertura.perfil) {
+    const aqui = apertura.perfil(corte.largoT[i])
+    tira = (lado > 0 ? aqui.mas : aqui.menos) * corte.pesoLateral[i]
+  } else {
+    tira = (lado > 0 ? apertura.mas : apertura.menos) * corte.peso[i]
+  }
+  tira /= cerca
+  if (!(tira > 0)) return 0
+  const caida = a.alcance / CAIDA_DE_LO_APRETADO
+  const sobra = (tira / caida) * Math.exp(-(x * a.alcance) / caida) - ar.estiradaPrevia
+  if (!(sobra > 0)) return 0
+  // La raíz, suavizada al nacer (`ARRANQUE_DE_LA_ARRUGA`): pura, subía en vertical donde lo apretado pasa de lo estirado,
+  // y la piel quedaba con un escalón al pie de la arruga. Y al final de lo que se arrastra se apaga, en su último
+  // tercio: tirada 20 mm, la tercera cresta nacía a 40 mm y se cortaba de golpe a 45, medio milímetro en el aire.
+  const raiz = sobra / Math.sqrt(sobra + ARRANQUE_DE_LA_ARRUGA)
+  const alto = Math.min(ar.onda / 4, (ar.onda / (Math.PI * Math.SQRT2)) * raiz) * (1 - suave((x - 0.7) / 0.3))
+  return (alto * (1 - Math.cos((2 * Math.PI * x * a.alcance) / ar.onda))) / 2
+}
+
+/**
+ * Lo apretado de más en que la arruga deja de crecer en recta y pasa a crecer como la raíz (D-423, `alzaDeLaArruga`):
+ * `sobra / √(sobra + 0,02)`, que a partir de un 10 % de más ya es la raíz con un 10 % menos.
+ */
+const ARRANQUE_DE_LA_ARRUGA = 0.02
+
+/**
+ * Lo que deja en un corte otro que nace en él más tarde, el brazo de una L (D-422): de un lado del brazo, un tramo de
+ * este corte que va hasta su inicio, y del otro, el que va hasta su final. Cada uno, con el brazo, bordea un colgajo
+ * cuya punta está en la unión.
+ *
+ * Hasta D-422 solo el labio del brazo era suelto en la esquina (D-420, `solturaDelLabio`); el de este seguía cerrándose
+ * hacia su punta, 3,5 mm pasada la esquina, como si el tejido de más allá aún lo sujetara. Pero ese tejido ya lo partió
+ * el brazo: la punta del colgajo queda libre por sus dos bordes, y la piel la retrae en diagonal, hacia su base. Es lo
+ * que se ve en pabellón: la esquina de una L se abre en un triángulo, no queda en dos ojales que se tocan por la punta.
+ * Un colgajo se encoge en cuanto se corta —la elastina de la dermis retrocede—, y por su punta, que es lo más libre.
+ */
+export interface ColgajoEnLaUnion {
+  /** Dónde está, en la lista de cortes que se componen, el que nace en este. */
+  otra: number
+  /** El labio de este corte que da al brazo, +1 «más» o −1 «menos»: el que bordea los colgajos. */
+  suyo: 1 | -1
+  /** Dónde nace el brazo, en fracción del trazo de este, medida como su `largoT`. */
+  tUnion: number
+  /** De qué lado del brazo (su `lado`) queda el tramo de este que va hacia su inicio. */
+  inicioDelLado: 1 | -1
+  /** En qué largo, desde la punta cerrada del brazo, el colgajo vuelve a ser tejido entero (`apartadosPorLaOtra`). */
+  fundido: number
+  /**
+   * La punta de los colgajos, en las coordenadas de la malla (D-423): dónde nace el brazo, hacia dónde va este corte ahí
+   * —hacia su final—, hacia dónde se aleja de él el brazo, y la normal de la piel. Con ella cada punta se redondea
+   * (`redondearLasPuntas`); sin ella, se retrae en ángulo recto, como en D-422.
+   */
+  punta?: { union: Vec3; tangente: Vec3; avance: Vec3; normal: Vec3 }
+}
+
+/**
+ * El radio con que se redondea la punta de un colgajo, en veces lo que se retraen sola la piel de sus dos bordes
+ * (D-423).
+ *
+ * Una punta de piel recién cortada no se queda en ángulo: la dermis tira de ella desde sus dos bordes libres a la vez, y
+ * lo que más se retrae es la esquina misma, que es la que menos tejido tiene detrás. En pabellón, la de una L abierta
+ * es un arco, de un radio del orden de lo que se retrajo. Con 1 la curva apenas se notaba en la pierna (unos 3 mm de
+ * radio con la herida a lo largo); con 1,5 la esquina se retira un 60 % más de lo que se retrae el borde, que es lo que
+ * enseñan las fotos de las L del tobillo.
+ */
+const REDONDEO_DE_LA_PUNTA = 1.5
+
+/**
+ * La parte de cada borde del colgajo que puede ocupar el arco, como mucho (D-423). Más, y el colgajo entero sería una
+ * curva: en la T junto a una punta, el tramo hasta ella mide un centímetro y pico.
+ */
+const PARTE_DEL_BORDE_PARA_EL_ARCO = 1 / 3
+
+/**
+ * Por debajo de esta parte del radio que pide la retracción, la punta no se redondea (D-423): es la de la pasada de una
+ * L, los 3,5 mm de la primera más allá de la esquina, que no es un colgajo sino la piel de fuera, sujeta por esa punta.
+ */
+const RADIO_MINIMO_DEL_ARCO = 0.25
+
+/** Entre qué ángulos, en grados, una esquina es una punta que redondear: casi plana o casi cerrada no lo es. */
+const ANGULO_DE_LA_PUNTA_GRADOS = { desde: 20, hasta: 160 }
+
+/** El lado de un corte en la malla compuesta, guardado como el del brazo (`ladoEnLaMallaDeAhora`, `colgadoDelBrazo`). */
+const ladosDeLosCortes = new WeakMap<MallaCortada, WeakMap<MallaCortada, Int8Array>>()
+
+function ladoEnLaUltima(ultimo: MallaCortada, corte: MallaCortada, despues: readonly MallaCortada[]): Int8Array {
+  let porCorte = ladosDeLosCortes.get(ultimo)
+  if (!porCorte) ladosDeLosCortes.set(ultimo, (porCorte = new WeakMap()))
+  const ya = porCorte.get(corte)
+  if (ya) return ya
+  const lado = ladoEnLaMallaDeAhora(corte.lado, despues)
+  porCorte.set(corte, lado)
+  return lado
+}
+
+/**
+ * Redondea la punta de cada colgajo que deja el brazo en este corte (D-423), sumándolo a `arrastre`.
+ *
+ * Hasta aquí, con lo de D-422, la punta se retraía en diagonal hacia su base, pero entera: seguía en ángulo recto, un
+ * poco más atrás. Se redondea llevando la punta, en su plano, al arco de radio `r` tangente a sus dos bordes. Lo que se
+ * mueve es la cometa que forman la punta, los dos puntos de tangencia y el centro del arco: cada punto de ella va hacia
+ * el centro, por su radio, lo que pide su borde para caer en el arco —`r` entre lo que hay del centro al borde por esa
+ * dirección—. En el borde, esa parte es el coseno del ángulo con el pie de la perpendicular, y por eso `s` es el mayor
+ * de los dos. Vale 1 en los dos radios que van a los puntos de tangencia, con derivada nula (ahí el radio es
+ * perpendicular al borde): la cometa empalma con el resto del colgajo sin pliegue. Dentro se encoge a lo más un 71 %, en
+ * la bisectriz de una punta recta, que es el tejido que se arruga hacia atrás al retraerse.
+ *
+ * Se mide en reposo y se suma como un desplazamiento: cerca de la punta, lo que retrae D-422 es casi una traslación, y
+ * la forma redondeada viaja con ella. Va por todo el grosor —la pared y la cara de dentro caen sobre el mismo punto del
+ * plano—, y solo en el colgajo: de un lado del brazo y del lado de este que da a él, por el lado guardado en la malla, no
+ * por la posición, que en reposo es la misma a los dos lados de la grieta (`ladoEnLaMallaDeAhora`).
+ */
+function redondearLasPuntas(
+  cortes: readonly { corte: MallaCortada; apertura: AperturaDeUnCorte }[],
+  indice: number,
+  colgajo: ColgajoEnLaUnion,
+  arrastre: Float64Array,
+  total: number,
+) {
+  const punta = colgajo.punta
+  const brazo = cortes[colgajo.otra]
+  if (!punta || !brazo) return
+  const { corte, apertura } = cortes[indice]
+  // Lo que se retrae cada borde: el de este y el del brazo, que en un miembro no es lo mismo (D-422).
+  const reposo = ((apertura.reposo ?? 0) + (brazo.apertura.reposo ?? 0)) / 2
+  if (!(reposo > 0)) return
+  const ultimo = cortes[cortes.length - 1].corte
+  const ladoDeEste = ladoEnLaUltima(ultimo, corte, cortes.slice(indice + 1).map((c) => c.corte))
+  const { lado: ladoDelBrazo, suelto } = colgadoDelBrazo(ultimo, brazo.corte, cortes.slice(colgajo.otra + 1).map((c) => c.corte), colgajo.fundido)
+  const n = unitario(punta.normal)
+  const enElPlano = (v: Vec3) => unitario(resta(v, por(n, punto(v, n))))
+  const e2 = enElPlano(punta.avance)
+  const g = corte.grieta
+  const union = Math.min(g.hasta, Math.max(g.desde, colgajo.tUnion))
+  const largoDelBrazo = (brazo.corte.grieta.hasta - brazo.corte.grieta.desde) * brazo.corte.curva.largoTotal
+  const reposos = ultimo.posiciones
+  const hasta = Math.min(total, ladoDeEste.length, ladoDelBrazo.length)
+  for (const alInicio of [true, false]) {
+    const largoDelTramo = (alInicio ? union - g.desde : g.hasta - union) * corte.curva.largoTotal
+    const e1 = enElPlano(alInicio ? por(punta.tangente, -1) : punta.tangente)
+    const angulo = (Math.acos(Math.min(1, Math.max(-1, punto(e1, e2)))) * 180) / Math.PI
+    if (!(angulo > ANGULO_DE_LA_PUNTA_GRADOS.desde && angulo < ANGULO_DE_LA_PUNTA_GRADOS.hasta)) continue
+    const medio = (angulo * Math.PI) / 360
+    const sen = Math.sin(medio)
+    const tan = Math.tan(medio)
+    const quiere = REDONDEO_DE_LA_PUNTA * reposo
+    const r = Math.min(quiere, PARTE_DEL_BORDE_PARA_EL_ARCO * largoDelTramo * tan, PARTE_DEL_BORDE_PARA_EL_ARCO * largoDelBrazo * tan)
+    if (!(r > RADIO_MINIMO_DEL_ARCO * quiere)) continue
+    const b = unitario(suma(e1, e2))
+    // Hacia dentro del colgajo, perpendicular a cada borde: del centro, el pie de cada perpendicular está en −m.
+    const m1 = unitario(resta(b, por(e1, punto(b, e1))))
+    const m2 = unitario(resta(b, por(e2, punto(b, e2))))
+    const centro = suma(punta.union, por(b, r / sen))
+    const lejos = (1.5 * r) / sen
+    const deEseLado = alInicio ? colgajo.inicioDelLado : -colgajo.inicioDelLado
+    for (let v = 0; v < hasta; v++) {
+      if (ladoDeEste[v] !== colgajo.suyo || ladoDelBrazo[v] !== deEseLado) continue
+      const k = suelto[v]
+      if (!(k > 0)) continue
+      const w = resta(leer(reposos, v), centro)
+      const h = punto(w, n)
+      w[0] -= n[0] * h
+      w[1] -= n[1] * h
+      w[2] -= n[2] * h
+      const d = largo(w)
+      if (!(d > 1e-12) || d > lejos) continue
+      // Solo lo que mira a la punta desde el centro: la cometa.
+      if (-punto(w, b) / d < sen) continue
+      const s = Math.max(-punto(w, m1) / d, -punto(w, m2) / d)
+      // Lo que pase del borde —en un trazo curvo, un vértice del colgajo puede quedar un poco más allá de la recta— se
+      // mueve como su borde: con la parte de él, crecería sin tope con la distancia.
+      const R = r / s
+      const corre = (d <= R ? d * (s - 1) : r - R) * k
+      arrastre[3 * v] += (w[0] / d) * corre
+      arrastre[3 * v + 1] += (w[1] / d) * corre
+      arrastre[3 * v + 2] += (w[2] / d) * corre
+    }
+  }
+}
+
+/**
+ * Lo que un vértice del labio de un colgajo se retrae de más (D-422), sin signo, en las unidades de la malla: lo que le
+ * toca como borde de un tramo abierto en la unión, menos lo que ya se retrae como borde del corte entero. `haciaElInicio`
+ * dice de qué tramo es, que lo decide el lado del brazo en que cae el vértice.
+ *
+ * El tramo hereda el cierre del corte en su otro extremo y tiene su propio tope: el de la piel que queda entre la unión y
+ * la punta que el corte pasó de la esquina, 3,5 mm (D-420), no da para retraerse —es la de fuera, que esa punta sujeta— y
+ * se queda en lo que se retraía. Se calcula como `topeDeLaRetraccionMm` y con el mismo tramo de la punta del huso, que
+ * aquí va en las unidades de la malla.
+ */
+function retraccionDelColgajo(corte: MallaCortada, i: number, apertura: AperturaDeUnCorte, colgajo: ColgajoEnLaUnion, haciaElInicio: boolean): number {
+  const reposo = apertura.reposo
+  if (!reposo || corte.lado[i] !== colgajo.suyo) return 0
+  const peso = corte.pesoLateral[i]
+  if (!(peso > 0)) return 0
+  const g = corte.grieta
+  const union = Math.min(g.hasta, Math.max(g.desde, colgajo.tUnion))
+  const tramo: TramoDeLaGrieta = haciaElInicio
+    ? { desde: g.desde, hasta: union, cerradaAlInicio: g.cerradaAlInicio, cerradaAlFinal: false }
+    : { desde: union, hasta: g.hasta, cerradaAlInicio: false, cerradaAlFinal: g.cerradaAlFinal }
+  const ancho = tramo.hasta - tramo.desde
+  if (!(ancho > 1e-9)) return 0
+  // El tramo de la punta del huso del corte entero, en fracción de su trazo, llevado a la del tramo.
+  const delHuso = Math.min(0.5, Math.max(1e-6, apertura.punta ?? 0.5)) * (g.hasta - g.desde)
+  const punta = Math.min(0.5, delHuso / ancho)
+  const tope = (PENDIENTE_MAXIMA_EN_LA_PUNTA * Math.min(0.5 * ancho, delHuso) * corte.curva.largoTotal) / 2
+  const t = Math.min(tramo.hasta, Math.max(tramo.desde, corte.largoT[i]))
+  const comoColgajo = peso * Math.min(reposo, tope) * husoDeLaGrieta(tramo, t, punta)
+  return Math.max(0, comoColgajo - retraccionDelVertice(corte, i, reposo, apertura.punta, apertura.soltura))
+}
+
+/** Lo de enfrente de cada brazo en la malla compuesta, que no cambia mientras la herida se abre (`colgadoDelBrazo`). */
+const ladosDeLosBrazos = new WeakMap<MallaCortada, WeakMap<MallaCortada, { lado: Int8Array; suelto: Float32Array }>>()
+
+/**
+ * De qué lado del brazo cae cada vértice de la malla compuesta, y cuánto de su colgajo es suelto (D-422): 1 a lo largo
+ * del brazo, y de 0 a 1 en el `fundido` de su punta cerrada, más allá de la cual el colgajo vuelve a ser la piel de
+ * alrededor (`apartadosPorLaOtra`). Sin ese fundido, la piel que sigue entera pasada la punta del brazo se rasgaba en su
+ * prolongación: un lado se retraía y el otro no.
+ */
+function colgadoDelBrazo(
+  ultimo: MallaCortada,
+  brazo: MallaCortada,
+  despues: readonly MallaCortada[],
+  fundido: number,
+): { lado: Int8Array; suelto: Float32Array } {
+  let porBrazo = ladosDeLosBrazos.get(ultimo)
+  if (!porBrazo) ladosDeLosBrazos.set(ultimo, (porBrazo = new WeakMap()))
+  const ya = porBrazo.get(brazo)
+  if (ya) return ya
+  const lado = ladoEnLaMallaDeAhora(brazo.lado, despues)
+  const suelto = new Float32Array(lado.length)
+  for (const s of [1, -1] as const) {
+    const deEseLado = apartadosPorLaOtra(ultimo.posiciones, lado, brazo, s === 1 ? -1 : 1, fundido)
+    for (let i = 0; i < lado.length; i++) if (lado[i] === s) suelto[i] = deEseLado[i]
+  }
+  const salida = { lado, suelto }
+  porBrazo.set(brazo, salida)
+  return salida
+}
+
+/** Dónde cae un punto a lo largo de una incisión, como lo mide su `largoT` (con la curva de apertura, si la hay). */
+export const tEnLaGrieta = (curva: CurvaDeIncision, p: Vec3): number => enLaGrietaDe(curva, p).t
 
 /**
  * Lo que un vértice se desplaza a lo largo de su `direccion` con esa apertura, con su signo: el labio «más» hacia
@@ -1889,8 +2249,343 @@ function cierreJuntoALaPunta(corte: MallaCortada, i: number, reposo: number): nu
   return suave(d / tramo)
 }
 
+/**
+ * Lo que un vértice queda fuera de la lámina de grosor `grosor` que cuelga del trazo: por encima, todo lo que sube; por
+ * debajo, lo que baja más allá de la cara de dentro. Las dos caras de la piel, junto al labio, quedan así a la misma
+ * distancia del trazo y se arrastran lo mismo. Con la hondura entera, la de dentro, 6 mm por debajo, se arrastraría un
+ * 5 % menos que la de fuera —un milímetro con un Farabeuf—, y la pared que las une se inclinaría.
+ */
+function fueraDeLaLamina(altura: number, grosor: number): number {
+  return altura >= 0 ? altura : Math.max(0, -altura - grosor)
+}
+
+/**
+ * La normal de cada vértice en reposo, pesada por el área de sus triángulos, sin los de la pared y pasada una vez por
+ * la media de sus vecinos (`porLaSuperficie`). Sin la pared: en reposo está junta y mira de lado, y torcía la de los
+ * labios hacia donde se apartan. La media: sobre el hueso que asoma, la normal de un vértice a otro giraba tanto que
+ * sus tangentes se cruzaban.
+ */
+function normalesSinLaPared(posiciones: Float32Array, indices: readonly number[], enLaPared: Uint8Array): Float32Array {
+  const n = posiciones.length / 3
+  const deCara = new Float32Array(3 * n)
+  for (let t = 0; t + 2 < indices.length; t += 3) {
+    const a = indices[t]
+    const b = indices[t + 1]
+    const c = indices[t + 2]
+    if (enLaPared[a] && enLaPared[b] && enLaPared[c]) continue
+    const ux = posiciones[3 * b] - posiciones[3 * a]
+    const uy = posiciones[3 * b + 1] - posiciones[3 * a + 1]
+    const uz = posiciones[3 * b + 2] - posiciones[3 * a + 2]
+    const vx = posiciones[3 * c] - posiciones[3 * a]
+    const vy = posiciones[3 * c + 1] - posiciones[3 * a + 1]
+    const vz = posiciones[3 * c + 2] - posiciones[3 * a + 2]
+    const nx = uy * vz - uz * vy
+    const ny = uz * vx - ux * vz
+    const nz = ux * vy - uy * vx
+    for (const v of [a, b, c]) {
+      deCara[3 * v] += nx
+      deCara[3 * v + 1] += ny
+      deCara[3 * v + 2] += nz
+    }
+  }
+  const unitarias = (m: Float32Array) => {
+    for (let v = 0; v < n; v++) {
+      const l = Math.hypot(m[3 * v], m[3 * v + 1], m[3 * v + 2])
+      if (l > 0) for (let k = 0; k < 3; k++) m[3 * v + k] /= l
+    }
+    return m
+  }
+  unitarias(deCara)
+  const media = new Float32Array(3 * n)
+  for (let t = 0; t + 2 < indices.length; t += 3) {
+    const tri = [indices[t], indices[t + 1], indices[t + 2]]
+    if (enLaPared[tri[0]] && enLaPared[tri[1]] && enLaPared[tri[2]]) continue
+    for (const v of tri) for (const w of tri) for (let k = 0; k < 3; k++) media[3 * v + k] += deCara[3 * w + k]
+  }
+  return unitarias(media)
+}
+
+/**
+ * Hacia dónde se aparta, por la superficie, un vértice que el trazo aparta por `delTrazo` (`porLaSuperficie`): la
+ * tangente de su sitio. Primero, la del círculo que sale del trazo por su lateral y pasa por el vértice —en la pierna,
+ * la que rodea al tubo—, y después, lo que le quede fuera del plano de su normal, quitado. El círculo solo está para
+ * que el sentido no se invierta: a un cuarto de vuelta del trazo la tangente de este ya es la normal del vértice, y
+ * quitada no dejaba nada.
+ */
+function porLaTangente(delTrazo: Vec3, medida: Proyeccion, grosor: number, normales: Float32Array, i: number, cuanto: number): Vec3 {
+  const normal: Vec3 = [normales[3 * i], normales[3 * i + 1], normales[3 * i + 2]]
+  if (cuanto <= 0 || (normal[0] === 0 && normal[1] === 0 && normal[2] === 0)) return delTrazo
+  const x = medida.lateral
+  // La cara de dentro de la piel, junto al trazo, no ha girado nada: está debajo de la de fuera.
+  const y = medida.altura < 0 ? Math.min(0, medida.altura + grosor) : medida.altura
+  const r2 = x * x + y * y
+  const guia: Vec3 = r2 > 0 ? suma(por(delTrazo, 1 - (2 * y * y) / r2), por(medida.normal, (2 * x * y) / r2)) : delTrazo
+  const tangente = resta(guia, por(normal, punto(guia, normal)))
+  const l = largo(tangente)
+  if (!(l > 0.2)) return delTrazo
+  const mezcla = suma(por(delTrazo, 1 - cuanto), por(tangente, cuanto / l))
+  const m = largo(mezcla)
+  return m > 1e-6 ? por(mezcla, 1 / m) : delTrazo
+}
+
 /** El borrador de `componerCortes`: crece hasta la malla más grande que se haya compuesto y no sale de aquí. */
 let arrastreDeLosCortes = new Float64Array(0)
+
+/**
+ * Los borradores de lo que retrae cada colgajo en `componerCortes` (D-422), dos por colgajo, como el del arrastre: se
+ * piden en cada fotograma mientras la herida se abre, y con una pierna de 50 000 vértices eran 2,5 MB por cuadro.
+ */
+const borradoresDeLosColgajos: Float64Array[] = []
+
+function borradorDelColgajo(k: number, total: number): Float64Array {
+  const ya = borradoresDeLosColgajos[k]
+  if (ya && ya.length >= 3 * total) {
+    ya.fill(0, 0, 3 * total)
+    return ya
+  }
+  return (borradoresDeLosColgajos[k] = new Float64Array(3 * total))
+}
+
+/** Los triángulos de cada vértice de una malla cortada, en tiras (`enderezarLosVueltos`). */
+interface TriangulosDeCadaVertice {
+  inicio: Uint32Array
+  triangulos: Uint32Array
+}
+
+/** Los de cada malla cortada: no cambian mientras la herida se abre, y se piden en cada fotograma. */
+const triangulosDeCadaVertice = new WeakMap<MallaCortada, TriangulosDeCadaVertice>()
+
+function triangulosDe(corte: MallaCortada): TriangulosDeCadaVertice {
+  const ya = triangulosDeCadaVertice.get(corte)
+  if (ya) return ya
+  const n = corte.lado.length
+  const { indices } = corte
+  const inicio = new Uint32Array(n + 1)
+  for (let k = 0; k < indices.length; k++) inicio[indices[k] + 1]++
+  for (let v = 0; v < n; v++) inicio[v + 1] += inicio[v]
+  const triangulos = new Uint32Array(indices.length)
+  const lleno = inicio.slice(0, n)
+  for (let k = 0; k < indices.length; k++) triangulos[lleno[indices[k]]++] = Math.floor(k / 3)
+  const salida = { inicio, triangulos }
+  triangulosDeCadaVertice.set(corte, salida)
+  return salida
+}
+
+/** Cuántas veces, como mucho, se vuelve sobre lo vuelto (`enderezarLosVueltos`). */
+const PASADAS_PARA_ENDEREZAR = 100
+
+/** Cuántas veces, como mucho, se saca un vértice de entre sus vecinos y se vuelve a pasar (`enderezarLosVueltos`). */
+const RONDAS_PARA_DESENREDAR = 3
+
+/**
+ * El área que se le devuelve a un triángulo vuelto, en fracción de la que tenía en reposo (`enderezarLosVueltos`): con
+ * cero, quedaba de canto y el siguiente fotograma lo volvía a dar vuelta.
+ */
+const AREA_AL_ENDEREZAR = 0.2
+
+/**
+ * Endereza los triángulos que la suma de los arrastres da vuelta (D-421): a cada uno se le devuelve una parte de su
+ * área, medida sobre su normal de reposo, moviendo sus vértices lo menos posible —por el gradiente del área—, y se
+ * vuelve a mirar a sus vecinos, hasta que no queda ninguno. La pared no se mueve, salvo en un triángulo que no tiene
+ * otra cosa: es la cara que se ve del corte. Un labio solo se desliza de lado, sin que cambie lo que se aparta, porque es
+ * lo que sujeta la hoja de un separador: suelto, la hoja abierta 12 mm apartaba el borde 10,6. Clavado del todo, lo de
+ * junto al labio no tenía por dónde enderezarse: en la L del caso 3 quedaban 7 vueltos, 6 a menos de 5 mm de él.
+ *
+ * Lo da vuelta, sobre todo, la apertura que cambia a lo largo del labio: junto a la hoja de un Farabeuf, un labio se
+ * aparta 13 mm y, dos milímetros más allá, 9. Los triángulos finos que bordean el labio, con un vértice a una décima de
+ * él, se cruzan con eso. Se probó antes a alisar el arrastre con la media de los vecinos, labios y pared quietos: no
+ * enderezaba ninguno, porque la media no sabe de qué lado tiene que quedar cada vértice, y en la T del caso 3 los subía
+ * de 72 a 85.
+ *
+ * Devuelve cuántos encontró vueltos, antes de enderezarlos (`vueltosAntesDeEnderezar`).
+ */
+function enderezarLosVueltos(cortes: readonly MallaCortada[], arrastre: Float64Array, total: number): number {
+  const ultimo = cortes[cortes.length - 1]
+  const base = ultimo.posiciones
+  const { indices, pared } = ultimo
+  const nTriangulos = Math.floor(indices.length / 3)
+  // La pared, la de la última: la de una herida anterior, donde la última se funde con ella, se abre y deja de ser
+  // pared. Quieta también esa, en la T del caso 3 quedaban 8 vueltos a 5–20 mm del labio, y con la de la última, 0.
+  const dePared = (v: number) => pared[v] >= 0
+  // Los labios, de todas: un vértice conserva su índice de corte en corte, y sigue siendo un borde de la herida.
+  const deLabio = new Uint8Array(total)
+  for (const corte of cortes) {
+    for (const v of corte.labios.mas) if (v < total) deLabio[v] = 1
+    for (const v of corte.labios.menos) if (v < total) deLabio[v] = 1
+  }
+  const normalDeReposo = (t: number): Vec3 => {
+    const a = 3 * indices[3 * t]
+    const b = 3 * indices[3 * t + 1]
+    const c = 3 * indices[3 * t + 2]
+    const u: Vec3 = [base[b] - base[a], base[b + 1] - base[a + 1], base[b + 2] - base[a + 2]]
+    const w: Vec3 = [base[c] - base[a], base[c + 1] - base[a + 1], base[c + 2] - base[a + 2]]
+    return [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]]
+  }
+  const ahora = (v: number): Vec3 => [base[3 * v] + arrastre[3 * v], base[3 * v + 1] + arrastre[3 * v + 1], base[3 * v + 2] + arrastre[3 * v + 2]]
+  /** El área con signo sobre la normal de reposo `n` (sin normalizar), por dos y por |n|. */
+  const areaSobre = (t: number, n: Vec3): number => {
+    const a = ahora(indices[3 * t])
+    const u = resta(ahora(indices[3 * t + 1]), a)
+    const w = resta(ahora(indices[3 * t + 2]), a)
+    return n[0] * (u[1] * w[2] - u[2] * w[1]) + n[1] * (u[2] * w[0] - u[0] * w[2]) + n[2] * (u[0] * w[1] - u[1] * w[0])
+  }
+  const movido = (v: number) => arrastre[3 * v] !== 0 || arrastre[3 * v + 1] !== 0 || arrastre[3 * v + 2] !== 0
+  let vueltos: number[] = []
+  for (let t = 0; t < nTriangulos; t++) {
+    const a = indices[3 * t]
+    const b = indices[3 * t + 1]
+    const c = indices[3 * t + 2]
+    if (a >= total || b >= total || c >= total) continue
+    if (!movido(a) && !movido(b) && !movido(c)) continue
+    const n = normalDeReposo(t)
+    if (areaSobre(t, n) < 0) vueltos.push(t)
+  }
+  const alPrincipio = vueltos.length
+  if (alPrincipio === 0) return 0
+  const { inicio, triangulos } = triangulosDe(ultimo)
+  const mirado = new Int32Array(nTriangulos).fill(-1)
+  let sello = 0
+  const pasar = (lista: number[]): number[] => {
+  for (let pasada = 0; pasada < PASADAS_PARA_ENDEREZAR && lista.length > 0; pasada++) {
+    sello++
+    for (const t of lista) {
+      const n = normalDeReposo(t)
+      const n2 = punto(n, n)
+      if (!(n2 > 0)) continue
+      const largoN = Math.sqrt(n2)
+      const nu: Vec3 = [n[0] / largoN, n[1] / largoN, n[2] / largoN]
+      // En unidades de área por dos: lo que tiene sobre su normal de reposo y lo que se le quiere dar.
+      const tiene = areaSobre(t, nu)
+      const quiere = AREA_AL_ENDEREZAR * largoN
+      if (tiene >= quiere) continue
+      const v = [indices[3 * t], indices[3 * t + 1], indices[3 * t + 2]]
+      const p = v.map(ahora)
+      // El gradiente del área (por dos) respecto de cada vértice: la normal por el lado opuesto.
+      const g = [0, 1, 2].map((k) => {
+        const lado = resta(p[(k + 2) % 3], p[(k + 1) % 3])
+        return [nu[1] * lado[2] - nu[2] * lado[1], nu[2] * lado[0] - nu[0] * lado[2], nu[0] * lado[1] - nu[1] * lado[0]] as Vec3
+      })
+      // Un triángulo todo de pared sí se mueve: vuelto en la cara del corte, nadie más lo endereza. Así quedaban 2 junto
+      // al labio en la L de la pierna del taller.
+      const soloPared = v.every((x) => x < total && dePared(x))
+      const libre = (x: number) => x < total && (soloPared || !dePared(x))
+      // El labio solo se desliza de lado: de su gradiente se quita lo que alargaría o acortaría lo que se aparta.
+      for (let k = 0; k < 3; k++) {
+        if (!libre(v[k]) || !deLabio[v[k]]) continue
+        const a: Vec3 = [arrastre[3 * v[k]], arrastre[3 * v[k] + 1], arrastre[3 * v[k] + 2]]
+        const a2 = punto(a, a)
+        const f = a2 > 1e-18 ? punto(g[k], a) / a2 : 0
+        g[k] = a2 > 1e-18 ? [g[k][0] - a[0] * f, g[k][1] - a[1] * f, g[k][2] - a[2] * f] : [0, 0, 0]
+      }
+      let suma2 = 0
+      for (let k = 0; k < 3; k++) if (libre(v[k])) suma2 += punto(g[k], g[k])
+      if (!(suma2 > 0)) continue
+      const paso = (quiere - tiene) / suma2
+      for (let k = 0; k < 3; k++) {
+        if (!libre(v[k])) continue
+        const i = 3 * v[k]
+        const largo = deLabio[v[k]] ? Math.hypot(arrastre[i], arrastre[i + 1], arrastre[i + 2]) : 0
+        arrastre[i] += g[k][0] * paso
+        arrastre[i + 1] += g[k][1] * paso
+        arrastre[i + 2] += g[k][2] * paso
+        // Lo quitado vale para un paso pequeño; en uno largo, girar el arrastre lo alargaría. Se le devuelve su largo.
+        const nuevo = largo > 0 ? Math.hypot(arrastre[i], arrastre[i + 1], arrastre[i + 2]) : 0
+        if (nuevo > 0) for (let j = 0; j < 3; j++) arrastre[i + j] *= largo / nuevo
+      }
+    }
+    // Lo que movió esta pasada puede haber dado vuelta a un vecino: se mira todo lo que toca a lo movido.
+    const siguientes: number[] = []
+    for (const t of lista) {
+      for (let k = 0; k < 3; k++) {
+        const v = indices[3 * t + k]
+        for (let j = inicio[v]; j < inicio[v + 1]; j++) {
+          const u = triangulos[j]
+          if (mirado[u] === sello) continue
+          mirado[u] = sello
+          const a = indices[3 * u]
+          const b = indices[3 * u + 1]
+          const c = indices[3 * u + 2]
+          if (a >= total || b >= total || c >= total) continue
+          if (areaSobre(u, normalDeReposo(u)) < 0) siguientes.push(u)
+        }
+      }
+    }
+    lista = siguientes
+  }
+  return lista
+  }
+  vueltos = pasar(vueltos)
+  // Lo que las pasadas no enderezan es un vértice que atravesó a sus vecinos: dos o más de sus triángulos vueltos, y
+  // enderezar uno lo empuja de vuelta dentro del otro. Se lo lleva al medio de sus vecinos, dentro de su anillo, y se
+  // pasa otra vez. Así quedaban 2 en la fascia superficial de la L de la pierna del taller, con cien pasadas.
+  for (let ronda = 0; ronda < RONDAS_PARA_DESENREDAR && vueltos.length > 0; ronda++) {
+    const cuantos = new Map<number, number>()
+    for (const t of vueltos) for (let k = 0; k < 3; k++) cuantos.set(indices[3 * t + k], (cuantos.get(indices[3 * t + k]) ?? 0) + 1)
+    let alguno = false
+    for (const [v, n] of cuantos) {
+      if (n < 2 || v >= total || dePared(v) || deLabio[v]) continue
+      const medio: Vec3 = [0, 0, 0]
+      let vecinos = 0
+      for (let j = inicio[v]; j < inicio[v + 1]; j++) {
+        const u = triangulos[j]
+        for (let k = 0; k < 3; k++) {
+          const w = indices[3 * u + k]
+          if (w === v) continue
+          const q = ahora(w)
+          medio[0] += q[0]
+          medio[1] += q[1]
+          medio[2] += q[2]
+          vecinos++
+        }
+      }
+      if (vecinos === 0) continue
+      for (let j = 0; j < 3; j++) arrastre[3 * v + j] = medio[j] / vecinos - base[3 * v + j]
+      alguno = true
+    }
+    if (!alguno) break
+    const otraVez: number[] = []
+    for (const v of cuantos.keys()) {
+      for (let j = inicio[v]; j < inicio[v + 1]; j++) {
+        const u = triangulos[j]
+        if (!otraVez.includes(u) && areaSobre(u, normalDeReposo(u)) < 0) otraVez.push(u)
+      }
+    }
+    vueltos = pasar(otraVez)
+  }
+  return alPrincipio
+}
+
+/**
+ * Endereza, sobre unas posiciones de la malla cortada, lo que se dio vuelta (`enderezarLosVueltos`), y dice si había algo.
+ * Es para lo que se suma después de las heridas: el bulto de la piel sobre el hueso que asoma (D-421), que la levanta
+ * hasta 30 mm y, junto a los labios de una herida abierta, volvía a dar vuelta lo que los arrastres dejaban derecho: 68
+ * triángulos en la T del caso 3, y ninguno con el bulto apagado.
+ */
+export function enderezarPosiciones(cortes: readonly MallaCortada[], posiciones: Float32Array): boolean {
+  const corte = cortes[cortes.length - 1]
+  if (!corte) return false
+  const total = Math.min(corte.lado.length, Math.floor(posiciones.length / 3))
+  if (arrastreDeLosCortes.length < 3 * total) arrastreDeLosCortes = new Float64Array(3 * total)
+  const arrastre = arrastreDeLosCortes
+  const base = corte.posiciones
+  for (let i = 0; i < 3 * total; i++) arrastre[i] = posiciones[i] - base[i]
+  if (enderezarLosVueltos(cortes, arrastre, total) === 0) return false
+  for (let i = 0; i < 3 * total; i++) posiciones[i] = base[i] + arrastre[i]
+  return true
+}
+
+/** Lo que `vueltosAntesDeEnderezar` lee: de cada malla cortada, lo de su última composición. */
+const vueltosAlComponer = new WeakMap<MallaCortada, number>()
+
+/**
+ * Cuántos triángulos dio vuelta la suma de los arrastres la última vez que se compuso la malla que acaba en `corte`,
+ * antes de enderezarlos. Lo que se ve es lo enderezado, y ahí un tejido doblado entero queda derecho, aplastado a una
+ * quinta parte de su área: contar los vueltos de la malla ya no dice si algo lo dobla. Lo mira la L de
+ * `unionDeIncisiones.test.ts`, con la cuerda anclada como antes de D-420.
+ */
+export function vueltosAntesDeEnderezar(corte: MallaCortada): number {
+  return vueltosAlComponer.get(corte) ?? 0
+}
 
 /**
  * Las posiciones de una malla cortada **varias veces**, con cada herida abierta lo suyo (P-003 E4).
@@ -1921,21 +2616,32 @@ export function componerCortes(cortes: readonly { corte: MallaCortada; apertura:
   if (arrastreDeLosCortes.length < 3 * total) arrastreDeLosCortes = new Float64Array(3 * total)
   const arrastre = arrastreDeLosCortes
   arrastre.fill(0, 0, 3 * total)
+  // Lo que cada colgajo retrae de más (D-422), por cada tramo de su corte, aparte: de qué tramo es cada vértice lo
+  // decide el lado del brazo, y ese solo se sabe en la malla compuesta, con el brazo ya cortado.
+  const colgajos: { colgajo: ColgajoEnLaUnion; indice: number; haciaElInicio: Float64Array; haciaElFinal: Float64Array }[] = []
+  const interpolar = (destino: Float64Array, corte: MallaCortada, n: number) => {
+    const { desde, de, peso } = corte.mezcla
+    for (let v = desde; v < n; v++) {
+      const j = v - desde
+      const a = 3 * de[2 * j]
+      const b = 3 * de[2 * j + 1]
+      const w = peso[j]
+      destino[3 * v] = destino[a] + (destino[b] - destino[a]) * w
+      destino[3 * v + 1] = destino[a + 1] + (destino[b + 1] - destino[a + 1]) * w
+      destino[3 * v + 2] = destino[a + 2] + (destino[b + 2] - destino[a + 2]) * w
+    }
+  }
   let yaEstaban = 0
-  for (const { corte, apertura } of cortes) {
+  for (let indice = 0; indice < cortes.length; indice++) {
+    const { corte, apertura } = cortes[indice]
     const n = Math.min(total, corte.lado.length)
     // Los vértices que ya estaban conservan su índice y lo que llevaban. Los que añadió este corte toman lo de los dos
     // de que salen, que van siempre antes que ellos: recorridos en orden, cada uno los encuentra ya resueltos.
     if (yaEstaban > 0) {
-      const { desde, de, peso } = corte.mezcla
-      for (let v = desde; v < n; v++) {
-        const j = v - desde
-        const a = 3 * de[2 * j]
-        const b = 3 * de[2 * j + 1]
-        const w = peso[j]
-        arrastre[3 * v] = arrastre[a] + (arrastre[b] - arrastre[a]) * w
-        arrastre[3 * v + 1] = arrastre[a + 1] + (arrastre[b + 1] - arrastre[a + 1]) * w
-        arrastre[3 * v + 2] = arrastre[a + 2] + (arrastre[b + 2] - arrastre[a + 2]) * w
+      interpolar(arrastre, corte, n)
+      for (const c of colgajos) {
+        interpolar(c.haciaElInicio, corte, n)
+        interpolar(c.haciaElFinal, corte, n)
       }
     }
     for (let v = 0; v < n; v++) {
@@ -1945,8 +2651,59 @@ export function componerCortes(cortes: readonly { corte: MallaCortada; apertura:
       arrastre[3 * v + 1] += corte.direccion[3 * v + 1] * k
       arrastre[3 * v + 2] += corte.direccion[3 * v + 2] * k
     }
+    // La piel que esta herida aprieta detrás de sus labios, arrugada (D-423).
+    const arruga = apertura.arrugas ? corte.arruga : undefined
+    if (arruga) {
+      for (let v = 0; v < n; v++) {
+        const alza = alzaDeLaArruga(corte, v, apertura)
+        if (!(alza > 0)) continue
+        arrastre[3 * v] += arruga.normal[3 * v] * alza
+        arrastre[3 * v + 1] += arruga.normal[3 * v + 1] * alza
+        arrastre[3 * v + 2] += arruga.normal[3 * v + 2] * alza
+      }
+    }
+    for (const colgajo of apertura.colgajos ?? []) {
+      // El brazo tiene que ser posterior: lo que nace antes en este no está en su malla.
+      if (!(colgajo.otra > indice && colgajo.otra < cortes.length)) continue
+      const haciaElInicio = borradorDelColgajo(2 * colgajos.length, total)
+      const haciaElFinal = borradorDelColgajo(2 * colgajos.length + 1, total)
+      for (let v = 0; v < n; v++) {
+        if (corte.lado[v] !== colgajo.suyo) continue
+        for (const [destino, alInicio] of [
+          [haciaElInicio, true],
+          [haciaElFinal, false],
+        ] as const) {
+          const k = colgajo.suyo * retraccionDelColgajo(corte, v, apertura, colgajo, alInicio)
+          if (k === 0) continue
+          destino[3 * v] = corte.direccion[3 * v] * k
+          destino[3 * v + 1] = corte.direccion[3 * v + 1] * k
+          destino[3 * v + 2] = corte.direccion[3 * v + 2] * k
+        }
+      }
+      colgajos.push({ colgajo, indice, haciaElInicio, haciaElFinal })
+    }
     yaEstaban = n
   }
+  for (const { colgajo, haciaElInicio, haciaElFinal } of colgajos) {
+    const brazo = cortes[colgajo.otra].corte
+    const { lado, suelto } = colgadoDelBrazo(
+      ultimo.corte,
+      brazo,
+      cortes.slice(colgajo.otra + 1).map((c) => c.corte),
+      colgajo.fundido,
+    )
+    for (let v = 0; v < Math.min(total, lado.length); v++) {
+      const k = suelto[v]
+      if (!(k > 0)) continue
+      const de = lado[v] === colgajo.inicioDelLado ? haciaElInicio : haciaElFinal
+      arrastre[3 * v] += de[3 * v] * k
+      arrastre[3 * v + 1] += de[3 * v + 1] * k
+      arrastre[3 * v + 2] += de[3 * v + 2] * k
+    }
+  }
+  // Y la punta de cada colgajo, redondeada (D-423): después de retraerla, para que el arco viaje con ella.
+  for (const { colgajo, indice } of colgajos) redondearLasPuntas(cortes, indice, colgajo, arrastre, total)
+  vueltosAlComponer.set(ultimo.corte, enderezarLosVueltos(cortes.map((c) => c.corte), arrastre, total))
   const salida = Float32Array.from(ultimo.corte.posiciones)
   for (let i = 0; i < 3 * total; i++) if (arrastre[i] !== 0) salida[i] += arrastre[i]
   return salida
