@@ -13178,7 +13178,7 @@ La L, con un par de Farabeuf a 14 mm en cada brazo (piel; recién cortada, ningu
 
 Antes de D-420, el mismo trazo alargaba la incisión quebrada: con los Farabeuf en otro sitio (`ele.cjs`), 74 a 45°, 119 a 90° y 176 a 135°, y a 135° ya 55 recién cortada.
 
-Antes de subir: Antes de subir, en un worktree con `src` pasado a LF (con CRLF fallan siempre las pruebas que leen el código del simulador): `typecheck` y `lint`, limpios (las 15 advertencias de `<img>` ya estaban); `build` con `/traumahub`, bien; `test:integration`, 406 de 406; `test:coverage`, 7644 pasan y 3 fallan, las del entorno Windows de siempre: `directorioDeRespaldos` ×2 y `tableroDeRevision` (la zona horaria: con `TZ=UTC` pasa). En otra pasada vencieron además `autoria` y `crearComentarioDelTaller` ×2 bajo la carga de la suite; solas pasan. Cobertura: 87 % de las sentencias, 80 % de las ramas y 89 % de las funciones y de las líneas, sobre un umbral de 58.
+Antes de subir, en un worktree con `src` pasado a LF (con CRLF fallan siempre las pruebas que leen el código del simulador): `typecheck` y `lint`, limpios (las 15 advertencias de `<img>` ya estaban); `build` con `/traumahub`, bien; `test:integration`, 406 de 406; `test:coverage`, 7644 pasan y 3 fallan, las del entorno Windows de siempre: `directorioDeRespaldos` ×2 y `tableroDeRevision` (la zona horaria: con `TZ=UTC` pasa). En otra pasada vencieron además `autoria` y `crearComentarioDelTaller` ×2 bajo la carga de la suite; solas pasan. Cobertura: 87 % de las sentencias, 80 % de las ramas y 89 % de las funciones y de las líneas, sobre un umbral de 58.
 
 *Consecuencias.*
 - (+) La T, la cruz y la L son una incisión: una fila, una medida, un deshacer y un cierre, en el paso y en la sesión.
@@ -13190,6 +13190,11 @@ Antes de subir: Antes de subir, en un worktree con `src` pasado a LF (con CRLF f
 - (−) Cada pedazo se sigue retrayendo solo según su propio largo: en la cruz, la incisión de 92 mm descansa abierta 7 mm y sus brazos de 40 y 30 mm, 5,6 y 4,4.
 - (−) Los 30° del codo, los 10 mm del fundido y la ley del sesgo se midieron en un caso, la pierna del 3, y en la lámina.
 - (−) Las sesiones guardadas antes de este cambio no saben qué nace de qué: sus brazos se rehacen a 1 mm, como incisiones aparte.
+
+Desplegado el 2026-11-19 en `24cc1c6` (hora de Chile; la entrada lleva la fecha del PC, que va adelantado), a pedido del dueño («al finalizar muestra las imagenes para comprobar que todo esta ok, subelo al git y despliega en ved y contabo»):
+- Mientras se desplegaba, el mismo código se levantó en local, en el caso 3 con la base desechable, para sacar las imágenes que pidió: la T, la cruz y la L a 90° y a 135° abiertas con los Farabeuf, y el cierre de un clic de la T y de la cruz. Dieron lo de las tablas de arriba: 9 y 24 triángulos doblados en la T y la cruz con los Farabeuf puestos después, 42 y 9 en la L, y 20 y 26 puntadas con «Piel · cerrada».
+- ved terminó a las 23:01 (Chile), con respaldo `base-20261119-225912`, en claro como manda D-384. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre. Salud 200 por fuera, la huella `puntasDeLosLabios` en `/app/.next/static`, y `sala.glb` sin sesión sigue en 403.
+- Contabo terminó a las 23:08. Antes se hizo un respaldo verificado, `base-`/`medios-20261119-225934`, y el de su propio despliegue fue `base-20261119-230353`. El override era igual a la plantilla. El mismo ensayo, 4 procesos, salud 200 en `https://traumahub.cl`, la misma huella, y `sala.glb` sin sesión da 403 con `no-store`.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
