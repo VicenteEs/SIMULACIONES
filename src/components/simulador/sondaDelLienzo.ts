@@ -5,6 +5,7 @@ import { labioDelSeparador, labioEnLaPosicion, type SeparadorEnEscena } from './
 import { aberturaDe, arrugasDeLaHerida, cadenaDeLaMalla, colgajosDe, reposoVigente, sitioEnLaHerida, solturaDeLaHerida, type HeridaEnCapa } from './heridas'
 import { componerCortes } from '@/lib/corteDeMalla'
 import { ejeDeLaPlaca, posicionDelAgujero, type ImplantesEnEscena, type PlacaColocada } from './implantesEnLaEscena'
+import { alturaDeLaCara } from './asientoDeLaPlaca'
 import { poseActual } from './vistaDelPaciente'
 import {
   abultamientoMaximoMm,
@@ -960,6 +961,11 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
       const margen = 0.0003
       const largoMm = (caja.max.z - caja.min.z) * 1000
       const columnas = Math.max(8, Math.round(largoMm / 2))
+      // Si la placa se asentó con su cara de verdad (D-427), se mide desde su metal, y lo que cae fuera de él no se mide.
+      // Desde el fondo de la caja, en la de gancho se medía desde la punta del gancho, 15 mm por debajo del cuerpo.
+      const deVerdad = !placa.contorno && placa.cara?.muestras ? placa.cara : undefined
+      const escala = placa.grupo.scale.x || 1
+      const origen = placa.desdeElOrigen
       let contacto = 0
       let sinHueso = 0
       let penetracion = 0
@@ -969,7 +975,13 @@ export function crearLaSonda(leer: () => LoQueVeLaSonda) {
         const x = caja.min.x + margen + ((caja.max.x - caja.min.x - 2 * margen) * i) / 4
         for (let k = 0; k <= columnas; k++) {
           const z = caja.min.z + margen + ((caja.max.z - caja.min.z - 2 * margen) * k) / columnas
-          const recto = new THREE.Vector3(x, placa.yMinimoLocal, z)
+          let alto = placa.yMinimoLocal
+          if (deVerdad) {
+            const h = alturaDeLaCara(deVerdad, x * escala - origen.x, z * escala - origen.z)
+            if (!Number.isFinite(h)) continue
+            alto = (h + origen.y) / escala
+          }
+          const recto = new THREE.Vector3(x, alto, z)
           const local = placa.contorno ? placa.contorno.mapa(recto) : recto
           const p = placa.grupo.localToWorld(local.clone())
           muestras++

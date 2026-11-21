@@ -9,6 +9,7 @@ import type { MetaDeRaiz } from '@/instrumental/modelo'
 import { deformarLasMallas, guardarOriginales, mapaEnElMarcoDelGrupo } from './deformacionDeLaPlaca'
 import {
   buscarAsiento,
+  caraDeLasMallas,
   caraRecta,
   celdaDe,
   ejeDelHuesoCerca,
@@ -380,13 +381,21 @@ export function ajustarPlaca(
  * La cara de abajo de la placa en celdas, desde el centro que se apoya (`desdeElOrigen`). En una placa doblada en la
  * mesa (P-005 E1), cada celda lleva lo que su doblez la sube o la baja: una placa contorneada para el hueso se asienta
  * con su forma, y no como la recta que era.
+ *
+ * Una placa cuyo modelo dice la altura de sus agujeros se asienta con la cara que tiene de verdad (D-427,
+ * `caraDeLasMallas`): son las que no son una lámina recta —la volar, la anatómica de tibia, la de gancho, la T y la L—,
+ * y en ellas el fondo de la caja no es la cara que toca el hueso. Las otras siguen con la caja. La cara de verdad va con
+ * las alturas de verdad: sin ellas los agujeros se leen a la altura del fondo de la caja, y en la de gancho, apoyada por
+ * su cuerpo, quedarían 15 mm por debajo de su metal.
  */
 function caraDeLaPlaca(placa: PlacaColocada): CaraDeAbajo {
   const unidades = 1 / placa.milimetrosPorUnidad
   const cara = caraRecta(placa.anchoMm * unidades, placa.largoMm * unidades, placa.milimetrosPorUnidad)
-  if (!placa.contorno) return cara
   const escala = placa.grupo.scale.x || 1
   const d = placa.desdeElOrigen
+  if (!placa.contorno) {
+    return (placa.alturasDelModeloMm && caraDeLasMallas(placa.grupo, d, escala, cara, placa.milimetrosPorUnidad)) || cara
+  }
   for (let j = 0; j < cara.filas; j++) {
     for (let i = 0; i < cara.columnas; i++) {
       const x = -cara.medioAncho + ((i + 0.5) * 2 * cara.medioAncho) / cara.columnas
@@ -408,8 +417,10 @@ function resumirAsiento(placa: PlacaColocada, asiento: Asiento, puntos: PuntosDe
     if (!e) porTrozo.set(t, (e = { agujeros: 0, minima: Infinity }))
     return e
   }
+  // Solo las celdas con metal y hueso debajo (D-427): con la cara de verdad, la caja de una T tiene celdas sin placa, y el
+  // trozo que solo está bajo ellas no está bajo la placa.
   asiento.trozoDeLaCelda.forEach((t, c) => {
-    if (t < 0) return
+    if (t < 0 || Number.isNaN(asiento.holguras[c])) return
     const e = deTrozo(t)
     e.minima = Math.min(e.minima, asiento.holguras[c])
   })
@@ -429,12 +440,16 @@ function resumirAsiento(placa: PlacaColocada, asiento: Asiento, puntos: PuntosDe
     trozoDeCadaAgujero.push(t < 0 ? null : (puntos.mallas[t]?.name ?? ''))
   }
   const decima = (n: number) => Math.round(n * 10) / 10
+  // Un trozo que solo está bajo un agujero, sin metal sobre él en ninguna celda, no tiene a cuánto queda: se deja en cero,
+  // porque el «no apoya, queda a ∞ mm» que saldría no dice nada útil. Con los agujeros cerrados de la cara de verdad no
+  // debería pasar; sí en el borde de la placa, donde la celda del agujero tiene metal y su hueso queda fuera de él.
+  const minimaMm = (minima: number) => (Number.isFinite(minima) ? decima(Math.max(0, minima) * mm) : 0)
   return {
     contactoPct: Math.round(asiento.contacto * 100),
     sinHuesoPct: Math.round(asiento.sinHueso * 100),
     holguraMediaMm: decima(asiento.holguraMedia * mm),
     trozos: [...porTrozo]
-      .map(([t, e]) => ({ nodo: puntos.mallas[t]?.name ?? '', agujeros: e.agujeros, holguraMinimaMm: decima(Math.max(0, e.minima) * mm) }))
+      .map(([t, e]) => ({ nodo: puntos.mallas[t]?.name ?? '', agujeros: e.agujeros, holguraMinimaMm: minimaMm(e.minima) }))
       .sort((a, b) => b.agujeros - a.agujeros),
     agujerosSinHueso,
     trozoDeCadaAgujero,

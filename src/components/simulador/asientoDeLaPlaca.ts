@@ -314,6 +314,9 @@ export function ejeDelHuesoCerca(
  * La cara de abajo de la placa, en celdas: cinco columnas a lo ancho y una fila cada dos milímetros a lo largo, en
  * unidades del mundo y desde el centro de esa cara. `alturas` es lo que esa cara sube o baja en cada celda respecto de
  * la recta: cero en una placa recta, y lo que dio el doblez en una que viene de la mesa de modelado.
+ *
+ * Una celda en `Infinity` no tiene metal (D-427): la caja de una placa en T, en L o con gancho es un rectángulo, y la
+ * placa no lo llena. Esa celda no sostiene la placa ni cuenta en lo que toca.
  */
 export interface CaraDeAbajo {
   columnas: number
@@ -321,7 +324,19 @@ export interface CaraDeAbajo {
   medioAncho: number
   medioLargo: number
   alturas: Float32Array
+  /**
+   * La cara de verdad, cada medio milímetro (D-427): la misma huella en una rejilla fina, con lo más bajo del metal en
+   * cada punto, e `Infinity` donde no lo hay. Con ella cada punto del hueso se compara con el metal que tiene justo
+   * encima, y no con una altura por celda. La cabeza de la anatómica de tibia baja 6,4 mm en los 22 de cada lado, y con
+   * celdas de 8,8 mm de ancho cualquier altura de celda se equivoca: por la cuenta, lo más bajo de cada una habría dejado
+   * la placa 4 mm en el aire sobre un hueso de su misma curva, y su centro la habría metido en uno plano. Las celdas
+   * quedan para contar lo que toca.
+   */
+  muestras?: CaraDeAbajo
 }
+
+/** Cada cuánto se mide la cara de verdad de la placa, en milímetros (D-427): ver `muestras`. */
+export const PASO_DE_LA_CARA_MM = 0.5
 
 export function caraRecta(anchoMundo: number, largoMundo: number, milimetrosPorUnidad: number): CaraDeAbajo {
   const filas = Math.max(4, Math.round((largoMundo * milimetrosPorUnidad) / 2))
@@ -343,6 +358,201 @@ export function celdaDe(cara: CaraDeAbajo, x: number, z: number): number {
   )
   const j = Math.min(cara.filas - 1, Math.floor(((z + cara.medioLargo) / (2 * cara.medioLargo || 1)) * cara.filas))
   return j * cara.columnas + i
+}
+
+/**
+ * Lo que sube o baja la cara de abajo en un punto, en las coordenadas de `celdaDe`: entre sus muestras si la cara las
+ * trae y, si no, lo de su celda. `Infinity` fuera de la placa o donde no hay metal.
+ */
+export function alturaDeLaCara(cara: CaraDeAbajo, x: number, z: number): number {
+  if (cara.muestras) return alturaEntreLasMuestras(cara.muestras, x, z)
+  const c = celdaDe(cara, x, z)
+  return c < 0 ? Infinity : cara.alturas[c]
+}
+
+/**
+ * Lo que mide la cara de verdad en un punto, entre las cuatro muestras que lo rodean (D-427). Con la más cercana, el punto
+ * podía estar un cuarto de milímetro más adentro que ella, y en la ladera de la cabeza de la tibia eso son hasta 0,15 mm
+ * de altura: la placa quedaba a 0,34 mm de un hueso de su misma curva, y no a 0,28. En el borde del metal, donde alguna
+ * de las cuatro no tiene, vale la más cercana.
+ */
+function alturaEntreLasMuestras(m: CaraDeAbajo, x: number, z: number): number {
+  if (Math.abs(x) > m.medioAncho || Math.abs(z) > m.medioLargo) return Infinity
+  // En unidades de muestra, con la muestra i en i + ½.
+  const u = ((x + m.medioAncho) / (2 * m.medioAncho || 1)) * m.columnas - 0.5
+  const v = ((z + m.medioLargo) / (2 * m.medioLargo || 1)) * m.filas - 0.5
+  const i0 = Math.max(0, Math.min(m.columnas - 2, Math.floor(u)))
+  const j0 = Math.max(0, Math.min(m.filas - 2, Math.floor(v)))
+  const fu = Math.max(0, Math.min(1, u - i0))
+  const fv = Math.max(0, Math.min(1, v - j0))
+  const a = m.alturas[j0 * m.columnas + i0]
+  const b = m.alturas[j0 * m.columnas + i0 + 1]
+  const c = m.alturas[(j0 + 1) * m.columnas + i0]
+  const d = m.alturas[(j0 + 1) * m.columnas + i0 + 1]
+  if (Number.isFinite(a) && Number.isFinite(b) && Number.isFinite(c) && Number.isFinite(d)) {
+    return (a * (1 - fu) + b * fu) * (1 - fv) + (c * (1 - fu) + d * fu) * fv
+  }
+  return m.alturas[Math.round(j0 + fv) * m.columnas + Math.round(i0 + fu)]
+}
+
+/**
+ * La cara de abajo que tiene de verdad la placa (D-427), sobre las celdas de `cara`, que dan la huella: lo más bajo
+ * de su metal en cada punto, desde el centro de la cara de abajo de su caja.
+ *
+ * La caja servía mientras las placas eran láminas rectas, porque entonces su fondo es la cara que toca el hueso. En la
+ * de gancho, lo más bajo de la caja es la punta del gancho, 15 mm por debajo del cuerpo, y la placa quedaba con el
+ * cuerpo en el aire; en la anatómica de tibia, los bordes de la cabeza, que bajan para abrazar la metáfisis, y su
+ * cuerpo flotaba 6,6 mm sobre un hueso de su misma curva.
+ *
+ * Se mira cada triángulo desde abajo en una rejilla de medio milímetro y en cada punto se queda el más bajo: la cara
+ * de abajo es lo primero que encuentra quien sube desde el hueso, mire hacia donde mire el triángulo, y así no hace
+ * falta saber cuál es de abajo. Los agujeros se cierran, con lo que mide el metal a cada lado: el hueso no se mete por
+ * ellos, y bajo un agujero hay que saber qué trozo hay y a cuánto queda, porque ahí va su tornillo.
+ *
+ * `origen` está en el marco del grupo y ya escalado (el de `desdeElOrigen`), y lo que devuelve, en esas mismas
+ * unidades. `null` si el grupo no tiene ni un triángulo sobre la huella.
+ */
+export function caraDeLasMallas(
+  grupo: THREE.Object3D,
+  origen: THREE.Vector3,
+  escala: number,
+  cara: CaraDeAbajo,
+  milimetrosPorUnidad: number,
+): CaraDeAbajo | null {
+  const paso = PASO_DE_LA_CARA_MM / (milimetrosPorUnidad || 1000)
+  const nx = Math.max(cara.columnas, Math.round((2 * cara.medioAncho) / paso))
+  const nz = Math.max(cara.filas, Math.round((2 * cara.medioLargo) / paso))
+  const pasoX = (2 * cara.medioAncho) / nx
+  const pasoZ = (2 * cara.medioLargo) / nz
+  if (!(pasoX > 0) || !(pasoZ > 0)) return null
+  const bajo = new Float64Array(nx * nz).fill(Infinity)
+  grupo.updateMatrixWorld(true)
+  const inversa = grupo.matrixWorld.clone().invert()
+  const alGrupo = new THREE.Matrix4()
+  const v = new THREE.Vector3()
+  // Un triángulo de canto —la pared de un agujero, un canto de la placa— no tapa nada visto desde abajo.
+  const casiCero = 1e-9 * pasoX * pasoZ
+  const margen = 1e-9
+  grupo.traverse((o) => {
+    const malla = o as THREE.Mesh
+    if (!malla.isMesh) return
+    const posicion = malla.geometry?.getAttribute('position')
+    if (!posicion) return
+    alGrupo.multiplyMatrices(inversa, malla.matrixWorld)
+    // Los vértices al marco de la cara una sola vez, y no una por cada triángulo que los usa.
+    const xs = new Float64Array(posicion.count)
+    const ys = new Float64Array(posicion.count)
+    const zs = new Float64Array(posicion.count)
+    for (let k = 0; k < posicion.count; k++) {
+      v.fromBufferAttribute(posicion, k).applyMatrix4(alGrupo).multiplyScalar(escala).sub(origen)
+      xs[k] = v.x
+      ys[k] = v.y
+      zs[k] = v.z
+    }
+    const indice = malla.geometry.getIndex()
+    const vertices = indice ? indice.count : posicion.count
+    for (let t = 0; t + 2 < vertices; t += 3) {
+      const a = indice ? indice.getX(t) : t
+      const b = indice ? indice.getX(t + 1) : t + 1
+      const c = indice ? indice.getX(t + 2) : t + 2
+      const ax = xs[a]
+      const az = zs[a]
+      const e1x = xs[b] - ax
+      const e1z = zs[b] - az
+      const e2x = xs[c] - ax
+      const e2z = zs[c] - az
+      const det = e1x * e2z - e2x * e1z
+      if (Math.abs(det) <= casiCero) continue
+      // Solo los puntos de la rejilla que caen en la caja del triángulo: el punto i está en −medioAncho + (i + ½)·paso.
+      const i0 = Math.max(0, Math.ceil((Math.min(ax, xs[b], xs[c]) + cara.medioAncho) / pasoX - 0.5))
+      const i1 = Math.min(nx - 1, Math.floor((Math.max(ax, xs[b], xs[c]) + cara.medioAncho) / pasoX - 0.5))
+      const j0 = Math.max(0, Math.ceil((Math.min(az, zs[b], zs[c]) + cara.medioLargo) / pasoZ - 0.5))
+      const j1 = Math.min(nz - 1, Math.floor((Math.max(az, zs[b], zs[c]) + cara.medioLargo) / pasoZ - 0.5))
+      if (i0 > i1 || j0 > j1) continue
+      const ay = ys[a]
+      const e1y = ys[b] - ay
+      const e2y = ys[c] - ay
+      for (let j = j0; j <= j1; j++) {
+        const pz = -cara.medioLargo + (j + 0.5) * pasoZ - az
+        for (let i = i0; i <= i1; i++) {
+          const px = -cara.medioAncho + (i + 0.5) * pasoX - ax
+          // Dónde cae el punto en el triángulo visto desde abajo, por sus coordenadas baricéntricas.
+          const u = (px * e2z - e2x * pz) / det
+          const w = (e1x * pz - px * e1z) / det
+          if (u < -margen || w < -margen || u + w > 1 + margen) continue
+          const y = ay + u * e1y + w * e2y
+          const s = j * nx + i
+          if (y < bajo[s]) bajo[s] = y
+        }
+      }
+    }
+  })
+  cerrarLosAgujeros(bajo, nx, nz)
+  const muestras: CaraDeAbajo = { columnas: nx, filas: nz, medioAncho: cara.medioAncho, medioLargo: cara.medioLargo, alturas: Float32Array.from(bajo) }
+  // Cada celda, con lo más bajo de lo que tiene encima: es lo que se usa para contar lo que toca y para saber si tiene metal.
+  const alturas = new Float32Array(cara.columnas * cara.filas).fill(Infinity)
+  let conMetal = false
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) {
+      const y = bajo[j * nx + i]
+      if (!Number.isFinite(y)) continue
+      const c = celdaDe(cara, -cara.medioAncho + (i + 0.5) * pasoX, -cara.medioLargo + (j + 0.5) * pasoZ)
+      if (c >= 0 && y < alturas[c]) alturas[c] = y
+      conMetal = true
+    }
+  }
+  if (!conMetal) return null
+  return { columnas: cara.columnas, filas: cara.filas, medioAncho: cara.medioAncho, medioLargo: cara.medioLargo, alturas, muestras }
+}
+
+/**
+ * Cierra los agujeros de la cara (D-427): lo que no tiene metal y no llega al borde de la rejilla sin cruzar metal está
+ * rodeado de él. Se rellena fila a fila con la recta entre el metal de cada lado, que en la cabeza curva de la tibia
+ * sigue su curva; con lo más bajo de alrededor, un agujero en su ladera quedaba más de un milímetro por debajo de su
+ * borde de arriba.
+ */
+function cerrarLosAgujeros(bajo: Float64Array, nx: number, nz: number) {
+  const fuera = new Uint8Array(nx * nz)
+  const pila: number[] = []
+  const empujar = (s: number) => {
+    if (fuera[s] || Number.isFinite(bajo[s])) return
+    fuera[s] = 1
+    pila.push(s)
+  }
+  for (let i = 0; i < nx; i++) {
+    empujar(i)
+    empujar((nz - 1) * nx + i)
+  }
+  for (let j = 0; j < nz; j++) {
+    empujar(j * nx)
+    empujar(j * nx + nx - 1)
+  }
+  while (pila.length > 0) {
+    const s = pila.pop()!
+    const i = s % nx
+    if (i > 0) empujar(s - 1)
+    if (i < nx - 1) empujar(s + 1)
+    if (s >= nx) empujar(s - nx)
+    if (s < (nz - 1) * nx) empujar(s + nx)
+  }
+  // Un tramo de una fila sin metal es todo de fuera o todo de dentro: sus puntos se tocan. Uno de dentro no llega a los
+  // extremos de la fila, que están en el borde, así que tiene metal a los dos lados.
+  for (let j = 0; j < nz; j++) {
+    const fila = j * nx
+    let i = 0
+    while (i < nx) {
+      if (Number.isFinite(bajo[fila + i]) || fuera[fila + i]) {
+        i++
+        continue
+      }
+      let fin = i
+      while (fin + 1 < nx && !Number.isFinite(bajo[fila + fin + 1])) fin++
+      const antes = bajo[fila + i - 1]
+      const despues = bajo[fila + fin + 1]
+      for (let k = i; k <= fin; k++) bajo[fila + k] = antes + ((despues - antes) * (k - i + 1)) / (fin - i + 2)
+      i = fin + 1
+    }
+  }
 }
 
 /** Cómo quedó la placa: su postura y lo que toca. Las distancias, en unidades del mundo. */
@@ -387,8 +597,17 @@ export function buscarAsiento(p: {
   const z0 = p.eje.clone().negate().addScaledVector(y0, p.eje.dot(y0)).normalize()
   const x0 = new THREE.Vector3().crossVectors(y0, z0).normalize()
   const celdas = cara.columnas * cara.filas
+  // Las celdas con metal (D-427). Lo que toca y lo que queda sin hueso se cuentan sobre ellas: con toda la huella, una T
+  // sobre una diáfisis daba por «sin hueso» lo que queda a los lados de su cuerpo, bajo el ancho de la cabeza, donde no hay
+  // placa.
+  let deLaPlaca = 0
+  for (let c = 0; c < celdas; c++) if (Number.isFinite(cara.alturas[c])) deLaPlaca++
+  if (deLaPlaca === 0) return null
   const alto = new Float64Array(celdas)
+  const exceso = new Float64Array(celdas)
   const trozo = new Int16Array(celdas)
+  const trozoBajoElMetal = new Int16Array(celdas)
+  const muestras = cara.muestras
   const profundo = -40 * unidad
   const castigoSinHueso = 3 * unidad
   const castigoPorGrado = 0.03 * unidad
@@ -423,7 +642,9 @@ export function buscarAsiento(p: {
     const y2 = y1.clone().multiplyScalar(cf).addScaledVector(x0, -sf)
     const z2 = z1
     alto.fill(VACIO)
+    exceso.fill(VACIO)
     trozo.fill(-1)
+    trozoBajoElMetal.fill(-1)
     for (const k of cerca) {
       const i = 3 * k
       const rx = puntos.posiciones[i] - p.apoyo.x
@@ -431,37 +652,55 @@ export function buscarAsiento(p: {
       const rz = puntos.posiciones[i + 2] - p.apoyo.z
       const y = rx * y2.x + ry * y2.y + rz * y2.z
       if (y < profundo) continue
-      const c = celdaDe(cara, rx * x2.x + ry * x2.y + rz * x2.z, rx * z2.x + ry * z2.y + rz * z2.z)
+      const x = rx * x2.x + ry * x2.y + rz * x2.z
+      const z = rx * z2.x + ry * z2.y + rz * z2.z
+      const c = celdaDe(cara, x, z)
       if (c < 0) continue
       if (y > alto[c]) {
         alto[c] = y
         trozo[c] = puntos.malla[k]
       }
+      // Y lo que se mete en el metal que tiene justo encima (D-427): en la cara de verdad, el de sus muestras; si no, el de
+      // la celda. Sin metal encima resta infinito y no pesa.
+      const metal = muestras ? alturaEntreLasMuestras(muestras, x, z) : cara.alturas[c]
+      if (y - metal > exceso[c]) {
+        exceso[c] = y - metal
+        trozoBajoElMetal[c] = puntos.malla[k]
+      }
     }
-    // Lo que tiene que subir la placa: que ninguna celda de su cara quede por debajo del hueso de esa celda.
+    // Lo que tiene que subir la placa: que ningún punto del hueso quede por encima del metal que tiene encima.
     let altura = VACIO
-    for (let c = 0; c < celdas; c++) if (alto[c] !== VACIO) altura = Math.max(altura, alto[c] - cara.alturas[c])
+    for (let c = 0; c < celdas; c++) if (exceso[c] > altura) altura = exceso[c]
     if (altura === VACIO) return null
     let suma = 0
     let conHueso = 0
     let apoyadas = 0
+    // Lo que toca se cuenta en las celdas con metal. Una sin él puede tener un punto bajo una muestra con metal, la de la
+    // celda de al lado, que se cuela en su borde: empuja la placa, pero la celda no es de la placa.
     for (let c = 0; c < celdas; c++) {
-      if (alto[c] === VACIO) continue
-      const h = altura + cara.alturas[c] - alto[c]
+      if (exceso[c] === VACIO || !Number.isFinite(cara.alturas[c])) continue
+      const h = altura - exceso[c]
       suma += h
       conHueso++
       if (h <= CONTACTO_MM * unidad) apoyadas++
     }
-    const sinHueso = 1 - conHueso / celdas
+    if (conHueso === 0) return null
+    const sinHueso = 1 - conHueso / deLaPlaca
     const media = suma / conHueso
     const grados = (Math.acos(Math.min(1, Math.max(-1, y2.dot(y0)))) * 180) / Math.PI
     // Lo apoyado también cuenta. Sobre un escalón sin reducir, la placa que se mece tocando los dos fragmentos por un
     // borde y la que se apoya de lleno en uno casi empatan en holgura media (1,4 y 1,6 mm con un escalón de 3 mm); la que
     // se apoya de lleno es la que se ve en un quirófano, y la que dice la verdad: que un fragmento no está reducido.
-    const nota = media - premioPorContacto * (apoyadas / celdas) + castigoSinHueso * sinHueso + castigoPorGrado * grados
+    const nota = media - premioPorContacto * (apoyadas / deLaPlaca) + castigoSinHueso * sinHueso + castigoPorGrado * grados
     if (!guardar) return { nota }
     const holguras = new Float32Array(celdas)
-    for (let c = 0; c < celdas; c++) holguras[c] = alto[c] === VACIO ? NaN : altura + cara.alturas[c] - alto[c]
+    for (let c = 0; c < celdas; c++)
+      holguras[c] = exceso[c] === VACIO || !Number.isFinite(cara.alturas[c]) ? NaN : altura - exceso[c]
+    // El trozo de cada celda es el que tiene el metal más cerca, y solo si no tiene metal encima, el más alto de la celda
+    // (D-427). Con una celda de 6 mm de ancho que pilla 2 mm del cuerpo de una T, el más alto era el trozo de al lado, que
+    // la T no toca, y salía entre los que la sostienen. En una celda toda de metal y plana los dos son el mismo punto.
+    const deCadaCelda = Int16Array.from(trozo)
+    for (let c = 0; c < celdas; c++) if (exceso[c] !== VACIO) deCadaCelda[c] = trozoBajoElMetal[c]
     return {
       nota,
       asiento: {
@@ -469,8 +708,8 @@ export function buscarAsiento(p: {
         eje: z2.clone().negate().normalize(),
         altura,
         holguras,
-        trozoDeLaCelda: Int16Array.from(trozo),
-        contacto: apoyadas / celdas,
+        trozoDeLaCelda: deCadaCelda,
+        contacto: apoyadas / deLaPlaca,
         sinHueso,
         holguraMedia: media,
       } satisfies Asiento,

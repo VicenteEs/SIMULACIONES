@@ -324,6 +324,10 @@ def placa_con_cabeza(slug, nombre, forma, medidas, largo_cuerpo, paso, ancho_cue
     av = bmesh.new()
     ys = [(-largo_cuerpo / 2 + paso * 0.9 + k * paso) for k in range(n_cuerpo)]
     posiciones = [(0.0, y) for y in ys]  # para el simulador (D-169)
+    # Y lo que la caja no dice de cada agujero (D-427), en el mismo orden: dónde empieza y dónde termina, y su forma. La
+    # cabeza de la anatómica baja hacia los lados, y sus agujeros de fuera empiezan 1,6 mm más abajo que el del medio.
+    alturas = [(0.0, grosor)] * n_cuerpo
+    formas = ['combi' if combi else 'oval'] * n_cuerpo
     for y in ys:
         if combi:
             agujero_combi(c, 0, y, d_agujero * 1.2, paso * 0.40, grosor)
@@ -338,29 +342,40 @@ def placa_con_cabeza(slug, nombre, forma, medidas, largo_cuerpo, paso, ancho_cue
             agujero_redondo(c, x0 + sep * k, y_cab, d_agujero, grosor)
             avellanado_redondo(av, x0 + sep * k, y_cab, d_agujero, grosor)
             posiciones.append((x0 + sep * k, y_cab))
+            alturas.append((0.0, grosor))
+            formas.append('redondo')
     elif forma == 'T':
         for k in range(n_cabeza):
             x = -ancho_cabeza / 2 + sep * (k + 1)
             agujero_redondo(c, x, y_cab, d_agujero, grosor)
             avellanado_redondo(av, x, y_cab, d_agujero, grosor)
             posiciones.append((x, y_cab))
+            alturas.append((0.0, grosor))
+            formas.append('redondo')
     else:
         mitades = n_cabeza // 2
         xs = [-ancho_cabeza / 2 + sep * (k + 1) for k in range(mitades)]
         r = radio_cabeza or 38.0
         for dy in (-3.2, 3.4):
             for x in xs:
-                z_extra = -(x * x) / (2 * r)
+                # El + 0.0, por el del medio: −0 / 76 da −0.0, y así quedaba escrito en la meta.
+                z_extra = -(x * x) / (2 * r) + 0.0
                 torno(c, [(-1.0 + z_extra, d_agujero * 0.62), (grosor + 1.0 + z_extra, d_agujero * 0.62)], 24,
                       Matrix.Translation((x, y_cab + dy, 0)))
                 posiciones.append((x, y_cab + dy))
+                # La cabeza es una lámina que sube y baja con `elevacion`: en cada agujero, su chapa entera desde ahí.
+                alturas.append((z_extra, z_extra + grosor))
+                formas.append('redondo')
     restar(cuerpo, c)
     if len(av.verts):
         restar(cuerpo, av)
     else:
         av.free()
     suavizar(cuerpo, 38)
-    meta_raiz(raiz, slug, nombre, medidas, agujeros=posiciones)
+    # El óvalo, entero: el ocho de un combinado mide lo que separa sus centros más su diámetro, y el de una DCP, su largo.
+    largo_del_oval = paso * 0.40 + d_agujero * 1.2 if combi else paso * 0.55
+    meta_raiz(raiz, slug, nombre, medidas, agujeros=posiciones, grosor=grosor, alturas=alturas, formas=formas,
+              largo_del_oval=largo_del_oval)
     return raiz
 
 
@@ -400,7 +415,10 @@ def placa_gancho(slug, nombre, medidas, n=3, paso=12.0, ancho=11.0, grosor=3.0, 
         posiciones.append((0.0, y_agujero))
     restar(ob, c)
     suavizar(ob, 38)
-    meta_raiz(raiz, slug, nombre, medidas, agujeros=posiciones)
+    # Lo que la caja no dice (D-427): su fondo es la punta del gancho, 15 mm por debajo del cuerpo, y el simulador leía
+    # ahí la cara de abajo de los agujeros. Todos están en el cuerpo, con su chapa entera.
+    meta_raiz(raiz, slug, nombre, medidas, agujeros=posiciones, grosor=grosor, alturas=[(0.0, grosor)] * n,
+              formas=['redondo'] * n)
     return raiz
 
 

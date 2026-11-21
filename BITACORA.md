@@ -13676,7 +13676,7 @@ Los despliegues:
   - las dos fichas quedaron unidas a su modelo, y el catálogo tiene 83 instrumentos;
   - sin sesión, los dos archivos dan 403, igual que `broca-2-0.glb`.
 
-### D-426 · 2026-11-21 · vigente · pedido del dueño · amplía D-169, D-300 y D-425 · supera en parte a D-425 (el grosor de la placa, la forma de sus agujeros, el cortical de 2,4 y la placa izquierda)
+### D-426 · 2026-11-21 · vigente · pedido del dueño · amplía D-169, D-300 y D-425 · supera en parte a D-425 (el grosor de la placa, la forma de sus agujeros, el cortical de 2,4 y la placa izquierda) · superada en parte por D-427 (el asiento plano, y la anatómica de tibia y la de gancho medidas con la caja)
 **La volar de radio distal dice en su modelo el grosor de su chapa, la altura y la forma de cada agujero y lo que mide su óvalo, y el simulador usa eso en vez de la caja y del nombre. Llegan además el cortical de 2,4 a la bandeja y la placa izquierda.**
 
 *Qué pasó.* El dueño pidió arreglar lo que D-425 dejó anotado sin arreglar («quiero que arregles esto»):
@@ -13739,6 +13739,72 @@ La forma salía del nombre (`formaDeLosAgujeros`: «LCP» es combinado) y valía
 - (−) El tornillo entra por la normal de la placa y no por el eje de su agujero, que en la cabeza va inclinado 10°.
 - (−) Al elegir el cortical o el bloqueado sobre una placa de 2,4, la consola no pone sola el 2,4 en la lista de diámetros.
 - (−) Los `.glb` cambiaron. En ved y Contabo hay que reemplazar el de la derecha con el mismo nombre de archivo, y cargar la izquierda.
+
+### D-427 · 2026-11-21 · vigente · pedido del dueño · amplía D-426 y P-009 · supera en parte a D-426 (el asiento plano, y la anatómica de tibia y la de gancho medidas con la caja)
+**Las placas que no son una lámina recta se asientan con la cara de abajo que tienen de verdad. La anatómica de tibia, la de gancho, la T y la L dicen en su modelo su chapa y sus agujeros, como la volar.**
+
+*Qué pasó.* Al terminar D-426 se le preguntó al dueño si subirla ya o arreglar antes la anatómica de tibia y la de gancho, que D-426 dejaba midiéndose con la caja. Respondió: «Arreglar antes las otras».
+
+*Lo que de verdad les pasaba.* D-426 daba por hecho que a las dos les pasaba lo de la volar con el grosor. Medidas sobre huesos de cartón (cilindros y bloques), resultó otra cosa:
+- El asiento (P-009) apoyaba el fondo de la caja.
+  - En la de gancho, el fondo es la punta del gancho, 15,6 mm por debajo del cuerpo. Sobre una clavícula, el cuerpo quedaba 15,6 mm en el aire.
+  - En la de tibia, es el borde de la cabeza, que baja 6,4 mm hacia cada lado para abrazar la metáfisis. Sobre un hueso de su misma curva, el cuerpo quedaba 6,6 mm en el aire.
+- Las caras de cada agujero estaban en el fondo y en el techo de la caja. Como la placa se apoyaba por ese fondo, el hueco hasta el hueso salía de 0,2 mm, y la chapa más el hueco sumaban lo que de verdad hay de la cara de arriba al hueso. El juicio del tornillo no se equivocaba, pero el tornillo cruzaba esos milímetros de aire. La cara de arriba solo quedaba mal en los agujeros de fuera de la cabeza de la tibia: 1,6 mm por encima de la de verdad.
+- En la T y en la L, la caja incluye las esquinas sin metal que quedan a los lados del cuerpo, bajo el ancho de la cabeza.
+  - Sobre una diáfisis más angosta que la cabeza, esas esquinas contaban como «sin hueso», y la búsqueda ladeaba la T 13° para meter hueso bajo ellas.
+  - Un trozo de hueso junto al cuerpo, bajo una de esas esquinas, levantaba la placa.
+
+*La cara de verdad* (`caraDeLasMallas`, en `asientoDeLaPlaca.ts`).
+- Se mira la malla de la placa desde abajo, cada medio milímetro. En cada punto vale el triángulo más bajo que lo cubre, mire hacia donde mire. Donde no hay metal, infinito.
+- Los agujeros se cierran. Lo que no tiene metal y no llega al borde sin cruzarlo se rellena fila a fila, con la recta entre el metal de cada lado. El hueso no entra por un agujero, y bajo él hay que saber qué trozo hay, porque ahí va el tornillo.
+- `buscarAsiento` compara cada punto del hueso con el metal que tiene justo encima, interpolado entre las cuatro muestras de alrededor.
+  - Con una altura por celda no servía. Las celdas de la cabeza de la tibia miden 8,8 mm de ancho, y en ese ancho la curva baja hasta 4 mm.
+  - Con la muestra más cercana, sin interpolar, la tibia quedaba a 0,34 mm del hueso y no a 0,28. En la ladera de la cabeza, el cuarto de milímetro hasta la muestra son hasta 0,15 mm de altura.
+- Las celdas siguen contando lo que toca, pero solo las que tienen metal.
+- El trozo de cada celda es el del punto que tiene el metal más cerca. Antes era el punto más alto de la celda, y ese podía ser un trozo junto al cuerpo que la placa no toca.
+- `caraDeLaPlaca` la usa solo en las placas cuyo modelo dice las alturas de sus agujeros y que no vienen dobladas de la mesa. La cara de verdad va con las alturas de verdad: sin ellas, los agujeros se leen en el fondo de la caja, y en la de gancho, apoyada por el cuerpo, quedarían 15 mm por debajo de su metal. Las rectas siguen con la caja, como antes.
+- La sonda del lienzo (`asientoDeLaPlaca()`, en `sondaDelLienzo.ts`) mide desde ese metal y se salta lo que cae fuera de él.
+
+*Lo que dicen ahora los modelos* (`implantes.py`, con los cuatro datos de D-426).
+- `placa_con_cabeza`, que hace la T, la L y la anatómica de tibia:
+  - la chapa;
+  - las alturas de cada agujero. Los de fuera de la cabeza de la tibia van de −1,592 a 2,908 mm, porque la cabeza baja x²/76;
+  - las formas. Los del cuerpo son combinados en la tibia y óvalos en la T y en la L. Los de la cabeza son redondos;
+  - el óvalo: 9,4 mm el ocho de la tibia, y 7,15 el de la T y la L.
+- `placa_gancho`: la chapa de 3 mm, y sus tres agujeros, redondos, de 0 a 3.
+
+*Medido* sobre huesos de cartón, en mm, de la cara de abajo de cada agujero al hueso:
+- La tibia sobre un cilindro de radio 38: 0,28 en el cuerpo y 0,34 en los de fuera de la cabeza, con el 100 % de contacto. Antes, el cuerpo estaba de verdad a 6,6, y los de fuera de la cabeza, a 1,85.
+  - Las 8 centésimas que pasan de las 2 décimas de holgura son de la malla: la cabeza es una poligonal, y entre dos vértices su cara baja un poco más que la curva.
+- La de gancho sobre una clavícula que termina antes del gancho: el cuerpo a 0,2, y el gancho colgando pasado el extremo. Antes, a 15,6.
+- La T sobre un cilindro de radio 9: 3° de ladeo y el cuerpo a 0,21. Antes, 13° y 0,41.
+- La volar sobre un hueso plano: igual que con D-426, porque lo más bajo de la volar es su vástago.
+
+*Qué se probó.*
+- `asientoDeLaPlaca.test.ts`:
+  - la cara de una T de cartón;
+  - un agujero cerrado sobre una cara en pendiente;
+  - una cabeza curva sobre un cilindro de su misma curva: a 0,2 mm, y con la caja a más de 6;
+  - un trozo junto al cuerpo de una T: con la cara de verdad no la levanta ni sale entre sus trozos.
+- `implantesReales.test.ts`, con los `.glb` regenerados:
+  - la meta de las cuatro;
+  - la tibia sobre el cilindro;
+  - la de gancho sobre la clavícula corta;
+  - la T sobre la diáfisis;
+  - el vástago de la volar sobre el hueso plano.
+- La suite completa y la compilación.
+- No se probó en pantalla, como D-426.
+
+*Consecuencias.*
+- (+) La anatómica de tibia y la de gancho se apoyan por su metal y no por su caja. El tornillo ya no cruza milímetros de aire para llegar al hueso.
+- (+) Los agujeros de fuera de la cabeza de la tibia tienen la cara de arriba donde está, y la chapa de 4,5.
+- (+) La T y la L ya no se ladean por las esquinas vacías de su caja, y un trozo de hueso junto a su cuerpo no las levanta.
+- (+) La tibia dice que los 6 agujeros de su cabeza son redondos. Por su nombre eran combinados.
+- (+) La T y la L tienen óvalos en el cuerpo: dejan correr la broca y comprimir, como las de compresión. Por su nombre, sus siete agujeros eran redondos.
+- (−) El gancho pasa bajo el acromion, y el asiento solo sabe de hueso por debajo de la placa. Si el acromion está en la escena, el gancho se apoya encima de él y el cuerpo queda en el aire.
+- (−) La L se centra en el punto de apoyo por su caja, que incluye la cabeza hacia un lado, y no por su cuerpo. Sobre una diáfisis angosta, el cuerpo cae 9 mm al costado y la placa se ladea para apoyarlo. Ya pasaba con la caja.
+- (−) La tercio de caña y las demás rectas siguen con la caja. Sobre un hueso redondo, la tercio de caña deja sus bordes a la altura de lo más alto del hueso, en vez de abrazarlo, y su centro queda unos 2 mm en el aire.
+- (−) Los `.glb` de la T, la L, la anatómica de tibia y la de gancho cambiaron. En ved y en Contabo hay que reemplazarlos con el mismo nombre de archivo, junto con los de D-426.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
