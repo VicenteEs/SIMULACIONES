@@ -7,13 +7,16 @@ import {
   calibresPorFragmento,
   compresionAplicable,
   formaDeLosAgujeros,
+  formaDelAgujero,
   ladoDeLaFractura,
   largoDelOvalMm,
   resultadoDeLaRoscaParcial,
   resultadoDelDeslizamiento,
   resultadoDelOval,
+  semilargoDelOval,
   sumarCompresion,
   zonaDelOval,
+  type FormaDelAgujero,
 } from '@/lib/compresion'
 
 /**
@@ -40,6 +43,22 @@ describe('la forma de los orificios', () => {
   it('el óvalo mide por omisión el doble del diámetro del tornillo', () => {
     expect(largoDelOvalMm(4.5)).toBe(9)
     expect(largoDelOvalMm(3.5)).toBe(7)
+  })
+
+  it('si el modelo dice la forma de cada agujero y lo que mide su óvalo, mandan esos y no el nombre (D-426)', () => {
+    // La volar de radio distal: LCP en el nombre, pero solo los 3 del vástago son combinados; los 7 de la cabeza, redondos.
+    const nombre = 'Placa LCP volar de radio distal 2,4 mm (derecha)'
+    const formasDelModelo: FormaDelAgujero[] = [...Array<FormaDelAgujero>(3).fill('combi'), ...Array<FormaDelAgujero>(7).fill('redondo')]
+    const volar = { nombre, formasDelModelo, largoDelOvalMm: 4.5 }
+    expect(formaDelAgujero(volar, 0)).toBe('combi')
+    expect(formaDelAgujero(volar, 2)).toBe('combi')
+    expect(formaDelAgujero(volar, 3)).toBe('redondo')
+    expect(formaDelAgujero(volar, 9)).toBe('redondo')
+    // Sin la lista, el nombre, como antes: LCP es combinado en todos.
+    expect(formaDelAgujero({ nombre }, 9)).toBe('combi')
+    // El óvalo del modelo, 4,5 mm, y no el doble del tornillo de 2,4 (4,8 mm).
+    expect(semilargoDelOval(volar)).toBe(2.25)
+    expect(semilargoDelOval({ nombre })).toBe(2.4)
   })
 })
 

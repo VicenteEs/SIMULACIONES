@@ -44,7 +44,24 @@ export interface MetaDeRaiz {
    * agujero es la ausencia de malla. Vacío en lo que no es una placa.
    */
   agujeros: [number, number][]
+  /**
+   * Lo que una placa doblada no deja leer en su caja (D-426). Solo lo traen las placas cuyo guion lo escribe; las
+   * demás siguen con la caja y el nombre, como antes:
+   * - `grosor`: el de la chapa, en mm. La caja de una placa con la cabeza subida mide más que su chapa.
+   * - `alturas`: por cada agujero, en el mismo orden, dónde está su cara de abajo y su cara de arriba, en mm y en la
+   *   Z de Blender. Vacío si no lo declara, o si no hay una por agujero.
+   * - `formas`: por cada agujero, en el mismo orden, su forma. Vacío si no lo declara, o si no hay una por agujero.
+   * - `largoDelOval`: lo que mide a lo largo el óvalo de sus combinados y sus ovales, en mm.
+   */
+  grosor?: number
+  alturas: [number, number][]
+  formas: FormaDeclaradaDelAgujero[]
+  largoDelOval?: number
 }
+
+/** Las formas de agujero que puede declarar un modelo: las mismas que `FormaDelAgujero` de `src/lib/compresion.ts`. */
+export type FormaDeclaradaDelAgujero = 'redondo' | 'oval' | 'combi'
+const FORMAS_DECLARABLES: readonly string[] = ['redondo', 'oval', 'combi']
 
 export interface MetaDeNodo {
   /** La articulación a la que obedece. */
@@ -90,20 +107,40 @@ export function metaDeRaiz(extras: unknown): MetaDeRaiz | null {
         ]
       })
     : []
+  const lista = (v: unknown): unknown[] => (Array.isArray(v) ? v : [])
+  const agujeros = lista(th.agujeros).flatMap(parDeNumeros)
+  // Una altura o una forma por agujero, o ninguna: con una de menos, la del agujero 5 sería la del 6, y es mejor que
+  // la placa se porte como antes a que mida cada tornillo en el agujero de al lado. Por eso se cuentan también las
+  // que no se pudieron leer.
+  const unaPorAgujero = <T>(crudas: unknown[], leidas: T[]): T[] =>
+    leidas.length === agujeros.length && crudas.length === agujeros.length ? leidas : []
+  const alturas = unaPorAgujero(lista(th.alturas), lista(th.alturas).flatMap(parDeNumeros))
+  const formas = unaPorAgujero(
+    lista(th.formas),
+    lista(th.formas).flatMap((f): FormaDeclaradaDelAgujero[] =>
+      typeof f === 'string' && FORMAS_DECLARABLES.includes(f) ? [f as FormaDeclaradaDelAgujero] : [],
+    ),
+  )
+  const positivo = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : undefined)
   return {
     instrumento: th.instrumento,
     nombre: typeof th.nombre === 'string' ? th.nombre : th.instrumento,
     medidas: typeof th.medidas === 'string' ? th.medidas : '',
     articulaciones,
     notas: typeof th.notas === 'string' ? th.notas : '',
-    agujeros: Array.isArray(th.agujeros)
-      ? (th.agujeros as unknown[]).flatMap((a): [number, number][] =>
-          Array.isArray(a) && a.length === 2 && a.every((v) => typeof v === 'number' && Number.isFinite(v))
-            ? [[a[0] as number, a[1] as number]]
-            : [],
-        )
-      : [],
+    agujeros,
+    grosor: positivo(th.grosor),
+    alturas,
+    formas,
+    largoDelOval: positivo(th.largo_del_oval),
   }
+}
+
+/** Un par de números finitos, como lo escribe `meta_raiz`: o el par o nada. */
+function parDeNumeros(a: unknown): [number, number][] {
+  return Array.isArray(a) && a.length === 2 && a.every((v) => typeof v === 'number' && Number.isFinite(v))
+    ? [[a[0] as number, a[1] as number]]
+    : []
 }
 
 export function metaDeNodo(extras: unknown): MetaDeNodo | null {

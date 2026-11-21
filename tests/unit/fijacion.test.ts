@@ -183,6 +183,12 @@ describe('lo que acompaña a cada placa (P-003 E6)', () => {
     expect(lista).toContain(broca(calibreDeBrocaParaElTornillo(2.4, { tipo: 'cortical' })))
   })
 
+  it('la volar izquierda se coloca y trae lo mismo que la derecha (D-426)', () => {
+    const izquierda = 'placa-volar-radio-distal-2-4-izquierda'
+    expect(quePuedeColocar({ slug: izquierda })).toEqual(quePuedeColocar({ slug: 'placa-volar-radio-distal-2-4' }))
+    expect(COMPANEROS_DE_LA_PLACA[izquierda]).toEqual(COMPANEROS_DE_LA_PLACA['placa-volar-radio-distal-2-4'])
+  })
+
   it('varias placas suman sin repetir, y una placa que no se conoce no suma nada', () => {
     const dos = companerosDeLasPlacas(['placa-lcp-recta-3-5', 'placa-t-3-5'])
     expect(new Set(dos).size).toBe(dos.length)

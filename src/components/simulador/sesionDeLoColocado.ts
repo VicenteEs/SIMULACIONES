@@ -420,6 +420,9 @@ export async function restaurarLoColocado(texto: string, c: ContextoDeLaRestaura
           implantes: imp,
           contorno: g.placa.contorno,
           url: g.placa.url,
+          // El grosor y lo de cada agujero (D-426) vienen del modelo y no se guardan con la sesión: `colocarPlaca` los usa
+          // solo si los agujeros guardados son del modelo y hay uno por agujero.
+          meta: plantilla.meta,
         })
         if (placa) {
           const a = g.placa.ajuste

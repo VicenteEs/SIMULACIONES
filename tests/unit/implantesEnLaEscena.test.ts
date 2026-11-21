@@ -6,6 +6,7 @@ import {
   colocarPlaca,
   colocarTornillo,
   crearImplantes,
+  grosorEnElAgujero,
   medirAlLoLargoDeUnaLinea,
   medirBajoElAgujero,
   posicionDelAgujero,
@@ -120,6 +121,85 @@ describe('colocar una placa', () => {
     const arriba = posicionDelAgujero(placa, 1, 'arriba')
     expect(arriba.clone().sub(abajo).length()).toBeCloseTo(3, 3)
     expect(arriba.z).toBeGreaterThan(abajo.z)
+  })
+
+  /** La misma placa de cartón con lo que un modelo puede decir de sí mismo (D-426). */
+  function colocarConMeta(alturas: [number, number][]) {
+    const { escena, hueso } = escenaConHueso()
+    const implantes = crearImplantes()
+    const placa = colocarPlaca({
+      escena,
+      plantilla: plantillaDePlaca(),
+      nombre: 'Placa LCP de cartón',
+      agujerosMm: AGUJEROS,
+      punto: new THREE.Vector3(0, 0, 6),
+      normal: NORMAL_Z(),
+      ejeDelHueso: EJE_Y(),
+      milimetrosPorUnidad: 1,
+      huesos: [hueso],
+      implantes,
+      meta: { grosor: 2, alturas, formas: ['combi', 'combi', 'redondo'].slice(0, alturas.length) as ('combi' | 'redondo')[], largoDelOval: 6 },
+    })!
+    return { escena, hueso, implantes, placa }
+  }
+
+  it('si el modelo dice dónde está cada agujero dentro de su caja, manda eso y no el alto de la caja (D-426)', () => {
+    // La caja mide 3 mm de alto, de −1,5 a 1,5. El modelo dice que la chapa es de 2 mm y que el tercer agujero empieza medio
+    // milímetro más arriba que los otros: una placa con un trozo subido, como la cabeza de la volar de radio distal.
+    const { placa } = colocarConMeta([
+      [-1.5, 0.5],
+      [-1.5, 0.5],
+      [-1, 1],
+    ])
+    expect(placa.grosorMm).toBe(2)
+    expect(placa.formasDelModelo).toEqual(['combi', 'combi', 'redondo'])
+    expect(placa.largoDelOvalMm).toBe(6)
+    const altura = (i: number, cara: 'arriba' | 'abajo') =>
+      posicionDelAgujero(placa, i, cara).sub(posicionDelAgujero(placa, 0, 'abajo')).dot(placa.normal)
+    expect(altura(0, 'arriba')).toBeCloseTo(2, 3)
+    expect(altura(2, 'abajo')).toBeCloseTo(0.5, 3)
+    expect(altura(2, 'arriba')).toBeCloseTo(2.5, 3)
+    expect(grosorEnElAgujero(placa, 2)).toBeCloseTo(2, 6)
+    // La cara de abajo es la de la caja: la placa se apoya donde se apoyaba.
+    expect(posicionDelAgujero(placa, 1, 'abajo').z).toBeCloseTo(6.2, 1)
+  })
+
+  it('con una altura de menos no se fía de ninguna y vuelve a la caja (D-426)', () => {
+    const { placa } = colocarConMeta([
+      [-1.5, 0.5],
+      [-1.5, 0.5],
+    ])
+    expect(placa.alturasDelModeloMm).toBeUndefined()
+    expect(placa.formasDelModelo).toBeUndefined()
+    const abajo = posicionDelAgujero(placa, 1, 'abajo')
+    expect(posicionDelAgujero(placa, 1, 'arriba').sub(abajo).length()).toBeCloseTo(3, 3)
+  })
+
+  it('el tornillo se juzga con la chapa del agujero y apoya su cabeza sobre ella (D-426)', () => {
+    const c = colocarConMeta([
+      [-1.5, 0.5],
+      [-1.5, 0.5],
+      [-1, 1],
+    ])
+    // 2 de chapa, el hueco hasta el hueso, 12 de hueso y 2 de punta. Con el alto de la caja (3 mm) quedaba 1 mm corto.
+    const medida = medirBajoElAgujero(c.placa, 1, [c.hueso])!
+    const puesto = colocarTornillo({
+      escena: c.escena,
+      plantilla: plantillaDeTornillo(),
+      placa: c.placa,
+      agujero: 1,
+      largoMm: 2 + medida.distanciaAlHuesoMm + medida.espesorMm + 2,
+      diametroMm: 3.5,
+      largoDelModeloMm: 24,
+      bloqueado: false,
+      huesos: [c.hueso],
+      implantes: c.implantes,
+    })!
+    expect(puesto.puntaFueraMm).toBeCloseTo(2, 3)
+    expect(puesto.bicortical).toBe(true)
+    const cabeza = new THREE.Box3().setFromObject(c.implantes.tornillos.get(1)!.grupo).max.z
+    // A unas centésimas: el tornillo va por la normal media del cilindro, un grado de lado, y el borde de su cabeza sube un poco.
+    expect(cabeza).toBeCloseTo(posicionDelAgujero(c.placa, 1, 'arriba').z, 1)
   })
 
   it('una plantilla sin agujeros no se coloca: no habría dónde atornillar', () => {

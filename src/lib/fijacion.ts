@@ -53,6 +53,7 @@ const COLOCA_POR_SLUG: Readonly<Record<string, QueColoca>> = {
   'placa-l-3-5': { tipo: 'placa' },
   'placa-gancho-clavicular': { tipo: 'placa' },
   'placa-volar-radio-distal-2-4': { tipo: 'placa' },
+  'placa-volar-radio-distal-2-4-izquierda': { tipo: 'placa' },
   'tornillo-cortical-3-5': { tipo: 'tornillo', diametroMm: 3.5, largoDelModeloMm: 24, bloqueado: false },
   'tornillo-esponjosa-6-5': { tipo: 'tornillo', diametroMm: 6.5, largoDelModeloMm: 50, bloqueado: false },
   'tornillo-bloqueado-lcp-3-5': { tipo: 'tornillo', diametroMm: 3.5, largoDelModeloMm: 26, bloqueado: true },
@@ -70,10 +71,10 @@ const PARA_3_5 = ['tornillo-cortical-3-5', 'broca-2-5', 'medidor-profundidad', '
 const PARA_LCP = ['tornillo-bloqueado-lcp-3-5', 'broca-2-8', 'guia-broca-roscada-lcp', 'destornillador-stardrive']
 const PARA_4_5 = ['tornillo-esponjosa-6-5', 'broca-3-2', 'broca-4-5', 'medidor-profundidad', 'destornillador-hexagonal']
 // El sistema 2,4 no tiene tornillos propios en el catálogo: son los mismos modelos, con el diámetro que se elige en la bandeja
-// (2,4 el bloqueado; 2,7 el cortical, que también entra en la parte oval de un combinado de 2,4, y es el único cortical chico
-// que la bandeja ofrece). Con ellos, la broca de cada uno según D-300: 1,8 y 2,0. La de 1,8 es además la que pide la consola
-// al fijar la placa (`preferenciasDeLaPlacaFijada` busca la del cortical de 2,4, que también es de 1,8): sin ella en la
-// bandeja, ofrecía la primera broca que hubiera. El destornillador es el Stardrive, en el T8 que su ficha da para el 2,4.
+// (el bloqueado de 2,4, y el cortical de 2,4 o de 2,7, que también entran en la parte oval de un combinado de 2,4; el de 2,4
+// está en la bandeja desde D-426). Con ellos, la broca de cada uno según D-300: 1,8 para los de 2,4 y 2,0 para el de 2,7. La de
+// 1,8 es además la que pide la consola al fijar la placa (`preferenciasDeLaPlacaFijada` propone el cortical de 2,4): sin ella en
+// la bandeja, ofrecía la primera broca que hubiera. El destornillador es el Stardrive, en el T8 que su ficha da para el 2,4.
 const PARA_2_4 = [
   'tornillo-bloqueado-lcp-3-5',
   'tornillo-cortical-3-5',
@@ -102,6 +103,7 @@ export const COMPANEROS_DE_LA_PLACA: Readonly<Record<string, readonly string[]>>
   'placa-tercio-de-cana': PARA_3_5,
   'placa-gancho-clavicular': PARA_3_5,
   'placa-volar-radio-distal-2-4': PARA_2_4,
+  'placa-volar-radio-distal-2-4-izquierda': PARA_2_4,
 }
 
 /** Los `slug` de lo que acompaña a estas placas, sin repetir y sin las propias placas. Una placa que no se conoce no suma nada. */
@@ -584,6 +586,11 @@ export interface EstadoDeLaFijacion {
      * se corrió la broca en cada uno.
      */
     forma?: 'redondo' | 'oval' | 'combi'
+    /**
+     * La forma de cada agujero, si el modelo la dice (D-426), en el orden de sus agujeros; manda sobre `forma`. En la volar de radio
+     * distal, los tres del vástago son combinados y los siete de la cabeza, redondos.
+     */
+    formas?: ('redondo' | 'oval' | 'combi')[]
     semilargoDelOvalMm?: number
     ladoDeLaFractura?: Record<number, 1 | -1>
     desviaciones?: Record<number, number>

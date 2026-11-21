@@ -68,6 +68,31 @@ export function semilargoDelOvalDeLaPlaca(nombreDeLaPlaca: string): number {
   return largoDelOvalMm(diametroDelTornilloDeLaPlaca(nombreDeLaPlaca)) / 2
 }
 
+/**
+ * Lo que una placa colocada sabe de sus agujeros: su nombre y, si su modelo lo declara, la forma de cada uno y lo que mide su óvalo
+ * (D-426).
+ */
+export interface AgujerosDeLaPlaca {
+  nombre: string
+  /** Una forma por agujero, en el orden de sus agujeros, o nada si el modelo no la declara. */
+  formasDelModelo?: readonly FormaDelAgujero[]
+  largoDelOvalMm?: number
+}
+
+/**
+ * La forma de un agujero de la placa: la que declara su modelo, y si no declara ninguna, la de su nombre. Una volar de radio distal
+ * es LCP y por el nombre los diez serían combinados; su modelo dice que los siete de la cabeza son redondos, de bloqueo, y en un
+ * redondo no se elige dónde brocar ni se comprime (D-426).
+ */
+export function formaDelAgujero(placa: AgujerosDeLaPlaca, indice: number): FormaDelAgujero {
+  return placa.formasDelModelo?.[indice] ?? formaDeLosAgujeros({ nombre: placa.nombre })
+}
+
+/** El semilargo del óvalo de la placa, en mm: el que mide en su modelo, y si no lo dice, el de su nombre (D-426). */
+export function semilargoDelOval(placa: AgujerosDeLaPlaca): number {
+  return placa.largoDelOvalMm ? placa.largoDelOvalMm / 2 : semilargoDelOvalDeLaPlaca(placa.nombre)
+}
+
 /** El largo de un orificio oval por omisión: el doble del diámetro del tornillo. */
 export function largoDelOvalMm(diametroDelTornilloMm: number): number {
   return Math.round(2 * diametroDelTornilloMm * 10) / 10

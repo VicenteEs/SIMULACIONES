@@ -4,6 +4,8 @@ import { agujerosUniformes, avisoDeOrificios, orificiosValidos } from '@/lib/agu
 import type { RangosDelAjuste } from '@/lib/ejesAnatomicos'
 import { textoDelContorno, type ContornoDeLaPlaca } from '@/lib/contornoDeLaPlaca'
 import { huesoDelNodo, salidaPorLaCorticalOpuesta } from '@/lib/profundidadDeLaBroca'
+import type { FormaDelAgujero } from '@/lib/compresion'
+import type { MetaDeRaiz } from '@/instrumental/modelo'
 import { deformarLasMallas, guardarOriginales, mapaEnElMarcoDelGrupo } from './deformacionDeLaPlaca'
 import {
   buscarAsiento,
@@ -57,7 +59,16 @@ export interface PlacaColocada {
   sentidoDelLado?: 1 | -1 | 0
   /** Hacia dónde mira la cara de arriba de la placa: la normal del hueso donde se apoyó. */
   normal: THREE.Vector3
+  /** El de la chapa si el modelo lo dice (D-426); si no, el alto de su caja, que en una placa recta es lo mismo. */
   grosorMm: number
+  /**
+   * Lo que dice el modelo de cada agujero, en el orden de `agujerosMm` (D-426): dónde están su cara de abajo y la de arriba (en mm,
+   * en la Z de Blender) y qué forma tiene. Solo si los agujeros salen del modelo y hay uno por agujero; sin esto, la caja y el nombre.
+   */
+  alturasDelModeloMm?: [number, number][]
+  formasDelModelo?: FormaDelAgujero[]
+  /** Lo que mide a lo largo el óvalo de sus agujeros, si el modelo lo dice (D-426); si no, sale de su nombre. */
+  largoDelOvalMm?: number
   /** Cuánto queda la placa separada del hueso en su punto de apoyo, en mm. */
   separadaDelHuesoMm: number
   /** Cuántos milímetros mide una unidad del mundo. */
@@ -200,6 +211,11 @@ export function colocarPlaca(p: {
   contorno?: ContornoDeLaPlaca
   /** La dirección de su modelo 3D, para guardarla con la sesión. */
   url?: string
+  /**
+   * Lo que el modelo dice de la placa además de sus agujeros (D-426): el grosor de la chapa, la altura y la forma de cada agujero
+   * y lo que mide su óvalo.
+   */
+  meta?: Pick<MetaDeRaiz, 'grosor' | 'alturas' | 'formas' | 'largoDelOval'> | null
 }): PlacaColocada | null {
   const orificios = orificiosValidos(p.orificios)
   // Sin agujeros en el modelo y sin una cantidad escrita no hay dónde atornillar: es mejor decirlo que dejar una placa
@@ -220,11 +236,19 @@ export function colocarPlaca(p: {
   const escalaLocal = grupo.scale.y || 1
   const tamano = caja.getSize(new THREE.Vector3())
   const centro = caja.getCenter(new THREE.Vector3())
-  const grosorMm = tamano.y / unidadesPorMm
+  // La caja de una placa doblada mide más que su chapa: la volar de radio distal, 5,2 mm por los 2,2 de la chapa, porque la
+  // cabeza sube 10° (D-426). Con el alto de la caja, el medidor pedía tornillos 3 mm más largos y el juicio daba por cortos
+  // los que alcanzaban. Si el modelo dice su grosor, manda ese.
+  const grosorMm = p.meta?.grosor ?? tamano.y / unidadesPorMm
   // Sin los agujeros del modelo, a partes iguales a lo largo de la caja (marco de Blender: x a lo ancho, y a lo largo, que
   // es −Z del modelo). El grupo está en el origen y sin girar, así que lo local es el mundo entre la escala.
   let agujerosMm = p.agujerosMm
   const delModelo = agujerosMm.length > 0
+  // Uno por agujero o nada: una sesión guardada con otra versión del modelo puede traer otra cantidad de agujeros, y entonces
+  // la altura del 5 sería la del 6.
+  const unoPorAgujero = <T>(lista: T[] | undefined) => (delModelo && lista?.length === agujerosMm.length ? lista : undefined)
+  const alturasDelModeloMm = unoPorAgujero(p.meta?.alturas)
+  const formasDelModelo = unoPorAgujero(p.meta?.formas)
   if (!delModelo && orificios !== null) {
     const aMm = 1000 / escalaLocal
     agujerosMm = agujerosUniformes(orificios, {
@@ -267,6 +291,9 @@ export function colocarPlaca(p: {
     anchoMm: tamano.x / unidadesPorMm,
     normal: p.normal.clone().normalize(),
     grosorMm,
+    alturasDelModeloMm,
+    formasDelModelo,
+    largoDelOvalMm: p.meta?.largoDelOval,
     separadaDelHuesoMm: 0,
     milimetrosPorUnidad: p.milimetrosPorUnidad,
     yMinimoLocal: caja.min.y / escalaLocal,
@@ -469,8 +496,10 @@ export function indiceDelAgujeroMasCercano(placa: PlacaColocada, punto: THREE.Ve
  */
 export function ejeDeLaPlaca(placa: PlacaColocada): THREE.Vector3 {
   if (placa.agujerosMm.length >= 2) {
-    const a = posicionDelAgujero(placa, 0, 'abajo')
-    const b = posicionDelAgujero(placa, placa.agujerosMm.length - 1, 'abajo')
+    // A la altura de la caja y no a la de cada agujero: en la volar de radio distal el último está en la cabeza, 1,5 mm más
+    // arriba que el primero (D-426), y el eje se habría salido del plano de la placa.
+    const a = puntoDelAgujero(placa, 0, placa.yMinimoLocal)
+    const b = puntoDelAgujero(placa, placa.agujerosMm.length - 1, placa.yMinimoLocal)
     const eje = b.sub(a)
     if (eje.lengthSq() > 1e-12) return eje.normalize()
   }
@@ -480,15 +509,32 @@ export function ejeDeLaPlaca(placa: PlacaColocada): THREE.Vector3 {
 
 /** El centro de un agujero en el mundo, en la cara de arriba o en la de abajo de la placa. */
 export function posicionDelAgujero(placa: PlacaColocada, indice: number, cara: 'arriba' | 'abajo'): THREE.Vector3 {
+  // La altura de cada agujero, si el modelo la dice (D-426). Con la de la caja, en una placa con la cabeza subida la cabeza del
+  // tornillo del vástago quedaba 3 mm en el aire, y los de la cabeza se medían desde más abajo de su cara. Si no la dice, la
+  // de la caja, medida al colocarla, y no la del origen: el origen de Blender puede estar en cualquier parte del grosor.
+  const propia = placa.alturasDelModeloMm?.[indice]
+  const altura = propia ? propia[cara === 'arriba' ? 1 : 0] / 1000 : cara === 'arriba' ? placa.yMaximoLocal : placa.yMinimoLocal
+  return puntoDelAgujero(placa, indice, altura)
+}
+
+/** El centro de un agujero en el mundo, a una altura dada en el marco del modelo (en metros, como el modelo). */
+function puntoDelAgujero(placa: PlacaColocada, indice: number, alturaLocal: number): THREE.Vector3 {
   const [x, y] = placa.agujerosMm[indice]
-  // Los agujeros están en el marco del modelo, en mm; el modelo está en metros. La altura es la de la
-  // caja del modelo, medida al colocarla, y no la del origen: el origen de Blender puede estar en
-  // cualquier parte del grosor.
-  const recto = new THREE.Vector3(x / 1000, cara === 'arriba' ? placa.yMaximoLocal : placa.yMinimoLocal, -y / 1000)
+  // Los agujeros están en el marco del modelo, en mm; el modelo está en metros.
+  const recto = new THREE.Vector3(x / 1000, alturaLocal, -y / 1000)
   // Una placa doblada en la mesa (P-005 E1) lleva sus agujeros a donde los dejó el doblez.
   const local = placa.contorno ? placa.contorno.mapa(recto) : recto
   placa.grupo.updateMatrixWorld(true)
   return placa.grupo.localToWorld(local)
+}
+
+/**
+ * Lo que mide la placa de grosor en un agujero, en mm: lo que hay entre sus dos caras en el modelo (D-426), o el grosor de la placa
+ * si el modelo no lo dice. Es lo que el tornillo cruza antes de llegar al hueso.
+ */
+export function grosorEnElAgujero(placa: PlacaColocada, indice: number): number {
+  const propia = placa.alturasDelModeloMm?.[indice]
+  return propia ? propia[1] - propia[0] : placa.grosorMm
 }
 
 /**
@@ -592,7 +638,7 @@ export function colocarTornillo(p: {
   const unidadesPorMm = 1 / p.placa.milimetrosPorUnidad
   const juicio = juzgarTornillo({
     largoMm: p.largoMm,
-    grosorDeLaPlacaMm: p.placa.grosorMm,
+    grosorDeLaPlacaMm: grosorEnElAgujero(p.placa, p.agujero),
     distanciaAlHuesoMm: medida.distanciaAlHuesoMm,
     espesorMm: medida.espesorMm,
   })

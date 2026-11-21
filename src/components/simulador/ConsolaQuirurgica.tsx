@@ -4059,12 +4059,16 @@ export function ConsolaQuirurgica({
    * deja elegir dónde se broca; qué comprime lo decide `src/lib/compresion.ts`.
    */
   const placaFijada = fijacion?.placa?.fijada ? fijacion.placa : null
-  const hayOvales = !!placaFijada && placaFijada.forma !== undefined && placaFijada.forma !== 'redondo'
+  // Si el modelo dice la forma de cada agujero (D-426), se ofrecen solo los que tienen óvalo: en la volar de radio distal, los tres
+  // del vástago, y no los siete redondos de la cabeza, donde no hay dónde correr la broca. Si no la dice, la de la placa entera.
+  const ovales = placaFijada?.formas?.flatMap((f, i) => (f === 'redondo' ? [] : [i]))
+  const hayOvales = !!placaFijada && (ovales ? ovales.length > 0 : placaFijada.forma !== undefined && placaFijada.forma !== 'redondo')
   const bloqueDeLaCompresion = (
     <>
       {hayOvales && placaFijada ? (
         <PanelDeCompresion
           agujeros={placaFijada.agujeros}
+          ovales={ovales}
           semilargoMm={placaFijada.semilargoDelOvalMm ?? 4.5}
           ladoDeLaFractura={placaFijada.ladoDeLaFractura ?? {}}
           desviaciones={placaFijada.desviaciones ?? {}}

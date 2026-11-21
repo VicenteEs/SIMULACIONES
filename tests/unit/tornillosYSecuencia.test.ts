@@ -76,20 +76,20 @@ describe('el tipo de un tornillo', () => {
 
 describe('los diámetros de la lista', () => {
   it('cada tipo ofrece los suyos, de menor a mayor', () => {
-    expect(diametrosDelTipo('cortical')).toEqual([2.7, 3.5, 4.5])
+    expect(diametrosDelTipo('cortical')).toEqual([2.4, 2.7, 3.5, 4.5])
     expect(diametrosDelTipo('bloqueado')).toEqual([2.4, 3.5, 5])
     expect(diametrosDelTipo('otro')).toEqual([2.7, 3.5, 4, 4.5, 5, 6.5])
   })
 
   it('el diámetro del propio modelo siempre está en la lista', () => {
-    expect(diametrosDelTipo('cortical', 5.5)).toEqual([2.7, 3.5, 4.5, 5.5])
-    expect(diametrosDelTipo('cortical', 3.5)).toEqual([2.7, 3.5, 4.5])
+    expect(diametrosDelTipo('cortical', 5.5)).toEqual([2.4, 2.7, 3.5, 4.5, 5.5])
+    expect(diametrosDelTipo('cortical', 3.5)).toEqual([2.4, 2.7, 3.5, 4.5])
   })
 
   it('un diámetro de modelo inválido no estropea la lista', () => {
-    expect(diametrosDelTipo('cortical', NaN)).toEqual([2.7, 3.5, 4.5])
-    expect(diametrosDelTipo('cortical', -1)).toEqual([2.7, 3.5, 4.5])
-    expect(diametrosDelTipo('cortical', null)).toEqual([2.7, 3.5, 4.5])
+    expect(diametrosDelTipo('cortical', NaN)).toEqual([2.4, 2.7, 3.5, 4.5])
+    expect(diametrosDelTipo('cortical', -1)).toEqual([2.4, 2.7, 3.5, 4.5])
+    expect(diametrosDelTipo('cortical', null)).toEqual([2.4, 2.7, 3.5, 4.5])
   })
 
   it('la broca que se espera cambia con el diámetro elegido', () => {
@@ -191,6 +191,14 @@ describe('la placa fijada abre la secuencia con su broca (P-013, pedido 3)', () 
     const bloqueado = { id: 't-lcp', diametroMm: 3.5, clase: { bloqueado: true } }
     expect(instrumentoDeLaEtapa('brocar', bandeja, que, preferenciasDeLaPlacaFijada(3.5, bloqueado))?.id).toBe('b28')
     expect(preferenciasDeLaPlacaFijada(4.5, bloqueado)).toEqual({ ultimoTornilloId: null, diametroDelTornilloMm: 4.5, claseDelTornillo: { tipo: 'cortical' } })
+  })
+
+  it('lo que propone al fijar una placa de 2,4 está en la lista de la bandeja (D-426)', () => {
+    // Antes proponía un cortical de 2,4 y los corticales empezaban en 2,7: el panel pedía un diámetro que no ofrecía.
+    const p = preferenciasDeLaPlacaFijada(diametroDelTornilloDeLaPlaca('Placa LCP volar de radio distal 2,4 mm (derecha)'), null)
+    expect(p).toMatchObject({ diametroDelTornilloMm: 2.4, claseDelTornillo: { tipo: 'cortical' } })
+    expect(diametrosDelTipo('cortical')).toContain(p.diametroDelTornilloMm)
+    expect(calibreDeBrocaParaElTornillo(2.4, { tipo: 'cortical' })).toBe(1.8)
   })
 
   it('la consola sigue hasta poner la broca en la mano solo con la placa fijada, y en evaluación no (D-314)', () => {

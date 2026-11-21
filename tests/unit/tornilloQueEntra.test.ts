@@ -156,7 +156,8 @@ describe('el cableado', () => {
   it('al asentar entra en la lista, comprime en el óvalo y avisa a la consola como antes', () => {
     const asentar = lienzo.slice(lienzo.indexOf('const asentarElTornillo = () => {'), lienzo.indexOf('taller.current.moverElTornillo = '))
     expect(asentar).toContain('t.implantes.tornillos.set(a.agujero, a.entrada)')
-    expect(asentar).toContain('aplicarLaCompresion(resultadoDelOval(a.desviacionMm, lado, semilargoDelOvalDeLaPlaca(placa.nombre)))')
+    // El óvalo, el del modelo si lo dice (D-426).
+    expect(asentar).toContain('aplicarLaCompresion(resultadoDelOval(a.desviacionMm, lado, semilargoDelOval(placa)))')
     expect(asentar).toContain("tipo: 'tornillo'")
     expect(asentar).toContain('ultimas.current.alFijar?.(estadoDeLaFijacion(t), suceso)')
   })

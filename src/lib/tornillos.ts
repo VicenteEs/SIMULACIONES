@@ -22,9 +22,15 @@ export interface DefinicionDeTipo {
   roscaMm?: number
 }
 
-/** El orden es el de los subgrupos de la bandeja. «Otro» es lo que no se reconoce y va al final. */
+/**
+ * El orden es el de los subgrupos de la bandeja. «Otro» es lo que no se reconoce y va al final.
+ *
+ * El cortical de 2,4 llegó con la placa volar de radio distal (D-426): es el que el sistema 2,4 pone primero, en el combinado del
+ * vástago, para llevar la placa al hueso, y el que la consola propone al fijar una placa de 2,4 (`preferenciasDeLaPlacaFijada`).
+ * Sin él, la propuesta pedía un diámetro que la lista no tenía. Su broca, la de 1,8, ya estaba en la tabla de D-300.
+ */
 export const TIPOS_DE_TORNILLO: readonly DefinicionDeTipo[] = [
-  { tipo: 'cortical', etiqueta: 'Corticales', diametrosMm: [2.7, 3.5, 4.5] },
+  { tipo: 'cortical', etiqueta: 'Corticales', diametrosMm: [2.4, 2.7, 3.5, 4.5] },
   { tipo: 'esponjosa', etiqueta: 'De esponjosa', diametrosMm: [4.0, 6.5] },
   { tipo: 'rosca-parcial', etiqueta: 'De rosca parcial', diametrosMm: [4.0, 6.5], roscaMm: 16 },
   { tipo: 'bloqueado', etiqueta: 'Bloqueados', diametrosMm: [2.4, 3.5, 5.0] },

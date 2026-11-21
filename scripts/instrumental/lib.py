@@ -464,8 +464,9 @@ def triangulos():
     return total
 
 
-def meta_raiz(raiz, slug, nombre, medidas, partes=None, notas='', agujeros=None):
-    raiz['th'] = json.dumps({
+def meta_raiz(raiz, slug, nombre, medidas, partes=None, notas='', agujeros=None, grosor=None, alturas=None,
+              formas=None, largo_del_oval=None):
+    meta = {
         'instrumento': slug,
         'nombre': nombre,
         'medidas': medidas,
@@ -474,8 +475,21 @@ def meta_raiz(raiz, slug, nombre, medidas, partes=None, notas='', agujeros=None)
         # Dónde están los agujeros de una placa (x ancho, y largo, en mm): el simulador
         # los necesita para atornillar, y glTF no los trae (D-169).
         'agujeros': [[round(x, 3), round(y, 3)] for x, y in (agujeros or [])],
-        'generado_por': 'scripts/instrumental/' + slug.replace('-', '_') + '.py',
-    }, ensure_ascii=False)
+    }
+    # Lo que una placa doblada no deja leer en su caja (D-426): el grosor de la chapa, la altura de la cara de
+    # abajo y la de arriba en cada agujero (en mm, en Z), la forma de cada uno ('combi', 'oval' o 'redondo') y lo
+    # que mide el óvalo a lo largo. En una placa recta la caja ya lo dice y el nombre basta para la forma, así que
+    # solo se escribe cuando el guion lo da: las demás salen con la meta de siempre, byte a byte.
+    if grosor is not None:
+        meta['grosor'] = round(grosor, 3)
+    if alturas is not None:
+        meta['alturas'] = [[round(a, 3), round(b, 3)] for a, b in alturas]
+    if formas is not None:
+        meta['formas'] = list(formas)
+    if largo_del_oval is not None:
+        meta['largo_del_oval'] = round(largo_del_oval, 3)
+    meta['generado_por'] = 'scripts/instrumental/' + slug.replace('-', '_') + '.py'
+    raiz['th'] = json.dumps(meta, ensure_ascii=False)
 
 
 def exportar(raiz, slug, carpeta, previa=True, vistas=None):

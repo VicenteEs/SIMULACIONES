@@ -96,6 +96,25 @@ describe('lo que el modelo lleva escrito dentro', () => {
     expect(metaDeNodo({ th: JSON.stringify({ mueve: 'A', eje: [1, 0] }) })).toBeNull()
   })
 
+  it('lee lo que una placa dice de sus agujeros, y lo descarta si no hay uno por agujero (D-426)', () => {
+    const placa = (extra: object) =>
+      metaDeRaiz({ th: JSON.stringify({ instrumento: 'placa-x', nombre: 'Placa X', agujeros: [[0, 0], [0, 10]], ...extra }) })
+    expect(placa({ grosor: 2.2, alturas: [[0, 2.2], [1.4, 3.6]], formas: ['combi', 'redondo'], largo_del_oval: 4.5 })).toMatchObject({
+      grosor: 2.2,
+      alturas: [[0, 2.2], [1.4, 3.6]],
+      formas: ['combi', 'redondo'],
+      largoDelOval: 4.5,
+    })
+    // Sin ellos, la placa de siempre: la caja y el nombre.
+    expect(placa({})).toMatchObject({ grosor: undefined, alturas: [], formas: [], largoDelOval: undefined })
+    // Una de menos, o una que no se puede leer, y no se usa ninguna: la del agujero 5 sería la del 6.
+    expect(placa({ alturas: [[0, 2.2]] })?.alturas).toEqual([])
+    expect(placa({ alturas: [[0, 2.2], [1, 'x']] })?.alturas).toEqual([])
+    expect(placa({ formas: ['combi', 'hexagonal'] })?.formas).toEqual([])
+    expect(placa({ formas: ['combi', 'redondo', 'oval'] })?.formas).toEqual([])
+    expect(placa({ grosor: -1, largo_del_oval: 0 })).toMatchObject({ grosor: undefined, largoDelOval: undefined })
+  })
+
   it('normaliza el eje del nodo', () => {
     const nodo = metaDeNodo({ th: JSON.stringify({ mueve: 'Apertura', tipo: 'giro', eje: [0, 0, 2], factor: 0.5 }) })
     expect(nodo?.eje).toEqual([0, 0, 1])

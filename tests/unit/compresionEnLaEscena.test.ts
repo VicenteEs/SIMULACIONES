@@ -216,13 +216,15 @@ describe('los campos, la migración y el cableado', () => {
   })
 
   it('el lienzo aplica lo que decide compresion.ts: el óvalo en el tornillo de placa, y las dos técnicas por la trayectoria', () => {
-    // En el óvalo comprime al asentar la cabeza, no al pinchar: el tornillo entra con la rueda (pedido 13).
-    expect(lienzo).toContain('resultadoDelOval(a.desviacionMm, lado, semilargoDelOvalDeLaPlaca(placa.nombre))')
+    // En el óvalo comprime al asentar la cabeza, no al pinchar: el tornillo entra con la rueda (pedido 13). El óvalo es el que
+    // dice el modelo de la placa y, si no lo dice, el de su nombre (D-426).
+    expect(lienzo).toContain('resultadoDelOval(a.desviacionMm, lado, semilargoDelOval(placa))')
     expect(lienzo).toContain("inst.tornillo?.tipo === 'rosca-parcial'")
     expect(lienzo).toContain('resultadoDeLaRoscaParcial({')
     expect(lienzo).toContain('resultadoDelDeslizamiento({ ...calibresPorFragmento(libre.perforaciones, distancia)')
-    // Un tornillo bloqueado no comprime, ni en el óvalo ni por la trayectoria.
-    expect(lienzo).toContain("const oval = !puesto.bloqueado && formaDeLosAgujeros({ nombre: placa.nombre }) !== 'redondo'")
+    // Un tornillo bloqueado no comprime, ni en el óvalo ni por la trayectoria. Uno en un agujero redondo tampoco, con la forma de
+    // ese agujero y no la de la placa entera: los siete de la cabeza de la volar de radio distal son redondos (D-426).
+    expect(lienzo).toContain("const oval = !puesto.bloqueado && formaDelAgujero(placa, agujero) !== 'redondo'")
     // La distancia al trazo se mide para todos —cruzarlo bloquea el foco, comprima o no (D-308)—, y el bloqueado no la
     // usa para comprimir.
     expect(lienzo).toContain('const cruzaHasta = distanciaALaFracturaPorLaTrayectoria(libre)')

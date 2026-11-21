@@ -20,6 +20,7 @@ const MEDIO_OVALO = 100
 
 export function PanelDeCompresion({
   agujeros,
+  ovales,
   semilargoMm,
   ladoDeLaFractura,
   desviaciones,
@@ -30,6 +31,11 @@ export function PanelDeCompresion({
 }: {
   /** Cuántos orificios tiene la placa. */
   agujeros: number
+  /**
+   * Cuáles tienen óvalo, por su índice, cuando la placa trae también redondos (D-426): en la volar de radio distal, los tres del
+   * vástago. Sin esto, todos: en una placa que no lo dice, la forma es la de su nombre y vale para todos.
+   */
+  ovales?: readonly number[]
   /** El semilargo del óvalo, en mm. */
   semilargoMm: number
   /** Hacia qué sentido del eje de la placa está la fractura respecto de cada orificio; vacío si no se sabe dónde está. */
@@ -44,7 +50,9 @@ export function PanelDeCompresion({
 }) {
   const [elegido, setElegido] = useState(0)
   const [acercado, setAcercado] = useState(false)
-  const indice = Math.min(elegido, Math.max(0, agujeros - 1))
+  const lista = ovales ?? Array.from({ length: agujeros }, (_, i) => i)
+  // El elegido, si sigue siendo de los que se ofrecen; si no (la placa cambió, o el primero es redondo), el primero que lo es.
+  const indice = lista.includes(elegido) ? elegido : (lista[0] ?? 0)
   const desviacion = desviaciones[indice] ?? 0
   const lado = ladoDeLaFractura[indice]
   const zona: ZonaDelOval | null = lado === undefined ? null : zonaDelOval(desviacion, lado, semilargoMm)
@@ -67,7 +75,7 @@ export function PanelDeCompresion({
         <strong>Orificio oval:</strong> elija dónde brocar. Excéntrico y lejos de la fractura, comprime.
       </p>
       <div className="consola-submodo" role="group" aria-label="Orificio">
-        {Array.from({ length: agujeros }, (_, i) => (
+        {lista.map((i) => (
           <button
             key={i}
             type="button"

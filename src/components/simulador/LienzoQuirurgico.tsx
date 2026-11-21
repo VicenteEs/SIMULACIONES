@@ -136,10 +136,11 @@ import {
   calibresPorFragmento,
   COLOR_DE_LA_ZONA,
   compresionAplicable,
+  formaDelAgujero,
   formaDeLosAgujeros,
   ladoDeLaFractura,
   resultadoDeLaRoscaParcial,
-  semilargoDelOvalDeLaPlaca,
+  semilargoDelOval,
   resultadoDelDeslizamiento,
   resultadoDelOval,
   sumarCompresion,
@@ -372,7 +373,7 @@ import {
   retirarLaGuia,
   type EnclavadoEnLaEscena,
 } from './enclavadoEnLaEscena'
-import { agujeroBajoElPunto, ajustarPlaca, apoyoDeLaPlaca, reanclarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, soltarGrupo, type ImplantesEnEscena, type PlacaColocada, type TornilloEnEscena } from './implantesEnLaEscena'
+import { agujeroBajoElPunto, ajustarPlaca, apoyoDeLaPlaca, reanclarPlaca, colocarPlaca, ejeDeLaPlaca, colocarTornillo, colocarTornilloEnLinea, crearImplantes, grosorEnElAgujero, medirAlLoLargoDeUnaLinea, medirBajoElAgujero, posicionDelAgujero, quitarImplantes, quitarTornillos, quitarUnTornillo, soltarGrupo, type ImplantesEnEscena, type PlacaColocada, type TornilloEnEscena } from './implantesEnLaEscena'
 import {
   avisoDeCalibre,
   avisoDelAsiento,
@@ -4913,7 +4914,7 @@ export function LienzoQuirurgico({
         const medida = medirBajoElAgujero(placa, agujero, mallasDeHueso())
         const entrada = posicionDelAgujero(placa, agujero, 'abajo').addScaledVector(salida, -(medida?.distanciaAlHuesoMm ?? 0) * unidadesPorMm)
         // En un orificio oval la broca entra donde se eligió, corrida del centro a lo largo de la placa (P-004 E10).
-        const desviacionMm = formaDeLosAgujeros({ nombre: placa.nombre }) === 'redondo' ? 0 : (taller.current.desviaciones?.get(agujero) ?? 0)
+        const desviacionMm = formaDelAgujero(placa, agujero) === 'redondo' ? 0 : (taller.current.desviaciones?.get(agujero) ?? 0)
         if (desviacionMm !== 0) entrada.addScaledVector(ejeDeLaPlaca(placa), desviacionMm * unidadesPorMm)
         return {
           agujero,
@@ -5020,6 +5021,7 @@ export function LienzoQuirurgico({
         huesos,
         implantes: imp,
         contorno: t.mesa && t.mesa.instrumentoId && t.mesa.instrumentoId === inst.id ? t.mesa.contorno : undefined,
+        meta: herramienta.meta,
       })
       if (!placa) return false
       // Un material para todas sus mallas, que `quitarImplantes` suelta con ellas; los clonados de la plantilla se
@@ -7239,7 +7241,7 @@ export function LienzoQuirurgico({
         indice === null ||
         !placa?.fijada ||
         !t.escena ||
-        formaDeLosAgujeros({ nombre: placa.nombre }) === 'redondo' ||
+        formaDelAgujero(placa, indice) === 'redondo' ||
         indice < 0 ||
         indice >= placa.agujerosMm.length ||
         placa.agujeros.get(indice)?.perforado
@@ -7250,7 +7252,7 @@ export function LienzoQuirurgico({
       const unidadesPorMm = 1 / (ultimas.current.milimetrosPorUnidad || 1000)
       const mm = t.desviaciones?.get(indice) ?? 0
       const lado = ladoDeLaFracturaEnElAgujero(placa, indice)
-      const zona = lado === null ? 'centro' : zonaDelOval(mm, lado, semilargoDelOvalDeLaPlaca(placa.nombre))
+      const zona = lado === null ? 'centro' : zonaDelOval(mm, lado, semilargoDelOval(placa))
       if (!marcaDeBrocado) {
         const malla = new THREE.Mesh(
           new THREE.CircleGeometry(1, 24),
@@ -7814,6 +7816,7 @@ export function LienzoQuirurgico({
           // Si la placa en la mano es la que se dobló en la mesa, se apoya con su forma (P-005 E1).
           contorno: t.mesa && t.mesa.instrumentoId && t.mesa.instrumentoId === inst.id ? t.mesa.contorno : undefined,
           url: inst.url,
+          meta: herramienta.meta,
         })
         if (!placa) {
           decirYAvisar({
@@ -7914,7 +7917,8 @@ export function LienzoQuirurgico({
           t.decir?.('Bajo ese agujero no hay hueso que medir.')
           return
         }
-        const antesDelHueso = placa.grosorMm + medida.distanciaAlHuesoMm
+        // El grosor en ese agujero (D-426): en una placa con la cabeza subida, el alto de la caja pedía tornillos 3 mm largos.
+        const antesDelHueso = grosorEnElAgujero(placa, agujero) + medida.distanciaAlHuesoMm
         // La serie la da la broca con que se perforó el agujero (D-301): el medidor entra antes de que se elija el tornillo.
         const serie = serieDelSistema(placa.agujeros.get(agujero)?.perforado?.diametroMm)
         const sugerido = largoSugerido(medida.espesorMm, antesDelHueso, serie)
@@ -7977,7 +7981,7 @@ export function LienzoQuirurgico({
         // salió de la escena y de la lista, y la consola lo sabe ahora y no cuando asiente el nuevo —si este se saca a medias,
         // el panel seguiría contando el viejo—. Sin suceso: la secuencia no tiene que cambiar lo que hay en la mano.
         if (habia) ultimas.current.alFijar?.(estadoDeLaFijacion(t))
-        const oval = !puesto.bloqueado && formaDeLosAgujeros({ nombre: placa.nombre }) !== 'redondo'
+        const oval = !puesto.bloqueado && formaDelAgujero(placa, agujero) !== 'redondo'
         const desviacionMm = oval ? (t.desviaciones?.get(agujero) ?? 0) : 0
         // La cabeza del tornillo queda donde se brocó, no en el centro del óvalo (P-004 E10).
         if (desviacionMm !== 0) entrada.grupo.position.addScaledVector(ejeDeLaPlaca(placa), desviacionMm / mmPorUnidad)
@@ -8031,7 +8035,7 @@ export function LienzoQuirurgico({
       let compresion = ''
       if (a.oval) {
         const lado = ladoDeLaFracturaEnElAgujero(placa, a.agujero)
-        if (lado !== null) compresion = aplicarLaCompresion(resultadoDelOval(a.desviacionMm, lado, semilargoDelOvalDeLaPlaca(placa.nombre)))
+        if (lado !== null) compresion = aplicarLaCompresion(resultadoDelOval(a.desviacionMm, lado, semilargoDelOval(placa)))
       }
       const suceso: SucesoDeFijacion = {
         tipo: 'tornillo',
@@ -10404,7 +10408,9 @@ export function estadoDeLaFijacion(taller: Taller): EstadoDeLaFijacion | null {
           aviso: imp.placa.avisoDeOrificios,
           asiento: imp.placa.asiento ?? null,
           forma: formaDeLosAgujeros({ nombre: imp.placa.nombre }),
-          semilargoDelOvalMm: semilargoDelOvalDeLaPlaca(imp.placa.nombre),
+          // La de cada agujero, si el modelo la dice (D-426): el panel ofrece elegir dónde brocar solo en los que no son redondos.
+          formas: imp.placa.formasDelModelo,
+          semilargoDelOvalMm: semilargoDelOval(imp.placa),
           ladoDeLaFractura: taller.ladosDeLaFractura?.() ?? {},
           desviaciones: Object.fromEntries(taller.desviaciones ?? []),
         }

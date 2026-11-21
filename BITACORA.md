@@ -13598,7 +13598,7 @@ Desplegado el 2026-11-20 en `b5b80f6`, a pedido del dueño («ahora subela a el 
 - ved terminó a las 21:32 (Chile), con respaldo `base-20261120-213010`, en claro como manda D-384. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre; 4 procesos y salud 200 por fuera. Dentro del contenedor, `arsenalera-persona.glb` tiene sus 727 900 bytes y el sha256 del publicado, y sin sesión da 403, como `sala.glb` (con `no-store`).
 - Contabo terminó a las 21:37. Antes se hizo un respaldo verificado, `base-`/`medios-20261120-212758`, y el de su propio despliegue fue `base-20261120-213309`. El override era igual a la plantilla. El mismo ensayo, 4 procesos, salud 200 en `https://traumahub.cl`, el mismo sha256 dentro del contenedor y los dos `.glb` sin sesión en 403.
 
-### D-425 · 2026-11-21 · vigente · pedido del dueño · amplía D-168, D-169, D-300 y P-003 E6
+### D-425 · 2026-11-21 · vigente · pedido del dueño · amplía D-168, D-169, D-300 y P-003 E6 · superada en parte por D-426 (el grosor de la placa, la forma de sus agujeros, el cortical de 2,4 y la placa izquierda)
 **Llega la placa LCP volar de radio distal 2,4, derecha, modelada por guion con las medidas que dio el dueño. Con ella llega la broca de 1,8, que los tornillos de 2,4 pedían y la bandeja no tenía.**
 
 *Qué pasó.* El dueño pidió una placa volar de radio distal hecha con un guion de Blender, con sus medidas:
@@ -13675,6 +13675,70 @@ Los despliegues:
   - los archivos tienen el sha256 de los publicados;
   - las dos fichas quedaron unidas a su modelo, y el catálogo tiene 83 instrumentos;
   - sin sesión, los dos archivos dan 403, igual que `broca-2-0.glb`.
+
+### D-426 · 2026-11-21 · vigente · pedido del dueño · amplía D-169, D-300 y D-425 · supera en parte a D-425 (el grosor de la placa, la forma de sus agujeros, el cortical de 2,4 y la placa izquierda)
+**La volar de radio distal dice en su modelo el grosor de su chapa, la altura y la forma de cada agujero y lo que mide su óvalo, y el simulador usa eso en vez de la caja y del nombre. Llegan además el cortical de 2,4 a la bandeja y la placa izquierda.**
+
+*Qué pasó.* El dueño pidió arreglar lo que D-425 dejó anotado sin arreglar («quiero que arregles esto»):
+- el simulador medía la placa con 5,23 mm de grosor y no con 2,2, porque la cabeza sube, y daba por cortos, en unos 3 mm, tornillos que alcanzaban;
+- trataba los 10 agujeros como combinados, y los 7 de la cabeza son redondos;
+- al fijarla proponía un cortical de 2,4 que la bandeja no tenía;
+- faltaba la placa izquierda.
+
+*Por qué la caja no basta.* `colocarPlaca` tomaba el grosor del alto de la caja del modelo, y `posicionDelAgujero` ponía la cara de abajo y la de arriba de cada agujero en el piso y en el techo de esa caja. En una placa recta es lo mismo. En la volar, la caja va del piso del vástago (0) al techo de la cabeza subida (5,23 mm). Con eso:
+- el medidor sumaba 5,23 mm de placa y pedía tornillos 3 mm más largos;
+- el juicio restaba 5,23 y daba por cortos tornillos que alcanzaban;
+- la cabeza del tornillo del vástago quedaba 3 mm en el aire, en el techo de la caja;
+- los agujeros de la cabeza se medían desde el piso del vástago, de 1,1 a 2,4 mm por debajo de su cara.
+
+La forma salía del nombre (`formaDeLosAgujeros`: «LCP» es combinado) y valía para todos los agujeros. El óvalo salía del diámetro del tornillo: 4,8 mm, y no los 4,5 del combinado.
+
+*Lo que el modelo dice ahora.* `lib.meta_raiz` acepta cuatro datos más y solo los escribe si se le dan. La meta de los demás instrumentos sale igual, byte a byte.
+- `grosor`: el de la chapa, 2,2 mm.
+- `alturas`: por cada agujero, dónde están su cara de abajo y su cara de arriba, en mm y en la Z de Blender. El guion las saca del mismo doblez que deforma la malla (`deformar` del centro del agujero a 0 y a 2,2 mm), así que no se pueden separar de ella. Los 3 del vástago van de 0 a 2,2. Los 7 de la cabeza empiezan entre 1,12 y 2,39 mm más arriba, y tienen 2,17 mm de chapa en vertical: los 2,2 inclinados 10°.
+- `formas`: 3 combinados y 7 redondos.
+- `largo_del_oval`: 4,5 mm, el del ocho de los combinados.
+
+`metaDeRaiz` (`src/instrumental/modelo.ts`) los lee con una regla: una altura y una forma por agujero, o ninguna. Con una de menos, la del agujero 5 sería la del 6, y es mejor que la placa se porte como antes a que mida cada tornillo en el agujero de al lado. `colocarPlaca` lo vuelve a comprobar contra los agujeros que coloca, porque una sesión guardada con otra versión del modelo puede traer otros.
+
+*Lo que hace el simulador con eso.*
+- `colocarPlaca` (`implantesEnLaEscena.ts`) toma el grosor de la meta y guarda con la placa las alturas, las formas y el óvalo. La sesión guardada no los lleva: al restaurarla se vuelven a leer del modelo (`sesionDeLoColocado.ts`).
+- `posicionDelAgujero` pone cada cara a su altura. El tornillo del vástago apoya la cabeza sobre la chapa, y el de la cabeza entra desde la cara de abajo de su agujero.
+- `grosorEnElAgujero` da lo que hay entre las dos caras de un agujero. Con eso cuentan la placa el medidor de profundidad y el juicio del tornillo (`juzgarTornillo`).
+- `ejeDeLaPlaca` sigue a la altura de la caja. El último agujero está en la cabeza, 1,5 mm más arriba que el primero, y con sus alturas el eje se habría salido del plano de la placa.
+- `formaDelAgujero` y `semilargoDelOval` (`compresion.ts`) dan la forma de cada agujero y el óvalo de la placa: los del modelo si los dice y, si no, los del nombre, como antes. Los usan la broca excéntrica, la marca de dónde brocar, la cabeza del tornillo corrida en el óvalo y la compresión.
+- El panel de compresión ofrece solo los agujeros con óvalo (`ovales`): en la volar, los 3 del vástago. Si el modelo no dice las formas, todos, como antes.
+
+*El cortical de 2,4.* `TIPOS_DE_TORNILLO` (`tornillos.ts`) lo pone primero entre los corticales. Es el que el sistema 2,4 lleva en el combinado del vástago y el que `preferenciasDeLaPlacaFijada` propone al fijar una placa de 2,4. Su broca, la de 1,8, ya estaba en la tabla de D-300 y está en la bandeja desde D-425. Como el bloqueado de 2,4, es el modelo de 3,5 con otro diámetro. Al tomarlo de la bandeja, la lista de diámetros empieza en el del modelo, 3,5, y el 2,4 se elige a mano.
+
+*La izquierda* (`placa-volar-radio-distal-2-4-izquierda`). Es la derecha en espejo, hecha de la misma malla:
+- `construir(lado=-1)` refleja la X después del doblez y da la vuelta a las caras, para que las normales sigan hacia fuera.
+- Su guion (`placa_volar_radio_distal_2_4_izquierda.py`) importa el de la derecha, así que las dos no se pueden separar.
+- Los agujeros cambian el signo de X, y los del eje se escriben como 0 y no como −0. Las alturas, las formas y el grosor son los de la derecha.
+- La foto del catálogo se saca con la misma cámara que la derecha. Las luces no se reflejan con la cámara, y desde el lado reflejado la principal quemaba la cara de la placa.
+- Tiene su ficha en `INSTRUMENTAL_BASE` y lo mismo que la derecha en `fijacion.ts`.
+
+*Qué se probó.*
+- `implantesReales.test.ts`, con los `.glb` de verdad:
+  - la meta de la derecha: el grosor de 2,2, las alturas, los 3 combinados y los 7 redondos, y el óvalo de 4,5;
+  - la izquierda: el espejo de la derecha en sus agujeros, y todo lo demás igual;
+  - la derecha colocada sobre un hueso plano de 20 mm. El grosor es 2,2 y la cabeza empieza más de 1 mm arriba. Un tornillo de 2,2 + el hueco + 20 + 2 mm en el primer agujero sale bicortical, con la punta 2 mm fuera, sin aviso y con la cabeza sobre la chapa.
+- `implantesEnLaEscena.test.ts`: la placa de cartón con alturas propias, la vuelta a la caja si falta una, y el tornillo juzgado con la chapa de su agujero.
+- `instrumental.test.ts`: `metaDeRaiz` lee los cuatro datos y descarta las listas que no traen uno por agujero.
+- `compresion.test.ts`, `fijacion.test.ts` y `tornillosYSecuencia.test.ts`: la forma por agujero, la izquierda con su bandeja y el cortical de 2,4.
+- No se probó en pantalla. El simulador pide sesión y un caso con la placa en su bandeja, y esta máquina no tiene ese entorno armado.
+
+*Consecuencias.*
+- (+) Con la volar, el medidor y el juicio cuentan 2,2 mm de placa en el vástago y 2,17 en la cabeza. Ya no piden ni exigen 3 mm de más.
+- (+) La cabeza del tornillo del vástago apoya en la chapa, y no 3 mm por encima.
+- (+) Solo los combinados del vástago dejan correr la broca y comprimir.
+- (+) Hay volar izquierda, y la bandeja tiene el cortical de 2,4.
+- (+) Otra placa doblada puede decir lo mismo con los mismos cuatro datos de `meta_raiz`.
+- (−) Solo la volar los dice. La anatómica de tibia (una caja de 10,9 mm para una chapa de 4,5) y la de gancho clavicular (18,6 para 3,0) siguen midiéndose con la caja, como la volar antes de esto. Para arreglarlas hay que sacar sus alturas en `implantes.py` y regenerarlas.
+- (−) El asiento (`caraDeLaPlaca`) sigue siendo plano. Sobre un hueso plano, la cabeza de la volar queda en el aire, de 1,1 a 2,4 mm, y el medidor lo cuenta como hueco hasta el hueso.
+- (−) El tornillo entra por la normal de la placa y no por el eje de su agujero, que en la cabeza va inclinado 10°.
+- (−) Al elegir el cortical o el bloqueado sobre una placa de 2,4, la consola no pone sola el 2,4 en la lista de diámetros.
+- (−) Los `.glb` cambiaron. En ved y Contabo hay que reemplazar el de la derecha con el mismo nombre de archivo, y cargar la izquierda.
 
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**

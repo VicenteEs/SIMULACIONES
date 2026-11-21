@@ -27,8 +27,13 @@ tangente al borde de un combinado bastaba para dejar el bisel entero en 0,03 mm 
 
 **Derecha.** Vista desde volar con la cabeza arriba, el lado radial de un radio derecho queda a la derecha, que es
 +X. La asimetría está donde la pide el hueso: el borde distal sube hacia radial siguiendo la inclinación radial (la
-estiloides llega más lejos que la esquina cubital) y el cuello se abre antes del lado cubital. Una izquierda sería
-esta misma con X cambiada de signo.
+estiloides llega más lejos que la esquina cubital) y el cuello se abre antes del lado cubital. La izquierda
+(`placa_volar_radio_distal_2_4_izquierda.py`) es esta misma con X cambiada de signo (`construir(lado=-1)`, D-426).
+
+**Lo que la caja no dice** (D-426). El simulador sacaba el grosor de la placa del alto de su caja y la forma de los
+agujeros de su nombre. Con la cabeza subida, la caja mide 5,2 mm y no 2,2, y por el nombre (LCP) los diez agujeros
+serían combinados. Por eso la meta lleva además el grosor de la chapa, la altura de cada agujero, su forma y lo que
+mide el óvalo (`meta_de_la_placa`).
 
 **El doblez.** La cabeza gira hasta 10° hacia volar entre los 5 y los 13 mm, por arco (la chapa no se estira), y su
 cara contra el hueso se ahueca con un radio de 50 mm centrado en el eje, que entra entre los 11 y los 25 mm. La
@@ -479,8 +484,28 @@ def normales(ob):
     _aplicar(ob, mod)
 
 
-def construir(hasta=None):
-    """La placa entera, o plana (`hasta='plana'`) para mirar ese paso. Devuelve (raíz, objeto, agujeros de la meta)."""
+def espejar(ob):
+    """
+    La izquierda es esta misma con X cambiada de signo. Se espeja la pieza ya doblada y no la silueta: el doblez y el
+    bisel no distinguen un lado del otro, y así las dos placas salen de la misma malla y no pueden separarse. Un espejo
+    da vuelta las caras (la de fuera queda mirando adentro), y por eso se invierten: sin eso, las normales y la luz
+    salían del revés.
+    """
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    for v in bm.verts:
+        v.co.x = -v.co.x
+    bmesh.ops.reverse_faces(bm, faces=bm.faces[:])
+    bm.to_mesh(ob.data)
+    bm.free()
+    ob.data.update()
+
+
+def construir(hasta=None, lado=1):
+    """
+    La placa entera, o plana (`hasta='plana'`) para mirar ese paso; con `lado=-1`, la izquierda. Devuelve (raíz,
+    objeto, agujeros de la meta, alturas de cada agujero).
+    """
     raiz = vacio('implante')
     c = borde_que_da_el_largo()
     combinados, distal, proximal = agujeros_planos(c)
@@ -491,25 +516,52 @@ def construir(hasta=None):
     if hasta != 'plana':
         densificar(ob)
         doblar(ob)
+    if lado < 0:
+        espejar(ob)
     normales(ob)
+    planos = combinados + redondos
     # A media altura del grosor, por el mismo mapa que la malla: el simulador los proyecta sobre su plano.
-    centros = np.array([(x, y, GROSOR / 2) for x, y in combinados + redondos])
+    centros = np.array([(x, y, GROSOR / 2) for x, y in planos])
+    # Y dónde empieza y dónde termina cada agujero (D-426). En el vástago, en 0 y en 2,2; en la cabeza, más arriba,
+    # porque sube, y en sus bordes un poco más abajo, por la concavidad. El simulador apoyaba la cabeza del tornillo en
+    # lo más alto de la caja de toda la placa, que es el borde distal: en el vástago quedaba 3 mm en el aire.
+    abajo = np.array([(x, y, 0.0) for x, y in planos])
+    arriba = np.array([(x, y, GROSOR) for x, y in planos])
     if hasta != 'plana':
-        centros = deformar(centros)
-    agujeros = [(float(x), float(y)) for x, y, _ in centros]
+        centros, abajo, arriba = deformar(centros), deformar(abajo), deformar(arriba)
+    # El + 0.0 es por los del eje: en la izquierda, −1 × 0 da −0.0, y así quedaba escrito en la meta.
+    agujeros = [(lado * float(x) + 0.0, float(y)) for x, y, _ in centros]
+    alturas = [(float(a[2]), float(b[2])) for a, b in zip(abajo, arriba)]
     co = np.empty(len(ob.data.vertices) * 3)
     ob.data.vertices.foreach_get('co', co)
     co = co.reshape(-1, 3)
     tam = co.max(0) - co.min(0)
-    print(f'>> placa {hasta or "doblada"}: {tam[0]:.2f} × {tam[1]:.2f} mm, Z de {co[:, 2].min():.2f} a '
-          f'{co[:, 2].max():.2f}; puente mínimo {al_borde:.2f} mm al borde y {entre:.2f} mm entre agujeros')
-    return raiz, ob, agujeros
+    print(f'>> placa {hasta or "doblada"}{" izquierda" if lado < 0 else ""}: {tam[0]:.2f} × {tam[1]:.2f} mm, Z de '
+          f'{co[:, 2].min():.2f} a {co[:, 2].max():.2f}; puente mínimo {al_borde:.2f} mm al borde y {entre:.2f} mm '
+          f'entre agujeros')
+    return raiz, ob, agujeros, alturas
+
+
+def meta_de_la_placa(alturas):
+    """
+    Lo que el simulador no puede sacar de la caja de esta placa ni de su nombre (D-426), para `meta_raiz`:
+    - el grosor de la chapa: la caja mide 5,2 mm de alto porque la cabeza sube, y con eso pedía tornillos 3 mm largos;
+    - la altura de cada agujero, por lo mismo;
+    - la forma de cada uno: por el nombre (LCP), los diez eran combinados, y los siete de la cabeza son redondos;
+    - lo que mide el óvalo de un combinado: por el nombre, el doble del diámetro (4,8 mm), y el pedido es de 4,5.
+    """
+    return {
+        'grosor': GROSOR,
+        'alturas': alturas,
+        'formas': ['combi'] * len(COMBINADOS_Y) + ['redondo'] * (len(alturas) - len(COMBINADOS_Y)),
+        'largo_del_oval': CENTROS_DEL_COMBINADO + D_AGUJERO,
+    }
 
 
 if __name__ == '__main__':
     carpeta = iniciar(SLUG)
-    raiz, placa, agujeros = construir()
-    meta_raiz(raiz, SLUG, NOMBRE, MEDIDAS, notas=NOTAS, agujeros=agujeros)
+    raiz, placa, agujeros, alturas = construir()
+    meta_raiz(raiz, SLUG, NOMBRE, MEDIDAS, notas=NOTAS, agujeros=agujeros, **meta_de_la_placa(alturas))
     # La foto lleva el material entero; lo que viaja al .glb es el aplanado (ver la cabecera).
     _vista_previa(os.path.join(carpeta, SLUG + '.png'), VISTA)
     material_para_el_gltf(placa.active_material)
