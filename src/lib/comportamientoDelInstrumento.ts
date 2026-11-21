@@ -177,6 +177,8 @@ const POR_SLUG: Readonly<Record<string, ComportamientoDelInstrumento>> = {
 
   'aguja-kirschner': { ...NADA, perfora: { diametroMm: 1.6, avanceMmPorSegundo: 9, alambre: true } },
   'broca-1-5': { ...NADA, perfora: { diametroMm: 1.5, avanceMmPorSegundo: 9 } },
+  // La de los tornillos de 2,4 (D-300), que llegó con la placa volar de radio distal.
+  'broca-1-8': { ...NADA, perfora: { diametroMm: 1.8, avanceMmPorSegundo: 9 } },
   'broca-2-0': { ...NADA, perfora: { diametroMm: 2.0, avanceMmPorSegundo: 9 } },
   'broca-2-5': { ...NADA, perfora: { diametroMm: 2.5, avanceMmPorSegundo: 9 } },
   // La del bloqueado LCP de 3,5 (D-300).

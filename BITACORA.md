@@ -13598,6 +13598,65 @@ Desplegado el 2026-11-20 en `b5b80f6`, a pedido del dueño («ahora subela a el 
 - ved terminó a las 21:32 (Chile), con respaldo `base-20261120-213010`, en claro como manda D-384. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre; 4 procesos y salud 200 por fuera. Dentro del contenedor, `arsenalera-persona.glb` tiene sus 727 900 bytes y el sha256 del publicado, y sin sesión da 403, como `sala.glb` (con `no-store`).
 - Contabo terminó a las 21:37. Antes se hizo un respaldo verificado, `base-`/`medios-20261120-212758`, y el de su propio despliegue fue `base-20261120-213309`. El override era igual a la plantilla. El mismo ensayo, 4 procesos, salud 200 en `https://traumahub.cl`, el mismo sha256 dentro del contenedor y los dos `.glb` sin sesión en 403.
 
+### D-425 · 2026-11-21 · vigente · pedido del dueño · amplía D-168, D-169, D-300 y P-003 E6
+**Llega la placa LCP volar de radio distal 2,4, derecha, modelada por guion con las medidas que dio el dueño. Con ella llega la broca de 1,8, que los tornillos de 2,4 pedían y la bandeja no tenía.**
+
+*Qué pasó.* El dueño pidió una placa volar de radio distal hecha con un guion de Blender, con sus medidas:
+- LCP 2,4, de 55 mm de largo, para la muñeca derecha.
+- Cabeza en T asimétrica de 25 mm, vástago de 9,5 mm y 2,2 mm de grosor.
+- Unos 10° de inclinación volar y una concavidad transversal suave.
+- En la cabeza, 4 agujeros distales y 3 proximales de Ø 2,4, con avellanado cónico. En el vástago, 3 combinados de 4,5 × 2,4.
+- Weighted Normal y un bisel de 0,15 mm con 3 segmentos.
+- Un material Principled BSDF llamado `Titanium_Anodized_Medical`, de color #C5B38A y metálico 1,0. Un ruido estirado mueve la rugosidad entre 0,22 y 0,34 y da un relieve de 0,03.
+
+Pidió que fuera «en las carpetas que corresponde donde van las herramientas», y quedó con el resto del instrumental:
+- el guion, en `scripts/instrumental/placa_volar_radio_distal_2_4.py`;
+- el `.glb` y su foto, en `ejemplos/instrumental/`, como los demás (`generar-todo.sh` lo recoge solo);
+- la ficha, en `INSTRUMENTAL_BASE` (`src/lib/instrumental.ts`), entre las placas;
+- en los servidores, el modelo en «Herramientas», unido a su ficha.
+
+*La placa.* El detalle está en la cabecera del guion.
+- **Es la primera que no sale de `implantes.placa_con_cabeza`.** Aquella barre dos láminas rectas. La cabeza de una volar es una silueta, una T torcida, que después se dobla en dos sentidos.
+- **Se modela plana y se dobla al final.** Los booleanos y el bisel se hacen sobre la pieza plana, donde las paredes de los agujeros son verticales. El doblez se lleva los agujeros perpendiculares a su cara, como en una placa de verdad; perforando después de doblar, saldrían torcidos 10°.
+- **Es derecha.** Vista desde volar con la cabeza arriba, el lado radial es +X. El borde distal sube hacia radial, porque la estiloides llega más lejos que la esquina cubital, y el cuello se abre antes por el lado cubital. La izquierda sería su espejo, y no se hizo.
+- **El doblez.** La cabeza sube 10° hacia volar entre los 5 y los 13 mm, por arco, para que la chapa no se estire. La cara contra el hueso se ahueca con un radio de 50 mm entre los 11 y los 25 mm. La concavidad entra más despacio que la inclinación: con 45 mm entre los 10 y los 20, el borde hacía una ola que se veía de perfil. El borde distal se corre para que la placa doblada mida 55,00 mm.
+- **Los combinados** están a −22, −14 y −6 mm del centro, a 8 mm entre sí, como el sistema LCP 2,4 de `placasRectas.ts`. Cada uno son dos círculos de 2,4 con los centros a 2,1 mm, que dan el ocho de 4,5 × 2,4.
+- **Los agujeros de la cabeza.** La hilera distal tiene 4, a 3,9 mm del borde y a 5,8 mm entre sí, y sube con el borde hacia radial. La proximal tiene 3, a 5,4 mm de la distal. El avellanado es un cono de 90° de 0,7 mm de hondo: deja Ø 3,8 en la cara de arriba y 2 mm de metal entre dos agujeros. Si algún puente de metal queda bajo 1,2 mm, el guion no exporta.
+- **El orden de los agujeros en la meta.** `ejeDeLaPlaca` saca el eje de la placa del primer agujero al último. Por eso el primero es el combinado proximal y el último el central de la hilera proximal, los dos en X = 0.
+- **Las tapas, en tiras.** El bisel salía de 0,03 mm y no de 0,15. El solver exacto unía los agujeros con aristas casi tangentes a los combinados, y `use_clamp_overlap` frena a la vez el bisel de toda la pieza. Antes de los booleanos, cada tapa se corta a lo largo por cada columna de agujeros, y el bisel queda en 0,15.
+- **El bisel y el Weighted Normal se aplican dentro del guion.** `lib.exportar` pasa la malla a metros escalando los vértices, pero no los parámetros de los modificadores. Un bisel de 0,15 sin aplicar se volvería uno de 0,15 m.
+
+*El material.* Se llama `Titanium_Anodized_Medical`, en inglés, como lo pidió el dueño. El ruido y el relieve se ven en la foto del catálogo. glTF no lleva nodos de procedimiento, y el exportador los habría dejado fuera sin avisar. Por eso el `.glb` lleva la rugosidad fija en 0,28, la mitad del rango, y no lleva relieve, como las demás placas. El color y el metálico sí viajan.
+
+*La broca de 1,8* (`broca-1-8`, `scripts/instrumental/broca_1_8.py`). La tabla de D-300 ya pedía la de 1,8 para los dos tornillos de 2,4, pero la bandeja no la tenía, y la consola ofrecía la primera broca que encontrara. Ahora perfora 1,8 (`comportamientoDelInstrumento.ts`) y va con la placa.
+
+*Lo que va con la placa* (`PARA_2_4`, en `fijacion.ts`):
+- el bloqueado y el cortical, que son los modelos de 3,5 con el diámetro que se elige en la bandeja;
+- las brocas de 1,8 y de 2,0;
+- el medidor;
+- el destornillador Stardrive.
+
+«LCP» y «2,4» en el nombre no son adorno: de ahí saca el simulador la forma de los agujeros y el diámetro de sus tornillos.
+
+*Lo que mide.* En planta, 25,0 × 55,0 mm. La caja tiene 5,23 mm de alto, porque la cabeza sube. Tiene 6374 vértices y pesa 226 KB (231 604 bytes): es la placa más pesada del catálogo. La broca pesa 104 KB.
+
+*Qué se probó.*
+- `implantesReales.test.ts` abre el `.glb` como lo abre el lienzo y comprueba:
+  - 25 × 55 mm y menos de 6 mm de alto;
+  - 10 agujeros;
+  - el primero y el último sobre el eje, a más de 35 mm uno de otro;
+  - la hilera distal, que sube hacia radial.
+- `fijacion.test.ts`: la placa trae la broca de cada tornillo, la de 1,8 y la de 2,0, y la que pide la consola al fijarla.
+- `comportamientoDelInstrumento.test.ts`: la de 1,8 perfora 1,8.
+
+*Consecuencias.*
+- (+) Hay una placa de radio distal con la forma de la cara volar del radio. Es la primera con tornillos de 2,4.
+- (+) Los tornillos de 2,4 tienen su broca.
+- (−) El simulador trata los 10 agujeros como combinados, porque lo decide por el nombre (`formaDeLosAgujeros`), y los de la cabeza son redondos. Además, su óvalo mide 4,8 mm, el doble del diámetro, y no 4,5.
+- (−) El simulador toma como grosor de la placa el alto de la caja del modelo (`colocarPlaca`). Lee 5,23 mm en vez de 2,2, y da por cortos tornillos que alcanzan, por unos 3 mm. Con la anatómica de tibia pasa lo mismo.
+- (−) Al fijar la placa, la consola propone un cortical de 2,4 (`preferenciasDeLaPlacaFijada`), y la bandeja no lo tiene: su cortical más chico es el de 2,7. No se probó qué muestra entonces.
+- (−) No hay guía roscada de 1,8, ni la placa izquierda.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

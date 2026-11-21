@@ -25,6 +25,7 @@ describe('comportamiento del instrumental', () => {
       'separador-weitlaner',
       'separador-beckman-adson',
       'broca-1-5',
+      'broca-1-8',
       'broca-2-0',
       'broca-2-5',
       'broca-2-8',
@@ -59,6 +60,8 @@ describe('comportamiento del instrumental', () => {
     expect(comportamientoDelInstrumento(base('broca-3-2')).perfora?.diametroMm).toBe(3.2)
     // Las de minifragmentos y la de deslizamiento: cada calibre es el suyo.
     expect(comportamientoDelInstrumento(base('broca-1-5')).perfora?.diametroMm).toBe(1.5)
+    // La de los tornillos de 2,4 (D-300), que llegó con la placa volar de radio distal.
+    expect(comportamientoDelInstrumento(base('broca-1-8')).perfora?.diametroMm).toBe(1.8)
     expect(comportamientoDelInstrumento(base('broca-4-5')).perfora?.diametroMm).toBe(4.5)
     // El martillo no corta, ni separa, ni pellizca, ni perfora: solo golpea el clavo (P-005 E5). (La pinza de
     // disección ya no es de las que no hacen nada: pellizca la piel hacia arriba.)

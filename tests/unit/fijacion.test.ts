@@ -173,6 +173,16 @@ describe('lo que acompaña a cada placa (P-003 E6)', () => {
     expect(COMPANEROS_DE_LA_PLACA['placa-dcp-4-5']).not.toContain('tornillo-bloqueado-lcp-3-5')
   })
 
+  it('la volar de radio distal 2,4 trae la broca de cada tornillo: 1,8 el bloqueado de 2,4 y 2,0 el cortical de 2,7', () => {
+    const lista = COMPANEROS_DE_LA_PLACA['placa-volar-radio-distal-2-4']
+    const broca = (mm: number) => `broca-${mm.toFixed(1).replace('.', '-')}`
+    expect(lista).toContain('tornillo-bloqueado-lcp-3-5')
+    expect(lista).toContain(broca(calibreDeBrocaParaElTornillo(2.4, { tipo: 'bloqueado' })))
+    expect(lista).toContain(broca(calibreDeBrocaParaElTornillo(2.7, { tipo: 'cortical' })))
+    // Y la que pide la consola al fijar la placa: la del cortical del sistema (`preferenciasDeLaPlacaFijada`).
+    expect(lista).toContain(broca(calibreDeBrocaParaElTornillo(2.4, { tipo: 'cortical' })))
+  })
+
   it('varias placas suman sin repetir, y una placa que no se conoce no suma nada', () => {
     const dos = companerosDeLasPlacas(['placa-lcp-recta-3-5', 'placa-t-3-5'])
     expect(new Set(dos).size).toBe(dos.length)

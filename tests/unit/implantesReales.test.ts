@@ -75,10 +75,34 @@ describe('los modelos de implantes, abiertos como los abre el lienzo', () => {
       'placa-t-3-5',
       'placa-l-3-5',
       'placa-gancho-clavicular',
+      'placa-volar-radio-distal-2-4',
     ]) {
       const escena = await abrir(slug)
       if (!escena) return
       expect(prepararHerramienta(escena).meta?.agujeros.length, slug).toBeGreaterThan(2)
     }
+  })
+
+  it('la volar de radio distal: 25 × 55 mm, derecha, y el eje de sus agujeros a lo largo de la placa', async () => {
+    const escena = await abrir('placa-volar-radio-distal-2-4')
+    if (!escena) return
+    const h = prepararHerramienta(escena)
+    const t = new THREE.Box3().setFromObject(escena).getSize(new THREE.Vector3())
+    // En metros. El alto de la caja no es el grosor de la chapa (2,2 mm): la cabeza sube 10° hacia volar.
+    expect(t.x).toBeCloseTo(0.025, 3)
+    expect(t.z).toBeCloseTo(0.055, 3)
+    expect(t.y).toBeLessThan(0.006)
+    const agujeros = h.meta?.agujeros ?? []
+    // 3 combinados en el vástago y 4 + 3 en la cabeza.
+    expect(agujeros).toHaveLength(10)
+    // `ejeDeLaPlaca` va del primer agujero al último: los dos sobre el eje, el combinado proximal y el central de la cabeza.
+    const [primero, ultimo] = [agujeros[0], agujeros[agujeros.length - 1]]
+    expect(primero[0]).toBeCloseTo(0, 6)
+    expect(ultimo[0]).toBeCloseTo(0, 6)
+    expect(ultimo[1] - primero[1]).toBeGreaterThan(35)
+    // Derecha: la hilera distal sube hacia el lado radial (+X), que es el que llega más lejos.
+    const distales = agujeros.slice(3, 7)
+    expect(distales[3][0]).toBeGreaterThan(distales[0][0])
+    expect(distales[3][1]).toBeGreaterThan(distales[0][1])
   })
 })
