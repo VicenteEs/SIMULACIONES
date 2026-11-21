@@ -1,9 +1,13 @@
 """
 La arsenalera que modeló el dueño, llevada al simulador (D-418): de su `.blend` de trabajo a `arsenalera-persona.glb`.
 
+Desde D-424 la que viaja es `arsenalera_mesa.blend`: la copia de su archivo con las manos a la altura de la bandeja y
+los codos doblados, que el dueño pidió y pintó después. La de los brazos abajo sigue en `arsenalera_manual.blend`, y
+sale con `--fuente`: las comprobaciones de abajo valen para las dos.
+
     blender --background --factory-startup --python scripts/pabellon/arsenalera_a_la_web.py -- [opciones]
 
-    --fuente <archivo.blend>  de dónde sale (por omisión, `salida/arsenalera_manual/arsenalera_manual.blend`)
+    --fuente <archivo.blend>  de dónde sale (por omisión, `salida/arsenalera_manual/arsenalera_mesa.blend`)
     --destino <carpeta>       adónde va el `.glb` (por omisión, `privado/pabellon/`): otra carpeta para probar sin pisar
                               lo que viaja
     --lado-color 1024         el lado de la textura de color de la figura
@@ -31,16 +35,24 @@ Qué hace con cada cosa, y por qué:
 - **La cara** va con la foto y su alfa, mezclada con la piel del óvalo.
 - **La sombra de contacto** se hornea aquí: la oclusión del suelo con Cycles en el procesador (sin esperar el turno de
   la gráfica) vuelta alfa, sin luz, igual que la de la mesa en `mobiliario.py`, para que las dos se asienten igual.
+- **Las piezas de la figura van partidas a un centímetro sobre la bandeja de la mesa** cuando tienen caras a los dos
+  lados: `bata.arriba` y `bata.abajo`, `guantes.arriba` y `guantes.abajo`. Arriba, las caras con todos sus vértices por
+  encima (los antebrazos y las manos que pasan sobre la bandeja); abajo, todo lo demás. Se ve igual que una sola malla.
+  Es para la prueba, que solo lee las cajas del `.glb`: en una sola caja, la manga que pasa sobre la bandeja y la falda
+  que no puede llegar a la funda serían lo mismo, y no habría regla que sirviera. La pieza que queda entera de un lado
+  conserva su nombre de siempre (`pantalon.tela`, `zapatos.cubrecalzado`).
 
 Lo que el simulador y la prueba (`tests/unit/mueblesDelPabellon.test.ts`) buscan por su nombre: la raíz
 `arsenalera-persona` y, de ella, `bata`, `pantalon`, `guantes`, `zapatos`, `cabeza`, `cara`, `gorro`, `mascarilla`,
-`gafas` y `sombra`. La escena pincha la bata, los guantes y el gorro, y deja la sombra sin echar ni recibir sombra. El
-origen queda en el suelo entre los pies, y la figura mira a +Z en la web (a −Y en Blender).
+`gafas` y `sombra`. La escena pincha la bata, los guantes y el gorro (cada grupo con todo lo que cuelga de él), y deja
+la sombra sin echar ni recibir sombra. El origen queda en el suelo entre los pies, y la figura mira a +Z en la web (a −Y
+en Blender).
 
 **Se comprueba antes de escribir, y para si algo falla:** los pies en el suelo, la cofia a la altura de una persona, la
 cara por delante de la cabeza, lo que baja hasta la altura de la base de la mesa dentro de la huella de los pies (lo
-único que la base respeta: ver `radioDeLosPies` en `src/lib/mesaDeArsenalera.ts`), nada por delante de la funda de la
-mesa y el peso bajo el tope del contrato.
+único que la base respeta: ver `radioDeLosPies` en `src/lib/mesaDeArsenalera.ts`), que ninguna malla que baje de la
+bandeja llegue a la funda de la mesa (lo que pasa sobre la funda tiene que ir por encima de la bandeja), que nada vaya
+más allá de lo que alcanzan sus manos (`alcanceDeLasManos`), la falda en su radio y el peso bajo el tope del contrato.
 """
 
 import argparse
@@ -59,7 +71,8 @@ import numpy as np
 
 AQUI = Path(__file__).resolve().parent
 RAIZ = AQUI.parent.parent
-FUENTE = AQUI / 'salida' / 'arsenalera_manual' / 'arsenalera_manual.blend'
+# La de las manos en la mesa (D-424). La de los brazos abajo, `arsenalera_manual.blend`, sale con `--fuente`.
+FUENTE = AQUI / 'salida' / 'arsenalera_manual' / 'arsenalera_mesa.blend'
 PABELLON = RAIZ / 'privado' / 'pabellon'
 ARCHIVO = 'arsenalera-persona.glb'
 MEDIDAS = RAIZ / 'src' / 'lib' / 'mesaDeArsenalera.ts'
@@ -71,6 +84,9 @@ PIEZAS_DE_LA_FIGURA = {'bata': 'bata', 'pantalon': 'pantalon', 'guantes': 'guant
 RUGOSIDAD = {'bata': 0.85, 'pantalon': 0.85, 'guantes': 0.42, 'zapatos': 0.42}
 # Lo que cuelga la funda de la mesa desde el eje de la bandeja (comentario de `delEjeDeLaBandejaALaPersona`).
 FUNDA_DESDE_EL_EJE = 0.246
+# Lo que tiene que quedar entre la bandeja y lo que pasa sobre ella: los guantes bajan hasta 1,00 m y la bandeja está a
+# 0,98. Con menos, una mano que se hundiera en la compresa pasaría la comprobación.
+SOBRE_LA_BANDEJA = 0.01
 TOPE_DEL_PESO = 1.2 * 1024 * 1024
 
 
@@ -91,7 +107,8 @@ def medidas_del_simulador():
     """Las medidas de la sala que se comprueban, leídas de donde las usa el simulador: copiadas aquí se desfasarían."""
     texto = MEDIDAS.read_text(encoding='utf-8')
     salida = {}
-    for nombre in ('radioDeLosPies', 'radioDeLaPersona', 'delEjeDeLaBandejaALaPersona'):
+    for nombre in ('radioDeLosPies', 'radioDeLaPersona', 'delEjeDeLaBandejaALaPersona', 'alturaDeLaBandeja',
+                   'alcanceDeLasManos'):
         m = re.search(rf'\b{nombre}:\s*([0-9.]+)', texto)
         if not m:
             raise SystemExit(f'No encuentro {nombre} en {MEDIDAS}.')
@@ -145,6 +162,14 @@ def cajas(doc):
     for raiz in doc['scenes'][0]['nodes']:
         recorrer(raiz, np.eye(4), [])
     return resultado
+
+
+def hijos(doc, nombre):
+    """Los nombres de los nodos que cuelgan directamente del nodo `nombre`."""
+    for nodo in doc['nodes']:
+        if nodo.get('name') == nombre:
+            return [doc['nodes'][i].get('name') for i in nodo.get('children', [])]
+    return []
 
 
 def abrir_una_copia(fuente):
@@ -320,6 +345,7 @@ def partir_la_figura(figura):
             continue
         bm = bmesh.new()
         bm.from_mesh(entera.data)
+        sin_pesos(bm)
         otras = [f for f in bm.faces if f.material_index != i]
         bmesh.ops.delete(bm, geom=otras, context='FACES')
         malla = bpy.data.meshes.new(PIEZAS_DE_LA_FIGURA[nombre])
@@ -331,6 +357,46 @@ def partir_la_figura(figura):
         piezas[PIEZAS_DE_LA_FIGURA[nombre]] = ob
     bpy.data.objects.remove(entera, do_unlink=True)
     return piezas, uv
+
+
+def sin_pesos(bm):
+    """
+    Quita los pesos de los vértices. La figura de las manos en la mesa los trae de su esqueleto (D-424) y en la web va
+    quieta. Una malla nueva los hereda sin la lista de grupos que los nombra, y el exportador la da por no válida y la
+    corrige por su cuenta con `validate()`: mejor que no tenga nada que corregir salvo lo que ya traía.
+    """
+    for capa in list(bm.verts.layers.deform.values()):
+        bm.verts.layers.deform.remove(capa)
+
+
+def partir_por_la_altura(ob, altura):
+    """
+    Dos objetos con las caras de `ob`: las que tienen todos sus vértices a `altura` o más, y las demás. Las caras no se
+    cortan, solo se reparten, así que el borde queda con los mismos vértices a los dos lados y no se ve la costura. Si
+    una de las dos partes queda vacía, devuelve `None` en su lugar.
+    """
+    partes = []
+    for arriba in (True, False):
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        sin_pesos(bm)
+        sobran = [f for f in bm.faces if all(v.co.z >= altura for v in f.verts) != arriba]
+        bmesh.ops.delete(bm, geom=sobran, context='FACES')
+        if not bm.faces:
+            bm.free()
+            partes.append(None)
+            continue
+        malla = bpy.data.meshes.new(f'{ob.data.name}-{"arriba" if arriba else "abajo"}')
+        bm.to_mesh(malla)
+        bm.free()
+        # `to_mesh` lleva el índice de material de cada cara, pero no la lista de materiales, que es de la malla.
+        for m in ob.data.materials:
+            malla.materials.append(m)
+        nuevo = bpy.data.objects.new(f'{ob.name}-{"arriba" if arriba else "abajo"}', malla)
+        bpy.context.scene.collection.objects.link(nuevo)
+        partes.append(nuevo)
+    bpy.data.objects.remove(ob, do_unlink=True)
+    return partes
 
 
 def plano_de_sombra(medio, z=0.002):
@@ -490,13 +556,31 @@ def comprobar_el_glb(ruta, medidas):
         errores.append(f"la cofia llega a {c['gorro'][1][1]:.3f} m")
     if not (c['cara'][0][2] > 0 and c['cara'][1][2] > c['cabeza'][1][2] - 0.05):
         errores.append('la cara no queda por delante de la cabeza: ¿mira a +Z?')
-    frente = max(c[n][1][2] for n in c if n not in ('sombra', 'arsenalera-persona'))
     funda = medidas['delEjeDeLaBandejaALaPersona'] - FUNDA_DESDE_EL_EJE
-    if frente > funda - 0.02:
-        errores.append(f'lo más adelantado de ella ({frente:.3f}) llega a la funda de la mesa ({funda:.3f})')
-    tela = c['bata']
-    if max(-tela[0][0], tela[1][0], -tela[0][2], tela[1][2]) > medidas['radioDeLaPersona']:
-        errores.append('la bata sale de su radio')
+    sobre = medidas['alturaDeLaBandeja'] + SOBRE_LA_BANDEJA
+    alcance = medidas['alcanceDeLasManos']
+    # Malla por malla y no por grupos: el grupo `bata` junta la falda con las mangas que pasan sobre la bandeja. Lo que
+    # baja de la bandeja no puede llegar a la funda que cuelga de ella; lo que pasa por encima, sí, hasta donde llegan
+    # las manos, que es lo que suponen los sitios de `colocarALaArsenalera`.
+    mallas = [n['name'] for n in doc['nodes'] if 'mesh' in n and n.get('name') not in (None, 'sombra')]
+    for nombre in mallas:
+        lo, hi = c[nombre]
+        print(f'    {nombre}: de {lo[1]:.3f} a {hi[1]:.3f} m de alto, hasta {hi[2]:.3f} m por delante', flush=True)
+        if lo[1] < sobre and hi[2] > funda - 0.02:
+            errores.append(f'«{nombre}» baja a {lo[1]:.3f} m, más que la bandeja, y llega a {hi[2]:.3f} m por delante, '
+                           f'contra la funda a {funda:.3f}')
+        if hi[2] > alcance + 0.01:
+            errores.append(f'«{nombre}» llega a {hi[2]:.3f} m por delante, más de lo que alcanzan sus manos ({alcance:.2f})')
+    # La falda: lo de la bata que baja de la bandeja, que es lo que queda a la altura del colchón.
+    falda = [c[n] for n in hijos(doc, 'bata') if n in c and c[n][0][1] < sobre]
+    if not falda:
+        errores.append('nada de la bata baja de la bandeja: ¿está bien puesta la figura?')
+    else:
+        lo, hi = np.min([b[0] for b in falda], axis=0), np.max([b[1] for b in falda], axis=0)
+        radio = float(max(-lo[0], hi[0], -lo[2], hi[2]))
+        print(f'  la falda llega a {radio:.3f} m de su eje (su radio: {medidas["radioDeLaPersona"]:.3f})', flush=True)
+        if radio > medidas['radioDeLaPersona']:
+            errores.append(f'la falda de la bata sale de su radio: {radio:.3f} m')
     peso = Path(ruta).stat().st_size
     if peso >= TOPE_DEL_PESO:
         errores.append(f'pesa {peso / 1024:.0f} KB, más que el tope de {TOPE_DEL_PESO / 1024:.0f}')
@@ -505,7 +589,8 @@ def comprobar_el_glb(ruta, medidas):
     imagenes = sum(doc['bufferViews'][i['bufferView']]['byteLength'] for i in doc.get('images', []))
     print(f'  {peso / 1024:.0f} KB: {imagenes / 1024:.0f} KB de imágenes y {(peso - imagenes) / 1024:.0f} KB de lo demás',
           flush=True)
-    print(f"  cofia a {c['gorro'][1][1]:.3f} m; frente a {frente:.3f} m del eje (funda a {funda:.3f})", flush=True)
+    print(f"  cofia a {c['gorro'][1][1]:.3f} m; la funda a {funda:.3f} m de su eje y la bandeja a "
+          f"{medidas['alturaDeLaBandeja']:.2f} m del suelo", flush=True)
     print(f"  extensiones: {doc.get('extensionsUsed', [])}; obligatorias: {doc.get('extensionsRequired', [])}", flush=True)
     for m in doc.get('materials', []):
         print(f"    material {m.get('name')}: {m.get('alphaMode', 'OPAQUE')}{' dos caras' if m.get('doubleSided') else ''}",
@@ -583,19 +668,34 @@ def main():
             mascarilla.materials.append(m)
         ambar = color_de(vidrio, (0.9, 0.6, 0.2, 1.0))
         poner_material(piezas['gafas'], material_web('lentes', (ambar[0], ambar[1], ambar[2], 1.0), 0.05, alfa=0.3))
+        # Las cuatro piezas de la figura, partidas a la altura de la bandeja; después del material, para que las partes
+        # lo lleven sin repetir nada. No solo la bata: Tripo dejó una cara de guante en la cadera, donde la mano tocaba el
+        # muslo, y con ella en la misma malla que las manos la caja de los guantes bajaba de la bandeja.
+        for pieza in ('bata', 'pantalon', 'guantes', 'zapatos'):
+            arriba, abajo = partir_por_la_altura(piezas.pop(pieza), medidas['alturaDeLaBandeja'] + SOBRE_LA_BANDEJA)
+            if arriba is not None and abajo is not None:
+                piezas[f'{pieza}-arriba'], piezas[f'{pieza}-abajo'] = arriba, abajo
+            else:
+                piezas[pieza] = arriba or abajo
 
         print('Árbol:', flush=True)
         raiz = bpy.data.objects.new('arsenalera-persona', None)
         bpy.context.scene.collection.objects.link(raiz)
-        nombres = {
-            'bata': ('bata', 'bata.tela'), 'pantalon': ('pantalon', 'pantalon.tela'),
-            'guantes': ('guantes', 'guantes.nitrilo'), 'zapatos': ('zapatos', 'zapatos.cubrecalzado'),
+        # Una pieza que no se partió conserva el nombre de siempre; la partida va en `.arriba` y `.abajo`.
+        nombres = {}
+        for pieza, tela in (('bata', 'tela'), ('pantalon', 'tela'), ('guantes', 'nitrilo'), ('zapatos', 'cubrecalzado')):
+            nombres[pieza] = (pieza, f'{pieza}.{tela}')
+            nombres[f'{pieza}-arriba'] = (pieza, f'{pieza}.arriba')
+            nombres[f'{pieza}-abajo'] = (pieza, f'{pieza}.abajo')
+        nombres |= {
             'cabeza': ('cabeza', 'cabeza.piel'), 'cara': ('cara', 'cara.foto'), 'gorro': ('gorro', 'gorro.tela'),
             'ribete': ('gorro', 'gorro.ribete'), 'mascarilla': ('mascarilla', 'mascarilla.tela'),
             'gafas': ('gafas', 'gafas.lentes'),
         }
         grupos = {}
         for clave, (grupo, nombre) in nombres.items():
+            if clave not in piezas:
+                continue
             if grupo not in grupos:
                 g = bpy.data.objects.new(grupo, None)
                 bpy.context.scene.collection.objects.link(g)

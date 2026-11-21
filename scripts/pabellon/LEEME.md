@@ -158,8 +158,10 @@ vigila la parte de la sala de `tests/unit/mueblesDelPabellon.test.ts`.
 
 ## La arsenalera de pie
 
-`arsenalera_a_la_web.py` lleva al simulador la arsenalera que el dueño modela a mano: de
-`salida/arsenalera_manual/arsenalera_manual.blend` a `privado/pabellon/arsenalera-persona.glb` (D-418).
+`arsenalera_a_la_web.py` lleva al simulador la arsenalera que el dueño modela a mano a
+`privado/pabellon/arsenalera-persona.glb` (D-418). Desde D-424 la que viaja es
+`salida/arsenalera_manual/arsenalera_mesa.blend`, la copia con las manos a la altura de la bandeja y los codos
+doblados, que el dueño pintó después. La de los brazos abajo, `arsenalera_manual.blend`, sale con `--fuente`.
 
 ```bash
 blender --background --factory-startup --python scripts/pabellon/arsenalera_a_la_web.py
@@ -169,7 +171,8 @@ blender --background --factory-startup --python scripts/pabellon/arsenalera_a_la
   `salida/arsenalera_manual/` es del dueño, que sigue modelando ahí: no se borra, no se rehace y ningún guion
   escribe en ella.
 - El `.glb` publicado es una foto del `.blend` del momento en que se corrió. Para ver en el simulador lo último que
-  modeló el dueño, hay que volver a correrlo.
+  modeló o pintó el dueño, hay que volver a correrlo. La pintura viaja solo si guardó la imagen (Image → Save) antes
+  del `.blend`: sin eso, el `.blend` guarda la imagen de antes.
 - Sin opciones sale igual byte a byte que el publicado. Si cambia sin haber tocado el `.blend` ni el guion, algo de
   fuera cambió, como la versión de Blender.
 - `--destino <carpeta>` lo deja en otra parte, para probar sin pisar lo que viaja. `--fuente` lee otro `.blend`.
@@ -178,6 +181,9 @@ blender --background --factory-startup --python scripts/pabellon/arsenalera_a_la
 
 **Qué hace con cada pieza.** El detalle y el porqué están al principio del guion:
 - La figura se parte por material en `bata`, `pantalon`, `guantes` y `zapatos`, con sus atlas en 1024 y WebP.
+- Cada una de esas cuatro se parte además a un centímetro sobre la bandeja cuando tiene caras a los dos lados
+  (`bata.arriba` y `bata.abajo`): la prueba solo lee cajas, y en una sola la manga que pasa sobre la bandeja y la falda
+  que no puede llegar a la funda serían lo mismo.
 - La cabeza va con sus modificadores aplicados, menos la Subdivisión y la Solidificación de la cofia, que se simplifica.
 - Los lentes van sin transmisión.
 - La cara lleva la foto con su alfa.
@@ -187,7 +193,8 @@ blender --background --factory-startup --python scripts/pabellon/arsenalera_a_la
 **El guion para si algo falla.** Comprueba:
 - los pies en el suelo, la cofia a la altura de una persona y la cara por delante de la cabeza;
 - que lo que baja hasta la altura de las patas de la mesa quepa en `radioDeLosPies`;
-- que nada pase delante de la funda de la mesa;
+- que ninguna malla que baje de la bandeja llegue a la funda (lo que pasa sobre ella va por encima de la bandeja);
+- que nada pase de `alcanceDeLasManos`, y la falda de `radioDeLaPersona`;
 - el peso, bajo 1,2 MB.
 
 Las medidas las lee de `src/lib/mesaDeArsenalera.ts` y de `mobiliario.py`, no de una copia.

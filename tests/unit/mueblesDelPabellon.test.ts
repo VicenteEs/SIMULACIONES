@@ -176,6 +176,11 @@ describe('la arsenalera de pie (arsenalera-persona.glb)', () => {
   const c = cajas(doc)
   /** Todo lo de ella menos la sombra, que es un plano de un metro en el suelo y estiraría cualquier caja. */
   const PIEZAS = ['bata', 'pantalon', 'guantes', 'zapatos', 'cabeza', 'cara', 'gorro', 'mascarilla', 'gafas']
+  /**
+   * Donde el guion parte la bata, el pantalón, los guantes y el cubrecalzado (D-424): lo de arriba pasa sobre la
+   * bandeja y lo de abajo no puede llegar a la funda. Es el `SOBRE_LA_BANDEJA` de `arsenalera_a_la_web.py`.
+   */
+  const ALTURA_DEL_CORTE = M.alturaDeLaBandeja + 0.01
 
   it('trae los nodos que la escena pincha, y la cara de la foto', () => {
     // `mesaEnLaEscena.ts` arma las cajas del rayo con la bata, los guantes y el gorro. Los ojos y las cejas, que pidió el
@@ -203,25 +208,41 @@ describe('la arsenalera de pie (arsenalera-persona.glb)', () => {
     expect(c.get('cara')!.min.z).toBeGreaterThan(0)
   })
 
-  it('con los brazos abajo, nada de ella llega a la funda de su mesa', () => {
-    // La figura del dueño no apoya las manos en la bandeja (D-418): se para donde se paraba la anterior, que sí, y la
-    // bandeja le queda delante. Lo que no puede pasar es que algo suyo, una mano adelantada o la punta de un pie, se
-    // meta en la funda que cuelga de la bandeja. La funda se mide en su `.glb`: el poste va hacia −X, y a lo ancho, Z.
+  it('lo que baja de la bandeja no llega a la funda, y nada pasa de lo que alcanzan sus manos', () => {
+    // Desde D-424 tiene las manos sobre la bandeja: los antebrazos y los guantes pasan por encima de la funda, y está
+    // bien. Lo que no puede pasar es que algo que baja de la bandeja —la falda, una mano hundida, la punta de un pie— se
+    // meta en la funda que cuelga de ella. Por eso se mira malla por malla y no grupo por grupo: en la caja de la bata,
+    // la manga que pasa por arriba y la falda serían lo mismo, y no habría regla que sirviera. La funda se mide en su
+    // `.glb`: el poste va hacia −X, y a lo ancho, Z.
     const funda = cajas(leer('mesa-arsenalera.glb')).get('funda')!
     const fundaDesdeElEje = Math.max(-funda.min.z, funda.max.z)
-    const frente = Math.max(...PIEZAS.map((nombre) => c.get(nombre)!.max.z))
-    expect(frente).toBeLessThan(M.delEjeDeLaBandejaALaPersona - fundaDesdeElEje - 0.02)
+    const mallas = doc.nodes.flatMap((n) => (n.mesh !== undefined && n.name && n.name !== 'sombra' ? [n.name] : []))
+    // Sin mallas con nombre, el bucle no comprobaría nada y la prueba pasaría en falso.
+    expect(mallas.length).toBeGreaterThan(0)
+    for (const nombre of mallas) {
+      const caja = c.get(nombre)!
+      if (caja.min.y < ALTURA_DEL_CORTE) expect(caja.max.z, nombre).toBeLessThan(M.delEjeDeLaBandejaALaPersona - fundaDesdeElEje - 0.02)
+      // Más allá de donde caen sus manos, al costado de la mesa, se metería en el instrumental.
+      expect(caja.max.z, nombre).toBeLessThanOrEqual(M.alcanceDeLasManos + 0.01)
+    }
   })
 
-  it('cabe donde la ponen: los pies en su huella y la bata en su radio', () => {
+  it('cabe donde la ponen: los pies en su huella y la falda en su radio', () => {
     const zapatos = c.get('zapatos')!
     expect(Math.max(-zapatos.min.x, zapatos.max.x, -zapatos.min.z, zapatos.max.z)).toBeLessThanOrEqual(M.radioDeLosPies)
-    const tela = c.get('bata')!
-    expect(Math.max(-tela.min.x, tela.max.x, -tela.min.z, tela.max.z)).toBeLessThanOrEqual(M.radioDeLaPersona)
+    // La falda es lo de la bata que baja de la bandeja. Las mangas salen de su radio por fuerza, porque las manos llegan
+    // a 38 cm, pero pasan sobre la bandeja: lo que el radio guarda es el colchón, que está a la altura de su cadera.
+    const falda = new THREE.Box3()
+    for (const nombre of hijosDe(doc, 'bata')) {
+      const caja = c.get(nombre)!
+      if (caja.min.y < ALTURA_DEL_CORTE) falda.union(caja)
+    }
+    expect(falda.isEmpty()).toBe(false)
+    expect(Math.max(-falda.min.x, falda.max.x, -falda.min.z, falda.max.z)).toBeLessThanOrEqual(M.radioDeLaPersona)
     // El ruedo baja casi hasta el suelo, sin tocarlo. Que lo que baja hasta las patas de la mesa quepa en la huella de
     // los pies lo comprueba `arsenalera_a_la_web.py` al exportar: aquí se leen cajas, y la de la bata la abre la falda a
     // media pierna, donde ya no hay patas.
-    expect(tela.min.y).toBeGreaterThan(0.02)
+    expect(c.get('bata')!.min.y).toBeGreaterThan(0.02)
   })
 
   it('pesa poco para lo que es: la bajan todos los que abren un caso con ella puesta', () => {

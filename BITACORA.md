@@ -13536,6 +13536,64 @@ Desplegado el 2026-11-20 en `9419542`, con D-421 y D-422 en el mismo commit, a p
 - Contabo terminó a las 18:14 (Chile). Antes se hizo un respaldo verificado, `base-`/`medios-20261120-180631`, y el de su propio despliegue fue `base-20261120-181019`. El override era igual a la plantilla. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre; 4 procesos, salud 200 en `https://traumahub.cl`, la huella `estiradaPrevia` en `/app/.next/static`, y `sala.glb` sin sesión da 403 con `no-store`.
 - ved terminó a las 18:17, con respaldo `base-20261120-181529`, en claro como manda D-384. El mismo ensayo, 4 procesos, salud 200 por fuera, la misma huella y `sala.glb` sin sesión en 403.
 
+### D-424 · 2026-11-21 · vigente · pedido del dueño · amplía D-418 · supera en parte a D-418 (los brazos abajo, y la comprobación de que nada pase delante de la funda)
+**La arsenalera del simulador apoya las manos sobre la bandeja, con los codos doblados, y lleva la bata que pintó el dueño. La comprobación de la funda mira ahora, malla por malla, lo que baja de la bandeja.**
+
+*Qué pasó.* El dueño pidió una copia de su arsenalera con las manos a la altura de la mesa y los codos doblados, sin tocar su archivo. Se hizo en `scripts/pabellon/salida/arsenalera_manual/arsenalera_mesa.blend`, fuera de git como toda esa carpeta, con el método en `guiones-brazos/LEEME.md`. Después la pintó en Blender: la bata, el pantalón, los guantes y el cubrecalzado. Pidió subirla a ved y a Contabo.
+
+*La copia* (el detalle, en su LEEME):
+- Un esqueleto de brazos vivo sobre la figura de su archivo: el hombro adelantado 15°, el codo doblado hasta unos 99° entre brazo y antebrazo, la palma hacia abajo. Los guantes quedan entre 1,00 y 1,09 m del suelo, con la punta de los dedos a 38 cm por delante del eje, que es `alcanceDeLasManos`.
+- El brazo venía pegado al costado de la bata, porque Tripo lo modeló como una sola superficie. Se cortó por el fondo del pliegue, y cada labio se tapó con tela de la misma bata.
+- Dos defectos de Tripo que con los brazos abajo no se veían y con las manos en la mesa sí. El 0,8 % del atlas traía normales hacia adentro, bajo la axila y entre los dedos. Y el 43 % de cada mano venía pintado del color de la bata: las palmas, que el modelo de origen no veía.
+
+*La pintura del dueño*, en su guardado del 21-nov a las 01:00:51, comparada con la copia que se le entregó. El color es la mediana de lo que cambió:
+- bata: el 47,9 % de su superficie, a `#175E75`;
+- pantalón: el 69 %, a `#065149`;
+- guantes: el 93,4 %, a `#77AED0`;
+- cubrecalzado: el 37,7 %, a `#195975`.
+
+Las mallas, la pose y el mapa de normales no cambiaron. La pintura viaja: la textura del `.glb` se aparta 1,3 de 255 de su atlas pintado, y 18,8 del de antes. Llega porque guardó la imagen (Image → Save) antes que el `.blend`; sin eso, el `.blend` guarda la imagen de antes, como se probó en una copia.
+
+*El guion* (`scripts/pabellon/arsenalera_a_la_web.py`):
+- **Lee la copia de la mesa por omisión.** La de los brazos abajo sale con `--fuente`, y las comprobaciones valen para las dos.
+- **Parte la bata, el pantalón, los guantes y el cubrecalzado a un centímetro sobre la bandeja** (0,99 m) cuando tienen caras a los dos lados: `bata.arriba` y `bata.abajo`, `guantes.arriba` y `guantes.abajo`. La pieza que queda entera de un lado conserva su nombre de siempre (`zapatos.cubrecalzado`). Se ve igual. Es por la prueba, que solo lee cajas: en la caja de la bata, la manga que pasa sobre la funda y la falda que no puede llegar a ella eran lo mismo.
+- **La comprobación de la funda cambió.** Antes pedía que nada de ella pasara delante de la funda, y con las manos en la bandeja eso es imposible. Ahora mira malla por malla. Lo que baja de 0,99 m no llega a la funda, a 26,4 cm de su eje, con 2 cm de margen. Nada pasa de `alcanceDeLasManos`, con 1 cm de margen. Y la falda, que es lo de la bata que baja de la bandeja, cabe en `radioDeLaPersona`.
+- **Una cara de guante en la cadera.** La primera pasada se paró porque «guantes» bajaba a 0,934 m. Era un triángulo suelto que Tripo dejó en la cadera derecha, 5 cm detrás del eje, y que el esqueleto no mueve. Por eso se parten las cuatro piezas y no solo la bata: el triángulo queda en `guantes.abajo`, donde no estorba.
+- **Los pesos del esqueleto se quitan al partir.** La malla partida heredaba los pesos sin los nombres de sus grupos, y el exportador la daba por inválida («Mesh … is not valid») y la corregía a su manera. Queda un aviso, en `pantalon-abajo`: una cara repetida de Tripo, que ya estaba en la exportación de D-418.
+
+*Lo que mide al exportar:*
+- la falda llega a 27,7 cm de su eje, y su radio es 28;
+- lo más adelantado de lo que baja de la bandeja son las puntas de los pies, a 16,2 cm;
+- `bata.arriba` va de 0,99 a 1,41 m del suelo, y llega a 35,6 cm por delante;
+- `guantes.arriba` va de 1,000 a 1,089 m, y llega a 38,0 cm;
+- la cofia, a 1,676 m.
+
+*Junto a la mesa*, con el `.glb` publicado de la mesa y el de ella, en los tres sitios de `colocarALaArsenalera`. Se miden los vértices de los guantes contra la funda, la bandeja y el instrumental:
+
+| Sitio | Bandeja sin subir | Bandeja subida 35 cm |
+|---|---|---|
+| Costado | ningún vértice bajo la mesa; a 0,5 cm del instrumental, 1,5 de la funda y 2,0 de la bandeja | 10,7 cm bajo la funda |
+| Punta | el canto de una mano entra hasta 4,6 mm en el pliegue de la funda sobre el borde largo (28 vértices, ninguno a más de 5 mm) | 4,8 cm bajo la funda |
+| Poste | ningún vértice bajo la mesa; a 1,7 cm de la funda | 7,9 cm bajo la funda |
+
+En la punta las manos, de ±11 a ±23 cm de su eje, son más anchas que la bandeja, que llega a ±20. Pararla más lejos no lo arregla: el pliegue corre a lo largo de la bandeja, y ella quedaría con las manos fuera. Quedó anotado en `masAllaDeLaPunta`.
+
+*Las medidas de la sala no cambiaron.* Los sitios se calcularon con una figura que apoyaba las palmas a 38 cm, y esta vuelve a apoyarlas ahí. Cambiaron los comentarios de `mesaDeArsenalera.ts`, no los valores.
+
+*Qué se probó.*
+- `mueblesDelPabellon.test.ts`: «con los brazos abajo, nada llega a la funda» pasó a «lo que baja de la bandeja no llega a la funda, y nada pasa de lo que alcanzan sus manos», malla por malla. «La bata en su radio» pasó a «la falda en su radio». Con `archivosDelPabellon` y `mesaDeArsenalera`, pasan los 50 casos.
+- Tres exportaciones seguidas salen iguales byte a byte (sha256 `284f2f2f…`).
+- Fotos con Cycles del `.glb` publicado: junto a la mesa en los tres sitios, las manos de cerca y desde arriba, y la figura sola por los cuatro lados y en los pies.
+
+*Consecuencias.*
+- (+) Ella apoya las manos donde está el instrumental, como en un pabellón, y no espera con los brazos caídos.
+- (+) Se ve la bata que pintó el dueño.
+- (+) La regla de la funda vale para las dos figuras, la de la mesa y la de los brazos abajo.
+- (−) Pesa 711 KB (727 900 bytes), 21 más que la de D-418, por la geometría partida y la pintura, que comprime peor.
+- (−) En la punta, el canto de una mano entra 4,6 mm en la funda.
+- (−) Con la bandeja subida sobre el paciente, que es el sitio del poste y la mesa de Mayo, las manos quedan en el aire bajo la bandeja, a la altura de la bandeja sin subir. Es la postura estéril, con las manos por delante, pero no la alcanza.
+- (−) La copia sigue fuera de git, como su original. El `.glb` es una foto de su guardado de las 01:00:51 y en otra máquina no se puede rehacer.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el

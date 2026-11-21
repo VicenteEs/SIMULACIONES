@@ -69,25 +69,32 @@ export const MEDIDAS_DE_LA_SALA = {
   holguraAlColchon: 0.08,
   /**
    * Lo que alcanza con las manos por delante del eje de su cuerpo: a 38 cm cae lo que tiene a mano, a la altura de la
-   * bandeja sin subir (98 cm). Lo fijó la figura anterior, que apoyaba ahí las palmas. La del dueño (D-418) tiene los
-   * brazos abajo, y se conservó porque con ella la bandeja le queda delante, a un paso corto. Los sitios de abajo salen
-   * de aquí.
+   * bandeja sin subir (98 cm). Lo fijó la figura anterior, que apoyaba ahí las palmas. La del dueño tuvo los brazos
+   * abajo (D-418) y la medida se conservó, y desde D-424 sus manos vuelven a caer ahí: los guantes llegan a 38 cm, entre
+   * 1,00 y 1,09 m del suelo. Los sitios de abajo salen de aquí, y `arsenalera_a_la_web.py` no exporta una figura que
+   * pase de él.
    */
   alcanceDeLasManos: 0.38,
   /**
    * Del eje de la bandeja al eje de ella cuando se para a su lado: lo que alcanza (38 cm por delante) cae 13 cm dentro
-   * del eje, a siete del borde de la bandeja. Lo más adelantado de ella, las puntas de los pies a 16,2 cm de su eje,
-   * queda a 10 cm de la funda, que cuelga hasta 24,6 cm del eje de la bandeja. Con 55 cm la bandeja le quedaba fuera de
-   * alcance.
+   * del eje, a siete del borde de la bandeja, y ahí quedan sus manos desde D-424, medio centímetro sobre el
+   * instrumental. Lo más adelantado de lo que baja de la bandeja, las puntas de los pies a 16,2 cm de su eje, queda a
+   * 10 cm de la funda, que cuelga hasta 24,6 cm del eje de la bandeja. Con 55 cm la bandeja le quedaba fuera de alcance.
    */
   delEjeDeLaBandejaALaPersona: 0.51,
   /**
    * Del centro de la bandeja a ella cuando se para tras el poste: el pie del poste llega a 38,4 cm del centro, y con
-   * 70 cm lo más adelantado de ella queda a unos 16 cm de la funda (con la figura anterior, de manos por delante, eran
-   * dos). Es el sitio de la mesa de Mayo, que va subida sobre el paciente.
+   * 70 cm lo más adelantado de lo que baja de la bandeja, los pies, queda a unos 16 cm de la funda. Las manos, que desde
+   * D-424 van por delante como las de la figura anterior, quedan a 1,7 cm de ella con la bandeja sin subir, y a 7,9 por
+   * debajo con la bandeja subida sobre el paciente, que es el sitio de la mesa de Mayo.
    */
   detrasDelPoste: 0.7,
-  /** Del centro de la bandeja a ella cuando se para pasada la punta: lo que alcanza cae 22 cm dentro, a ocho del extremo. */
+  /**
+   * Del centro de la bandeja a ella cuando se para pasada la punta: lo que alcanza cae 22 cm dentro, a ocho del extremo.
+   * Ahí apoya las manos desde D-424, y el canto de una se hunde hasta 4,6 mm en el pliegue de la funda sobre el borde
+   * largo: las manos son más anchas que la bandeja. A la distancia del simulador no se ve; pararla más lejos no lo
+   * arregla, porque el pliegue corre a lo largo, y la dejaría con las manos fuera de la bandeja.
+   */
   masAllaDeLaPunta: 0.6,
 } as const
 
