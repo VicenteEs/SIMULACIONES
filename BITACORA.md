@@ -13657,6 +13657,25 @@ Pidió que fuera «en las carpetas que corresponde donde van las herramientas»,
 - (−) Al fijar la placa, la consola propone un cortical de 2,4 (`preferenciasDeLaPlacaFijada`), y la bandeja no lo tiene: su cortical más chico es el de 2,7. No se probó qué muestra entonces.
 - (−) No hay guía roscada de 1,8, ni la placa izquierda.
 
+Desplegado el 2026-11-20 en `61ea030`, a pedido del dueño («luego sube los dos a github y luego despliegalo en ambos servidores»). Antes de subir, en esta máquina:
+- `typecheck` y `lint` sin errores, con los 15 avisos de siempre.
+- `test:coverage` con la integración obligada: 7694 pasan y 7 fallan. Seis son las de siempre por el entorno (D-424).
+- La séptima es `barreraDeInstitucion`, «lo personal: solo lo suyo», y pasa corrida sola. `nombres()` busca cada id entre los de todas las tablas a la vez. En esta segunda pasada sobre la misma base, un id de `entradas` coincidió con uno de `patologias`, y la fila salió con el nombre equivocado.
+- El `build` como el de Docker, en un worktree aparte.
+
+Los despliegues:
+- ved terminó a las 22:23 (Chile), con respaldo `base-20261120-222129`, en claro como manda D-384. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre. Corren 4 procesos, y la salud da 200 por fuera.
+- Contabo terminó a las 22:30. Antes se hizo un respaldo verificado y cifrado, `base-`/`medios-20261120-221637`. El de su propio despliegue fue `base-20261120-222554`. El override era igual a la plantilla. El mismo ensayo, 4 procesos y salud 200 en `https://traumahub.cl`.
+
+*La carga del catálogo* se hizo en los dos servidores, después de desplegar:
+- El SQL de `scripts/instrumental-a-sql.ts` se filtró a los dos `slug` nuevos, porque también crea `broca-2-8`, que ningún servidor tiene.
+- Los `.glb` los escribió dentro del contenedor el usuario de la aplicación (`docker exec -i traumahub-app sh -c 'cat > …'`), como si los hubiera subido. `docker cp` les deja el dueño del anfitrión, y dentro del contenedor ni root puede cambiarlo, porque le falta `CAP_CHOWN`. Así quedaron con el dueño de lo que sube la aplicación: `1001:1000` en ved y `1001:1001` en Contabo.
+- En ved, una primera pasada con `docker cp` se paró en el `chown`. La copia que había dejado se quitó, comprobada por su huella, antes de repetir la carga.
+- En los dos servidores:
+  - los archivos tienen el sha256 de los publicados;
+  - las dos fichas quedaron unidas a su modelo, y el catálogo tiene 83 instrumentos;
+  - sin sesión, los dos archivos dan 403, igual que `broca-2-0.glb`.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
