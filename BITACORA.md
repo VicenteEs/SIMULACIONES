@@ -13594,6 +13594,10 @@ En la punta las manos, de ±11 a ±23 cm de su eje, son más anchas que la bande
 - (−) Con la bandeja subida sobre el paciente, que es el sitio del poste y la mesa de Mayo, las manos quedan en el aire bajo la bandeja, a la altura de la bandeja sin subir. Es la postura estéril, con las manos por delante, pero no la alcanza.
 - (−) La copia sigue fuera de git, como su original. El `.glb` es una foto de su guardado de las 01:00:51 y en otra máquina no se puede rehacer.
 
+Desplegado el 2026-11-20 en `b5b80f6`, a pedido del dueño («ahora subela a el servidor ved y contabo» y «sube la arcelanera de nuevo porque estaba mal pintada»), antes que la placa que pidió en el mismo mensaje. Antes de subir, en esta máquina: `typecheck` y `lint` sin errores (los 15 avisos de siempre). `test:coverage` con la integración obligada contra una base recién migrada: 7693 pasan y 6 fallan por el entorno. Son `directorioDeRespaldos` ×2; `tableroDeRevision`, que pasa con `TZ=America/Santiago`; y `agarrarElTrozo`, `alargarIncision` y `trazoEnReposo`, que buscan trozos de código con `\n` en archivos que el checkout dejó en CRLF y pasan con ellos en LF. El `build` como el de Docker, en un worktree aparte, porque en este checkout corre el `next start` de otra sesión.
+- ved terminó a las 21:32 (Chile), con respaldo `base-20261120-213010`, en claro como manda D-384. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre; 4 procesos y salud 200 por fuera. Dentro del contenedor, `arsenalera-persona.glb` tiene sus 727 900 bytes y el sha256 del publicado, y sin sesión da 403, como `sala.glb` (con `no-store`).
+- Contabo terminó a las 21:37. Antes se hizo un respaldo verificado, `base-`/`medios-20261120-212758`, y el de su propio despliegue fue `base-20261120-213309`. El override era igual a la plantilla. El mismo ensayo, 4 procesos, salud 200 en `https://traumahub.cl`, el mismo sha256 dentro del contenedor y los dos `.glb` sin sesión en 403.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
