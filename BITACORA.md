@@ -13806,6 +13806,25 @@ La forma salía del nombre (`formaDeLosAgujeros`: «LCP» es combinado) y valía
 - (−) La tercio de caña y las demás rectas siguen con la caja. Sobre un hueso redondo, la tercio de caña deja sus bordes a la altura de lo más alto del hueso, en vez de abrazarlo, y su centro queda unos 2 mm en el aire.
 - (−) Los `.glb` de la T, la L, la anatómica de tibia y la de gancho cambiaron. En ved y en Contabo hay que reemplazarlos con el mismo nombre de archivo, junto con los de D-426.
 
+Desplegado el 2026-11-21 en `6cc3691`, junto con D-426 (`d122ddf`), a pedido del dueño («Sí, sube y despliega»). Antes de subir, en esta máquina:
+- `typecheck` y `lint` sin errores, con los 15 avisos de siempre.
+- `test:coverage` con la integración obligada: 7712 pasan, y fallan solo las seis de siempre por el entorno (D-424).
+- El `build` como el de Docker, en un worktree aparte.
+
+Los despliegues:
+- ved terminó a las 09:36 (Chile), con respaldo `base-20261121-093421`, en claro como manda D-384. El ensayo dio 2 casos, 0 errores y los 2 avisos de siempre. Corren 4 procesos, y la salud da 200 por fuera.
+- Contabo terminó a las 09:43. Antes se hizo un respaldo verificado y cifrado, `base-`/`medios-20261121-093447`. El de su propio despliegue fue `base-20261121-093829`. El override era igual a la plantilla. El mismo ensayo, 4 procesos y salud 200 en `https://traumahub.cl`.
+- En los dos, el código servido trae `.muestras`, la cara de verdad, y `alturasDelModeloMm`, de D-426.
+
+*Los modelos* se cambiaron en los dos servidores, después de desplegar:
+- Los de la volar derecha, la T, la L, la anatómica de tibia y la de gancho se reemplazaron con el mismo nombre de archivo. Antes se comprobó por su huella que cada uno era el de antes. Otro archivo con ese nombre podría haber sido un retoque subido desde el taller, y pisarlo lo habría perdido sin aviso.
+- Cada uno se escribió al lado, con `.nuevo`, se comprobó su huella y se cambió de nombre. El cambio de nombre es de una vez: quien pidiera el modelo en ese momento recibía el de antes o el nuevo, nunca uno a medias.
+- En ved, los cuatro de D-427 eran de `1000:1000`, de un `docker cp` viejo. El cambio de nombre deja un archivo nuevo, así que quedaron con el dueño de lo que sube la aplicación, como el resto: `1001:1000` en ved y `1001:1001` en Contabo.
+- La volar izquierda se cargó con su ficha y su modelo. El SQL de `scripts/instrumental-a-sql.ts` se filtró a esa ficha y a los seis modelos; a los cinco que ya estaban solo les cambia el tamaño. Antes se ensayó en una base desechable, con las cinco fichas como en los servidores, y se deshizo con `ROLLBACK`.
+- El catálogo tiene 84 instrumentos, 11 sin modelo. Sin sesión, los seis archivos dan 403, igual que `broca-2-0.glb`.
+- Quien tenía el simulador abierto puede seguir hasta una hora con el modelo de antes, porque los archivos subidos salen con `private, max-age=3600` (`cacheDeArchivos.ts`).
+- No se probó en pantalla.
+
 ### O-014 · 2026-09-06 · alta · resuelta
 **Anotar el último acceso dejaba el inicio de sesión colgado varios minutos.**
 El gancho `afterLogin` escribía la fecha con `payload.update` sin pasarle el
